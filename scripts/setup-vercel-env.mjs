@@ -8,7 +8,7 @@ const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = resolve(root, ".env.local");
 const scope = process.env.VERCEL_SCOPE ?? "sonrie";
-const project = process.env.VERCEL_PROJECT ?? "texoma-monorepo";
+const project = process.env.VERCEL_PROJECT ?? "texoma-dashboard";
 
 const keys = [
   "MONGODB_URI",
@@ -28,6 +28,16 @@ const keys = [
   "GHL_LOCATION_ID",
   "GHL_BASE_URL",
   "GHL_SOURCE_CUSTOM_FIELD_ID",
+  "AUTH_USERNAME",
+  "AUTH_EMAIL",
+  "AUTH_PASSWORD",
+  "AUTH_SESSION_SECRET",
+  "RESET_TOKEN_SECRET",
+  "MAILGUN_API_KEY",
+  "MAILGUN_DOMAIN",
+  "SENDER_EMAIL",
+  "AUTH_SENDER_NAME",
+  "PASSWORD_RESET_WEB_BASE_URL",
 ];
 
 if (!existsSync(envPath)) {
@@ -57,6 +67,10 @@ for (const key of keys) {
     "NEXHEALTH_API_KEY",
     "SYNC_SECRET",
     "GHL_API_KEY",
+    "AUTH_PASSWORD",
+    "AUTH_SESSION_SECRET",
+    "RESET_TOKEN_SECRET",
+    "MAILGUN_API_KEY",
   ].includes(key);
 
   const envTargets = sensitive

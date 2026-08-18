@@ -1,0 +1,1604 @@
+{
+  "categories": [
+    "Extractions",
+    "Implants",
+    "Dentures",
+    "Partial Dentures",
+    "Other Surgery",
+    "Restorative Dentistry",
+    "Fixed (All-on-4)",
+    "Hygiene"
+  ],
+  "aoxCodes": [
+    "D6114",
+    "D6115",
+    "D6116",
+    "D6117"
+  ],
+  "aoxSoldCodes": [
+    "U-AOXS",
+    "U-AOXD",
+    "U-FMR"
+  ],
+  "warrantyCodes": {
+    "m6": [
+      "D5110.1",
+      "D5120.1",
+      "D5130.1",
+      "D5140.1",
+      "D5110.11",
+      "D5120.11"
+    ],
+    "y1": [
+      "D5110.4",
+      "D5120.4",
+      "D5130.4",
+      "D5120.44"
+    ],
+    "y3": [
+      "D5110.2",
+      "D5120.2",
+      "D5130.2",
+      "D5140.2",
+      "D5120.22"
+    ],
+    "y5": [
+      "D5110.3",
+      "D5120.3",
+      "D5130.3",
+      "D5140.3",
+      "D5120.33"
+    ]
+  },
+  "byCode": {
+    "D7111": {
+      "category": "Extractions",
+      "description": "Extraction, coronal remnants – primary tooth",
+      "volumeBucket": "extractions"
+    },
+    "D7140": {
+      "category": "Extractions",
+      "description": "Extraction, erupted tooth or exposed root (elevation and/or forceps removal)",
+      "volumeBucket": "extractions"
+    },
+    "D7210": {
+      "category": "Extractions",
+      "description": "Extraction, erupted tooth requiring removal of bone and/or sectioning of tooth, and including elevation of mucoperiosteal flap if indicated (surgical extraction)",
+      "volumeBucket": "extractions"
+    },
+    "D7220": {
+      "category": "Extractions",
+      "description": "Removal of impacted tooth – soft tissue",
+      "volumeBucket": "extractions"
+    },
+    "D7230": {
+      "category": "Extractions",
+      "description": "Removal of impacted tooth – partially bony",
+      "volumeBucket": "extractions"
+    },
+    "D7240": {
+      "category": "Extractions",
+      "description": "Removal of impacted tooth – completely bony",
+      "volumeBucket": "extractions"
+    },
+    "D7241": {
+      "category": "Extractions",
+      "description": "Removal of impacted tooth – completely bony, with unusual surgical complications",
+      "volumeBucket": "extractions"
+    },
+    "D7250": {
+      "category": "Extractions",
+      "description": "Removal of residual tooth roots (cutting procedure)",
+      "volumeBucket": "extractions"
+    },
+    "D7251": {
+      "category": "Extractions",
+      "description": "Coronectomy – intentional partial tooth removal",
+      "volumeBucket": "extractions"
+    },
+    "D6010": {
+      "category": "Implants",
+      "description": "Surgical placement of implant body: endosteal implant",
+      "volumeBucket": "implants"
+    },
+    "D6011": {
+      "category": "Implants",
+      "description": "Surgical access to an implant body (second stage implant surgery)",
+      "volumeBucket": "implants"
+    },
+    "D6012": {
+      "category": "Implants",
+      "description": "Surgical placement of interim implant body for transitional prosthesis: endosteal implant",
+      "volumeBucket": "implants"
+    },
+    "D6013": {
+      "category": "Implants",
+      "description": "Surgical placement of mini implant",
+      "volumeBucket": "implants"
+    },
+    "D6040": {
+      "category": "Implants",
+      "description": "Surgical placement: eposteal implant",
+      "volumeBucket": "implants"
+    },
+    "D6050": {
+      "category": "Implants",
+      "description": "Surgical placement: transosteal implant",
+      "volumeBucket": "implants"
+    },
+    "D6100": {
+      "category": "Implants",
+      "description": "Surgical removal of implant body",
+      "volumeBucket": "implants"
+    },
+    "D6049": {
+      "category": "Implants",
+      "description": "Scaling and debridement of a single implant in the presence of peri-implantitis (NEW 2026)",
+      "volumeBucket": "implants"
+    },
+    "D6081": {
+      "category": "Implants",
+      "description": "Scaling and debridement of a single implant in the presence of inflammation or mucositis, without flap entry and closure",
+      "volumeBucket": "implants"
+    },
+    "D6101": {
+      "category": "Implants",
+      "description": "Debridement of a peri-implant defect(s) and surface cleaning of exposed implant surfaces, including flap entry and closure",
+      "volumeBucket": "implants"
+    },
+    "D6102": {
+      "category": "Implants",
+      "description": "Debridement and osseous contouring of a peri-implant defect(s), including flap entry and closure",
+      "volumeBucket": "implants"
+    },
+    "D6103": {
+      "category": "Implants",
+      "description": "Bone graft for repair of peri-implant defect – does not include flap entry and closure",
+      "volumeBucket": "implants"
+    },
+    "D6104": {
+      "category": "Implants",
+      "description": "Bone graft at time of implant placement",
+      "volumeBucket": "implants"
+    },
+    "D6106": {
+      "category": "Implants",
+      "description": "Guided tissue regeneration – resorbable barrier, per implant",
+      "volumeBucket": "implants"
+    },
+    "D6107": {
+      "category": "Implants",
+      "description": "Guided tissue regeneration – non-resorbable barrier, per implant",
+      "volumeBucket": "implants"
+    },
+    "D6051": {
+      "category": "Implants",
+      "description": "Interim abutment – includes placement and removal",
+      "volumeBucket": "implants"
+    },
+    "D6056": {
+      "category": "Implants",
+      "description": "Prefabricated abutment – includes modification and placement",
+      "volumeBucket": "implants"
+    },
+    "D6057": {
+      "category": "Implants",
+      "description": "Custom fabricated abutment – includes placement",
+      "volumeBucket": "implants"
+    },
+    "D6058": {
+      "category": "Implants",
+      "description": "Abutment supported porcelain/ceramic crown",
+      "volumeBucket": "implants"
+    },
+    "D6059": {
+      "category": "Implants",
+      "description": "Abutment supported porcelain fused to metal crown (high noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6060": {
+      "category": "Implants",
+      "description": "Abutment supported porcelain fused to metal crown (predominantly base metal)",
+      "volumeBucket": "implants"
+    },
+    "D6061": {
+      "category": "Implants",
+      "description": "Abutment supported porcelain fused to metal crown (noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6062": {
+      "category": "Implants",
+      "description": "Abutment supported cast metal crown (high noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6063": {
+      "category": "Implants",
+      "description": "Abutment supported cast metal crown (predominantly base metal)",
+      "volumeBucket": "implants"
+    },
+    "D6064": {
+      "category": "Implants",
+      "description": "Abutment supported cast metal crown (noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6065": {
+      "category": "Implants",
+      "description": "Implant supported porcelain/ceramic crown",
+      "volumeBucket": "implants"
+    },
+    "D6066": {
+      "category": "Implants",
+      "description": "Implant supported crown – porcelain fused to metal (titanium, titanium alloys, high noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6067": {
+      "category": "Implants",
+      "description": "Implant supported crown – metal (titanium, titanium alloys, high noble metal)",
+      "volumeBucket": "implants"
+    },
+    "D6082": {
+      "category": "Implants",
+      "description": "Implant supported crown – porcelain fused to predominantly base alloys",
+      "volumeBucket": "implants"
+    },
+    "D6083": {
+      "category": "Implants",
+      "description": "Implant supported crown – porcelain fused to noble alloys",
+      "volumeBucket": "implants"
+    },
+    "D6084": {
+      "category": "Implants",
+      "description": "Implant supported crown – porcelain fused to titanium and titanium alloys",
+      "volumeBucket": "implants"
+    },
+    "D6086": {
+      "category": "Implants",
+      "description": "Implant supported crown – predominantly base alloys",
+      "volumeBucket": "implants"
+    },
+    "D6087": {
+      "category": "Implants",
+      "description": "Implant supported crown – noble alloys",
+      "volumeBucket": "implants"
+    },
+    "D6088": {
+      "category": "Implants",
+      "description": "Implant supported crown – titanium and titanium alloys",
+      "volumeBucket": "implants"
+    },
+    "D6094": {
+      "category": "Implants",
+      "description": "Abutment supported crown – titanium and titanium alloys",
+      "volumeBucket": "implants"
+    },
+    "D6085": {
+      "category": "Implants",
+      "description": "Interim implant crown",
+      "volumeBucket": "implants"
+    },
+    "D6091": {
+      "category": "Implants",
+      "description": "Replacement of replaceable part of semi-precision or precision attachment of implant/abutment supported prosthesis, per attachment",
+      "volumeBucket": "implants"
+    },
+    "D6095": {
+      "category": "Implants",
+      "description": "Repair implant abutment, by report",
+      "volumeBucket": "implants"
+    },
+    "D6096": {
+      "category": "Implants",
+      "description": "Remove broken implant retaining screw",
+      "volumeBucket": "implants"
+    },
+    "D6196": {
+      "category": "Implants",
+      "description": "Removal of indirect restoration on an implant-retained abutment (NEW 2026)",
+      "volumeBucket": "implants"
+    },
+    "D6190": {
+      "category": "Implants",
+      "description": "Radiographic/surgical implant index, by report",
+      "volumeBucket": "implants"
+    },
+    "D6199": {
+      "category": "Implants",
+      "description": "Unspecified implant procedure, by report",
+      "volumeBucket": "implants"
+    },
+    "D5110": {
+      "category": "Dentures",
+      "description": "Complete denture – maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5120": {
+      "category": "Dentures",
+      "description": "Complete denture – mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5130": {
+      "category": "Dentures",
+      "description": "Immediate denture – maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5140": {
+      "category": "Dentures",
+      "description": "Immediate denture – mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5410": {
+      "category": "Dentures",
+      "description": "Adjust complete denture – maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5411": {
+      "category": "Dentures",
+      "description": "Adjust complete denture – mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5511": {
+      "category": "Dentures",
+      "description": "Repair broken complete denture base, mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5512": {
+      "category": "Dentures",
+      "description": "Repair broken complete denture base, maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5520": {
+      "category": "Dentures",
+      "description": "Replace missing or broken teeth – complete denture (each tooth)",
+      "volumeBucket": "dentures"
+    },
+    "D5710": {
+      "category": "Dentures",
+      "description": "Rebase complete maxillary denture",
+      "volumeBucket": "dentures"
+    },
+    "D5711": {
+      "category": "Dentures",
+      "description": "Rebase complete mandibular denture",
+      "volumeBucket": "dentures"
+    },
+    "D5730": {
+      "category": "Dentures",
+      "description": "Reline complete maxillary denture (chairside)",
+      "volumeBucket": "dentures"
+    },
+    "D5731": {
+      "category": "Dentures",
+      "description": "Reline complete mandibular denture (chairside)",
+      "volumeBucket": "dentures"
+    },
+    "D5750": {
+      "category": "Dentures",
+      "description": "Reline complete maxillary denture (laboratory)",
+      "volumeBucket": "dentures"
+    },
+    "D5751": {
+      "category": "Dentures",
+      "description": "Reline complete mandibular denture (laboratory)",
+      "volumeBucket": "dentures"
+    },
+    "D5850": {
+      "category": "Dentures",
+      "description": "Tissue conditioning, maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5851": {
+      "category": "Dentures",
+      "description": "Tissue conditioning, mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5863": {
+      "category": "Dentures",
+      "description": "Overdenture – complete maxillary",
+      "volumeBucket": "dentures"
+    },
+    "D5864": {
+      "category": "Dentures",
+      "description": "Overdenture – complete mandibular",
+      "volumeBucket": "dentures"
+    },
+    "D5876": {
+      "category": "Dentures",
+      "description": "Add metal substructure to acrylic full denture (per arch)",
+      "volumeBucket": "dentures"
+    },
+    "D5877": {
+      "category": "Dentures",
+      "description": "Duplication of complete denture – maxillary (NEW 2026)",
+      "volumeBucket": "dentures"
+    },
+    "D5878": {
+      "category": "Dentures",
+      "description": "Duplication of complete denture – mandibular (NEW 2026)",
+      "volumeBucket": "dentures"
+    },
+    "D5211": {
+      "category": "Partial Dentures",
+      "description": "Maxillary partial denture – resin base (including retentive/clasping materials, rests and teeth)"
+    },
+    "D5212": {
+      "category": "Partial Dentures",
+      "description": "Mandibular partial denture – resin base (including retentive/clasping materials, rests and teeth)"
+    },
+    "D5213": {
+      "category": "Partial Dentures",
+      "description": "Maxillary partial denture – cast metal framework with resin denture bases"
+    },
+    "D5214": {
+      "category": "Partial Dentures",
+      "description": "Mandibular partial denture – cast metal framework with resin denture bases"
+    },
+    "D5221": {
+      "category": "Partial Dentures",
+      "description": "Immediate maxillary partial denture – resin base"
+    },
+    "D5222": {
+      "category": "Partial Dentures",
+      "description": "Immediate mandibular partial denture – resin base"
+    },
+    "D5223": {
+      "category": "Partial Dentures",
+      "description": "Immediate maxillary partial denture – cast metal framework with resin denture bases"
+    },
+    "D5224": {
+      "category": "Partial Dentures",
+      "description": "Immediate mandibular partial denture – cast metal framework with resin denture bases"
+    },
+    "D5225": {
+      "category": "Partial Dentures",
+      "description": "Maxillary partial denture – flexible base"
+    },
+    "D5226": {
+      "category": "Partial Dentures",
+      "description": "Mandibular partial denture – flexible base"
+    },
+    "D5227": {
+      "category": "Partial Dentures",
+      "description": "Immediate maxillary partial denture – flexible base"
+    },
+    "D5228": {
+      "category": "Partial Dentures",
+      "description": "Immediate mandibular partial denture – flexible base"
+    },
+    "D5282": {
+      "category": "Partial Dentures",
+      "description": "Removable unilateral partial denture – one piece cast metal (including clasps and teeth), maxillary"
+    },
+    "D5283": {
+      "category": "Partial Dentures",
+      "description": "Removable unilateral partial denture – one piece cast metal (including clasps and teeth), mandibular"
+    },
+    "D5284": {
+      "category": "Partial Dentures",
+      "description": "Removable unilateral partial denture – one piece flexible base (including clasps and teeth) – per quadrant"
+    },
+    "D5286": {
+      "category": "Partial Dentures",
+      "description": "Removable unilateral partial denture – one piece resin (including clasps and teeth) – per quadrant"
+    },
+    "D5421": {
+      "category": "Partial Dentures",
+      "description": "Adjust partial denture – maxillary"
+    },
+    "D5422": {
+      "category": "Partial Dentures",
+      "description": "Adjust partial denture – mandibular"
+    },
+    "D5611": {
+      "category": "Partial Dentures",
+      "description": "Repair resin partial denture base, mandibular"
+    },
+    "D5612": {
+      "category": "Partial Dentures",
+      "description": "Repair resin partial denture base, maxillary"
+    },
+    "D5621": {
+      "category": "Partial Dentures",
+      "description": "Repair cast partial framework, mandibular"
+    },
+    "D5622": {
+      "category": "Partial Dentures",
+      "description": "Repair cast partial framework, maxillary"
+    },
+    "D5630": {
+      "category": "Partial Dentures",
+      "description": "Repair or replace broken retentive clasping materials – per tooth"
+    },
+    "D5640": {
+      "category": "Partial Dentures",
+      "description": "Replace broken teeth – per tooth"
+    },
+    "D5650": {
+      "category": "Partial Dentures",
+      "description": "Add tooth to existing partial denture"
+    },
+    "D5660": {
+      "category": "Partial Dentures",
+      "description": "Add clasp to existing partial denture – per tooth"
+    },
+    "D5670": {
+      "category": "Partial Dentures",
+      "description": "Replace all teeth and acrylic on cast metal framework (maxillary)"
+    },
+    "D5671": {
+      "category": "Partial Dentures",
+      "description": "Replace all teeth and acrylic on cast metal framework (mandibular)"
+    },
+    "D5720": {
+      "category": "Partial Dentures",
+      "description": "Rebase maxillary partial denture"
+    },
+    "D5721": {
+      "category": "Partial Dentures",
+      "description": "Rebase mandibular partial denture"
+    },
+    "D5740": {
+      "category": "Partial Dentures",
+      "description": "Reline maxillary partial denture (chairside)"
+    },
+    "D5741": {
+      "category": "Partial Dentures",
+      "description": "Reline mandibular partial denture (chairside)"
+    },
+    "D5760": {
+      "category": "Partial Dentures",
+      "description": "Reline maxillary partial denture (laboratory)"
+    },
+    "D5761": {
+      "category": "Partial Dentures",
+      "description": "Reline mandibular partial denture (laboratory)"
+    },
+    "D5865": {
+      "category": "Partial Dentures",
+      "description": "Overdenture – partial maxillary"
+    },
+    "D5866": {
+      "category": "Partial Dentures",
+      "description": "Overdenture – partial mandibular"
+    },
+    "D7310": {
+      "category": "Other Surgery",
+      "description": "Alveoloplasty in conjunction with extractions – four or more teeth or tooth spaces, per quadrant"
+    },
+    "D7311": {
+      "category": "Other Surgery",
+      "description": "Alveoloplasty in conjunction with extractions – one to three teeth or tooth spaces, per quadrant"
+    },
+    "D7320": {
+      "category": "Other Surgery",
+      "description": "Alveoloplasty NOT in conjunction with extractions – four or more teeth or tooth spaces, per quadrant"
+    },
+    "D7321": {
+      "category": "Other Surgery",
+      "description": "Alveoloplasty NOT in conjunction with extractions – one to three teeth or tooth spaces, per quadrant"
+    },
+    "D7471": {
+      "category": "Other Surgery",
+      "description": "Removal of lateral exostosis (maxilla or mandible)"
+    },
+    "D7472": {
+      "category": "Other Surgery",
+      "description": "Removal of torus palatinus"
+    },
+    "D7473": {
+      "category": "Other Surgery",
+      "description": "Removal of torus mandibularis"
+    },
+    "D7485": {
+      "category": "Other Surgery",
+      "description": "Reduction of osseous tuberosity"
+    },
+    "D7953": {
+      "category": "Other Surgery",
+      "description": "Bone replacement graft for ridge preservation – per site"
+    },
+    "D7950": {
+      "category": "Other Surgery",
+      "description": "Osseous, osteoperiosteal, or cartilage graft of the mandible or maxilla – autogenous or nonautogenous, by report"
+    },
+    "D7951": {
+      "category": "Other Surgery",
+      "description": "Sinus augmentation with bone or bone substitutes via a lateral open approach"
+    },
+    "D7952": {
+      "category": "Other Surgery",
+      "description": "Sinus augmentation via a vertical approach"
+    },
+    "D4263": {
+      "category": "Other Surgery",
+      "description": "Bone replacement graft – retained natural tooth – first site in quadrant"
+    },
+    "D4264": {
+      "category": "Other Surgery",
+      "description": "Bone replacement graft – retained natural tooth – each additional site in quadrant"
+    },
+    "D4265": {
+      "category": "Other Surgery",
+      "description": "Biologic materials to aid in soft and osseous tissue regeneration, per site"
+    },
+    "D4266": {
+      "category": "Other Surgery",
+      "description": "Guided tissue regeneration (membrane) – resorbable barrier, per site"
+    },
+    "D4267": {
+      "category": "Other Surgery",
+      "description": "Guided tissue regeneration (membrane) – non-resorbable barrier, per site"
+    },
+    "D4273": {
+      "category": "Other Surgery",
+      "description": "Autogenous connective tissue graft procedure (incl. donor & recipient sites) – first tooth/implant/edentulous position"
+    },
+    "D4283": {
+      "category": "Other Surgery",
+      "description": "Autogenous connective tissue graft procedure – each additional contiguous tooth/implant/edentulous position"
+    },
+    "D4275": {
+      "category": "Other Surgery",
+      "description": "Non-autogenous connective tissue graft (incl. recipient site and donor material) – first tooth/implant/edentulous position"
+    },
+    "D4285": {
+      "category": "Other Surgery",
+      "description": "Non-autogenous connective tissue graft – each additional contiguous tooth/implant/edentulous position"
+    },
+    "D7921": {
+      "category": "Other Surgery",
+      "description": "Collection and application of autologous blood concentrate product (e.g., PRF/PRP)"
+    },
+    "D2140": {
+      "category": "Restorative Dentistry",
+      "description": "Amalgam – one surface, primary or permanent"
+    },
+    "D2150": {
+      "category": "Restorative Dentistry",
+      "description": "Amalgam – two surfaces, primary or permanent"
+    },
+    "D2160": {
+      "category": "Restorative Dentistry",
+      "description": "Amalgam – three surfaces, primary or permanent"
+    },
+    "D2161": {
+      "category": "Restorative Dentistry",
+      "description": "Amalgam – four or more surfaces, primary or permanent"
+    },
+    "D2330": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – one surface, anterior"
+    },
+    "D2331": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – two surfaces, anterior"
+    },
+    "D2332": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – three surfaces, anterior"
+    },
+    "D2335": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – four or more surfaces or involving incisal angle (anterior)"
+    },
+    "D2391": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – one surface, posterior (REVISED 2026)"
+    },
+    "D2392": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – two surfaces, posterior"
+    },
+    "D2393": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – three surfaces, posterior"
+    },
+    "D2394": {
+      "category": "Restorative Dentistry",
+      "description": "Resin-based composite – four or more surfaces, posterior"
+    },
+    "D2940": {
+      "category": "Restorative Dentistry",
+      "description": "Protective restoration (sedative filling)"
+    },
+    "D2941": {
+      "category": "Restorative Dentistry",
+      "description": "Interim therapeutic restoration – primary dentition"
+    },
+    "D2949": {
+      "category": "Restorative Dentistry",
+      "description": "Restorative foundation for an indirect restoration"
+    },
+    "D2510": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – metallic – one surface"
+    },
+    "D2520": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – metallic – two surfaces"
+    },
+    "D2530": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – metallic – three or more surfaces"
+    },
+    "D2610": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – porcelain/ceramic – one surface"
+    },
+    "D2620": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – porcelain/ceramic – two surfaces"
+    },
+    "D2630": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – porcelain/ceramic – three or more surfaces"
+    },
+    "D2650": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – resin-based composite – one surface"
+    },
+    "D2651": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – resin-based composite – two surfaces"
+    },
+    "D2652": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay – resin-based composite – three or more surfaces"
+    },
+    "D2542": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – metallic – two surfaces"
+    },
+    "D2543": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – metallic – three surfaces"
+    },
+    "D2544": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – metallic – four or more surfaces"
+    },
+    "D2642": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – porcelain/ceramic – two surfaces"
+    },
+    "D2643": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – porcelain/ceramic – three surfaces"
+    },
+    "D2644": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – porcelain/ceramic – four or more surfaces"
+    },
+    "D2662": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – resin-based composite – two surfaces"
+    },
+    "D2663": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – resin-based composite – three surfaces"
+    },
+    "D2664": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay – resin-based composite – four or more surfaces"
+    },
+    "D2710": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – resin-based composite (indirect)"
+    },
+    "D2712": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – 3/4 resin-based composite (indirect)"
+    },
+    "D2720": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – resin with high noble metal"
+    },
+    "D2721": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – resin with predominantly base metal"
+    },
+    "D2722": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – resin with noble metal"
+    },
+    "D2740": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – porcelain/ceramic"
+    },
+    "D2750": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – porcelain fused to high noble metal"
+    },
+    "D2751": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – porcelain fused to predominantly base metal"
+    },
+    "D2752": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – porcelain fused to noble metal"
+    },
+    "D2753": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – porcelain fused to titanium and titanium alloys"
+    },
+    "D2780": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – 3/4 cast high noble metal"
+    },
+    "D2781": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – 3/4 cast predominantly base metal"
+    },
+    "D2782": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – 3/4 cast noble metal"
+    },
+    "D2783": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – 3/4 porcelain/ceramic"
+    },
+    "D2790": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – full cast high noble metal"
+    },
+    "D2791": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – full cast predominantly base metal"
+    },
+    "D2792": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – full cast noble metal"
+    },
+    "D2794": {
+      "category": "Restorative Dentistry",
+      "description": "Crown – titanium and titanium alloys"
+    },
+    "D2799": {
+      "category": "Restorative Dentistry",
+      "description": "Interim crown – further treatment or completion of diagnosis necessary prior to final impression"
+    },
+    "D2929": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated porcelain/ceramic crown – primary tooth"
+    },
+    "D2930": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated stainless steel crown – primary tooth"
+    },
+    "D2931": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated stainless steel crown – permanent tooth"
+    },
+    "D2932": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated resin crown"
+    },
+    "D2933": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated stainless steel crown with resin window"
+    },
+    "D2934": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated esthetic coated stainless steel crown – primary tooth"
+    },
+    "D2960": {
+      "category": "Restorative Dentistry",
+      "description": "Labial veneer (resin laminate) – direct (chairside)"
+    },
+    "D2961": {
+      "category": "Restorative Dentistry",
+      "description": "Labial veneer (resin laminate) – indirect (laboratory)"
+    },
+    "D2962": {
+      "category": "Restorative Dentistry",
+      "description": "Labial veneer (porcelain laminate) – indirect (laboratory)"
+    },
+    "D2950": {
+      "category": "Restorative Dentistry",
+      "description": "Core buildup, including any pins when required"
+    },
+    "D2951": {
+      "category": "Restorative Dentistry",
+      "description": "Pin retention – per tooth, in addition to restoration"
+    },
+    "D2952": {
+      "category": "Restorative Dentistry",
+      "description": "Post and core in addition to crown, indirectly fabricated"
+    },
+    "D2953": {
+      "category": "Restorative Dentistry",
+      "description": "Each additional indirectly fabricated post – same tooth"
+    },
+    "D2954": {
+      "category": "Restorative Dentistry",
+      "description": "Prefabricated post and core in addition to crown"
+    },
+    "D2957": {
+      "category": "Restorative Dentistry",
+      "description": "Each additional prefabricated post – same tooth"
+    },
+    "D2910": {
+      "category": "Restorative Dentistry",
+      "description": "Re-cement or re-bond inlay, onlay, veneer or partial coverage restoration"
+    },
+    "D2915": {
+      "category": "Restorative Dentistry",
+      "description": "Re-cement or re-bond indirectly fabricated or prefabricated post and core"
+    },
+    "D2920": {
+      "category": "Restorative Dentistry",
+      "description": "Re-cement or re-bond crown"
+    },
+    "D2921": {
+      "category": "Restorative Dentistry",
+      "description": "Reattachment of tooth fragment, incisal edge or cusp"
+    },
+    "D2980": {
+      "category": "Restorative Dentistry",
+      "description": "Crown repair necessitated by restorative material failure"
+    },
+    "D2981": {
+      "category": "Restorative Dentistry",
+      "description": "Inlay repair necessitated by restorative material failure"
+    },
+    "D2982": {
+      "category": "Restorative Dentistry",
+      "description": "Onlay repair necessitated by restorative material failure"
+    },
+    "D2983": {
+      "category": "Restorative Dentistry",
+      "description": "Veneer repair necessitated by restorative material failure"
+    },
+    "D6114": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported fixed denture for edentulous arch – maxillary",
+      "volumeBucket": "aox"
+    },
+    "D6115": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported fixed denture for edentulous arch – mandibular",
+      "volumeBucket": "aox"
+    },
+    "D6116": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported fixed denture for partially edentulous arch – maxillary",
+      "volumeBucket": "aox"
+    },
+    "D6117": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported fixed denture for partially edentulous arch – mandibular",
+      "volumeBucket": "aox"
+    },
+    "D6110": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported removable denture for edentulous arch – maxillary",
+      "volumeBucket": "aox"
+    },
+    "D6111": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported removable denture for edentulous arch – mandibular",
+      "volumeBucket": "aox"
+    },
+    "D6112": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported removable denture for partially edentulous arch – maxillary",
+      "volumeBucket": "aox"
+    },
+    "D6113": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant/abutment supported removable denture for partially edentulous arch – mandibular",
+      "volumeBucket": "aox"
+    },
+    "D6055": {
+      "category": "Fixed (All-on-4)",
+      "description": "Connecting bar – implant supported or abutment supported",
+      "volumeBucket": "aox"
+    },
+    "D6068": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for porcelain/ceramic FPD (fixed partial denture)",
+      "volumeBucket": "aox"
+    },
+    "D6069": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for porcelain fused to metal FPD (high noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6070": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for porcelain fused to metal FPD (predominantly base metal)",
+      "volumeBucket": "aox"
+    },
+    "D6071": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for porcelain fused to metal FPD (noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6072": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for cast metal FPD (high noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6073": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for cast metal FPD (predominantly base metal)",
+      "volumeBucket": "aox"
+    },
+    "D6074": {
+      "category": "Fixed (All-on-4)",
+      "description": "Abutment supported retainer for cast metal FPD (noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6075": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant supported retainer for ceramic FPD",
+      "volumeBucket": "aox"
+    },
+    "D6076": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant supported retainer for FPD – porcelain fused to metal (titanium, titanium alloys, high noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6077": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant supported retainer for metal FPD (titanium, titanium alloys, high noble metal)",
+      "volumeBucket": "aox"
+    },
+    "D6080": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant maintenance procedures when a full-arch fixed hybrid prosthesis is NOT removed, including cleaning of prosthesis and abutments",
+      "volumeBucket": "aox"
+    },
+    "D6280": {
+      "category": "Fixed (All-on-4)",
+      "description": "Implant maintenance procedures when a full-arch removable prosthesis is removed and reinserted, including cleaning of prosthesis and abutments (NEW 2026)",
+      "volumeBucket": "aox"
+    },
+    "D6090": {
+      "category": "Fixed (All-on-4)",
+      "description": "Repair implant supported prosthesis, by report",
+      "volumeBucket": "aox"
+    },
+    "D0120": {
+      "category": "Hygiene",
+      "description": "Periodic oral evaluation – established patient"
+    },
+    "D0140": {
+      "category": "Hygiene",
+      "description": "Limited oral evaluation – problem focused"
+    },
+    "D0145": {
+      "category": "Hygiene",
+      "description": "Oral evaluation for a patient under three years of age and counseling with primary caregiver"
+    },
+    "D0150": {
+      "category": "Hygiene",
+      "description": "Comprehensive oral evaluation – new or established patient"
+    },
+    "D0160": {
+      "category": "Hygiene",
+      "description": "Detailed and extensive oral evaluation – problem focused, by report"
+    },
+    "D0180": {
+      "category": "Hygiene",
+      "description": "Comprehensive periodontal evaluation – new or established patient (REVISED 2026)"
+    },
+    "D0210": {
+      "category": "Hygiene",
+      "description": "Intraoral – complete series of radiographic images (full mouth)"
+    },
+    "D0220": {
+      "category": "Hygiene",
+      "description": "Intraoral – periapical first radiographic image"
+    },
+    "D0230": {
+      "category": "Hygiene",
+      "description": "Intraoral – periapical each additional radiographic image"
+    },
+    "D0240": {
+      "category": "Hygiene",
+      "description": "Intraoral – occlusal radiographic image"
+    },
+    "D0270": {
+      "category": "Hygiene",
+      "description": "Bitewing – single radiographic image"
+    },
+    "D0272": {
+      "category": "Hygiene",
+      "description": "Bitewings – two radiographic images"
+    },
+    "D0273": {
+      "category": "Hygiene",
+      "description": "Bitewings – three radiographic images"
+    },
+    "D0274": {
+      "category": "Hygiene",
+      "description": "Bitewings – four radiographic images"
+    },
+    "D0277": {
+      "category": "Hygiene",
+      "description": "Vertical bitewings – 7 to 8 radiographic images"
+    },
+    "D0330": {
+      "category": "Hygiene",
+      "description": "Panoramic radiographic image"
+    },
+    "D0367": {
+      "category": "Hygiene",
+      "description": "Cone beam CT capture and interpretation – field of view of both jaws, with or without cranium"
+    },
+    "D0431": {
+      "category": "Hygiene",
+      "description": "Adjunctive pre-diagnostic test that aids in detection of mucosal abnormalities (oral cancer screening aid)"
+    },
+    "D1110": {
+      "category": "Hygiene",
+      "description": "Prophylaxis – adult"
+    },
+    "D1120": {
+      "category": "Hygiene",
+      "description": "Prophylaxis – child"
+    },
+    "D1206": {
+      "category": "Hygiene",
+      "description": "Topical application of fluoride varnish"
+    },
+    "D1208": {
+      "category": "Hygiene",
+      "description": "Topical application of fluoride – excluding varnish"
+    },
+    "D1310": {
+      "category": "Hygiene",
+      "description": "Nutritional counseling for control of dental disease"
+    },
+    "D1320": {
+      "category": "Hygiene",
+      "description": "Tobacco counseling for the control and prevention of oral disease"
+    },
+    "D1330": {
+      "category": "Hygiene",
+      "description": "Oral hygiene instructions"
+    },
+    "D1351": {
+      "category": "Hygiene",
+      "description": "Sealant – per tooth"
+    },
+    "D1353": {
+      "category": "Hygiene",
+      "description": "Sealant repair – per tooth"
+    },
+    "D1354": {
+      "category": "Hygiene",
+      "description": "Application of caries arresting medicament (e.g., silver diamine fluoride) – per tooth"
+    },
+    "D1355": {
+      "category": "Hygiene",
+      "description": "Caries preventive medicament application – per tooth"
+    },
+    "D4341": {
+      "category": "Hygiene",
+      "description": "Periodontal scaling and root planing – four or more teeth per quadrant"
+    },
+    "D4342": {
+      "category": "Hygiene",
+      "description": "Periodontal scaling and root planing – one to three teeth per quadrant"
+    },
+    "D4346": {
+      "category": "Hygiene",
+      "description": "Scaling in presence of generalized moderate or severe gingival inflammation – full mouth, after oral evaluation"
+    },
+    "D4355": {
+      "category": "Hygiene",
+      "description": "Full mouth debridement to enable a comprehensive oral evaluation and diagnosis on a subsequent visit"
+    },
+    "D4910": {
+      "category": "Hygiene",
+      "description": "Periodontal maintenance"
+    },
+    "D7240.1": {
+      "category": "Extractions",
+      "description": "SC - Ext Comp Bony",
+      "volumeBucket": "extractions"
+    },
+    "D7230.1": {
+      "category": "Extractions",
+      "description": "SC - Ext Part Bony",
+      "volumeBucket": "extractions"
+    },
+    "D7250.1": {
+      "category": "Extractions",
+      "description": "SC Extraction Residual Roots",
+      "volumeBucket": "extractions"
+    },
+    "D7220.1": {
+      "category": "Extractions",
+      "description": "SC - Ext Impacted Soft",
+      "volumeBucket": "extractions"
+    },
+    "D7140.2": {
+      "category": "Extractions",
+      "description": "Simple extraction-SC",
+      "volumeBucket": "extractions"
+    },
+    "D7210.2": {
+      "category": "Extractions",
+      "description": "Complex extraction-SC",
+      "volumeBucket": "extractions"
+    },
+    "D7140.1": {
+      "category": "Extractions",
+      "description": "Simple w/o dentures",
+      "volumeBucket": "extractions"
+    },
+    "D7210.1": {
+      "category": "Extractions",
+      "description": "Surgical w/o dentures",
+      "volumeBucket": "extractions"
+    },
+    "D7250.2": {
+      "category": "Extractions",
+      "description": "Root Tip w/o dentures",
+      "volumeBucket": "extractions"
+    },
+    "D5110.3": {
+      "category": "Dentures",
+      "description": "5- Year Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y5"
+    },
+    "D5120.3": {
+      "category": "Dentures",
+      "description": "5-Year Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y5"
+    },
+    "D5110.2": {
+      "category": "Dentures",
+      "description": "3-Year Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y3"
+    },
+    "D5120.2": {
+      "category": "Dentures",
+      "description": "3-Year Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y3"
+    },
+    "D5110.4": {
+      "category": "Dentures",
+      "description": "1-Year-Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y1"
+    },
+    "D5120.4": {
+      "category": "Dentures",
+      "description": "1-Year- Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y1"
+    },
+    "D5110.1": {
+      "category": "Dentures",
+      "description": "6-Month Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "D5120.1": {
+      "category": "Dentures",
+      "description": "6-Month Denture",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "D5130.3": {
+      "category": "Dentures",
+      "description": "5 YR-FR/",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y5"
+    },
+    "D5140.3": {
+      "category": "Dentures",
+      "description": "5-Yr-/FR",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y5"
+    },
+    "D5130.2": {
+      "category": "Dentures",
+      "description": "3 Yr-FR/",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y3"
+    },
+    "D5140.2": {
+      "category": "Dentures",
+      "description": "3- Yr-/FR",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y3"
+    },
+    "D5130.4": {
+      "category": "Dentures",
+      "description": "1 Yr FR/",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y1"
+    },
+    "5140.4": {
+      "category": "Dentures",
+      "description": "1-Yr/FR",
+      "volumeBucket": "dentures"
+    },
+    "D5130.1": {
+      "category": "Dentures",
+      "description": "6 Mo-FR/",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "D5140.1": {
+      "category": "Dentures",
+      "description": "6-Mo-/FR",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "N3334": {
+      "category": "Dentures",
+      "description": "1 Year- Choctaw",
+      "volumeBucket": "dentures"
+    },
+    "D5110.33": {
+      "category": "Dentures",
+      "description": "5 -Year Dentures",
+      "volumeBucket": "dentures"
+    },
+    "D5120.33": {
+      "category": "Dentures",
+      "description": "5-Year Dentures",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y5"
+    },
+    "D5110.22": {
+      "category": "Dentures",
+      "description": "3 -Year Dentures",
+      "volumeBucket": "dentures"
+    },
+    "D5120.22": {
+      "category": "Dentures",
+      "description": "3-Year Dentures",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y3"
+    },
+    "5110.44": {
+      "category": "Dentures",
+      "description": "1-Year Dentures",
+      "volumeBucket": "dentures"
+    },
+    "D5120.44": {
+      "category": "Dentures",
+      "description": "1-Yr Dentures",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "y1"
+    },
+    "D5110.11": {
+      "category": "Dentures",
+      "description": "6-Month Dentures",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "D5120.11": {
+      "category": "Dentures",
+      "description": "6-Month Dentures",
+      "volumeBucket": "dentures",
+      "warrantyBucket": "m6"
+    },
+    "5130.33": {
+      "category": "Dentures",
+      "description": "5Yr FR/",
+      "volumeBucket": "dentures"
+    },
+    "5140.33": {
+      "category": "Dentures",
+      "description": "5 Yr /FR",
+      "volumeBucket": "dentures"
+    },
+    "5130.22": {
+      "category": "Dentures",
+      "description": "3Yr FR/",
+      "volumeBucket": "dentures"
+    },
+    "5140.22": {
+      "category": "Dentures",
+      "description": "3 Yr /FR",
+      "volumeBucket": "dentures"
+    },
+    "5130.44": {
+      "category": "Dentures",
+      "description": "1 Yr FR/",
+      "volumeBucket": "dentures"
+    },
+    "5140.44": {
+      "category": "Dentures",
+      "description": "1 Yr /FR",
+      "volumeBucket": "dentures"
+    },
+    "5133.11": {
+      "category": "Dentures",
+      "description": "6Mo FR/",
+      "volumeBucket": "dentures"
+    },
+    "5140.11": {
+      "category": "Dentures",
+      "description": "6 Mo /FR",
+      "volumeBucket": "dentures"
+    },
+    "N5110.1": {
+      "category": "Dentures",
+      "description": "TCOG Denture",
+      "volumeBucket": "dentures"
+    },
+    "N5120.1": {
+      "category": "Dentures",
+      "description": "TCOG Denture",
+      "volumeBucket": "dentures"
+    },
+    "D5110.5": {
+      "category": "Dentures",
+      "description": "Complete Denture F/-SC",
+      "volumeBucket": "dentures"
+    },
+    "D5120.5": {
+      "category": "Dentures",
+      "description": "Complete Denture /F-SC",
+      "volumeBucket": "dentures"
+    },
+    "D5130.5": {
+      "category": "Dentures",
+      "description": "Immediate Fr/-SC",
+      "volumeBucket": "dentures"
+    },
+    "D5140.5": {
+      "category": "Dentures",
+      "description": "Immediate /Fr-SC",
+      "volumeBucket": "dentures"
+    },
+    "5750.1": {
+      "category": "Dentures",
+      "description": "Sooner PHL/",
+      "volumeBucket": "dentures"
+    },
+    "5751.1": {
+      "category": "Dentures",
+      "description": "Sooner /PHL",
+      "volumeBucket": "dentures"
+    },
+    "N4130": {
+      "category": "Dentures",
+      "description": "WTI",
+      "volumeBucket": "dentures"
+    },
+    "N4120": {
+      "category": "Dentures",
+      "description": "Denture Delivery",
+      "volumeBucket": "dentures"
+    },
+    "N8882": {
+      "category": "Dentures",
+      "description": "Before Photo",
+      "volumeBucket": "dentures"
+    },
+    "N8883": {
+      "category": "Dentures",
+      "description": "After photo",
+      "volumeBucket": "dentures"
+    },
+    "N7878": {
+      "category": "Dentures",
+      "description": "PHL",
+      "volumeBucket": "dentures"
+    },
+    "N7879": {
+      "category": "Dentures",
+      "description": "PHL",
+      "volumeBucket": "dentures"
+    },
+    "D5214.1": {
+      "category": "Partial Dentures",
+      "description": "SC - CMP / Upper"
+    },
+    "D5213.1": {
+      "category": "Partial Dentures",
+      "description": "SC - CMP / Lower"
+    },
+    "N5211": {
+      "category": "Partial Dentures",
+      "description": "Choctaw Partial"
+    },
+    "D7321.1": {
+      "category": "Other Surgery",
+      "description": "SC Alveo NO EXT 1-3"
+    },
+    "D7310.1": {
+      "category": "Other Surgery",
+      "description": "Alveo W Ext-SC"
+    },
+    "D7473.1": {
+      "category": "Other Surgery",
+      "description": "SC Torus mandibularis"
+    },
+    "N9248": {
+      "category": "Other Surgery",
+      "description": "Halcion"
+    },
+    "N9230": {
+      "category": "Other Surgery",
+      "description": "inhalation of nitrous oxide/analgesia, anxiolysis"
+    },
+    "D2330.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-1 Surf, Anterior"
+    },
+    "D2331.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-2 Surf, Anterior"
+    },
+    "D2332.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-3 Surf, Anterior"
+    },
+    "D2335.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-4+Surf, Anterior"
+    },
+    "D2394.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-4+ Surf, Posterior"
+    },
+    "D2393.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-3 Surf, Posterior"
+    },
+    "D2392.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-2 Surf, Posterior"
+    },
+    "D2391.1": {
+      "category": "Restorative Dentistry",
+      "description": "SC Composite-1 Surf, Posterior"
+    },
+    "N0000": {
+      "category": "Hygiene",
+      "description": "Oral B Toothbrush"
+    },
+    "N4545": {
+      "category": "Hygiene",
+      "description": "Waterpic"
+    },
+    "N1110": {
+      "category": "Hygiene",
+      "description": "Implant Prphy 2 or 4"
+    },
+    "N1110.1": {
+      "category": "Hygiene",
+      "description": "Implant Prphy more than 4"
+    },
+    "D1110.2": {
+      "category": "Hygiene",
+      "description": "Fixed Cleaning"
+    },
+    "D1110.1": {
+      "category": "Hygiene",
+      "description": "SC Prophy"
+    },
+    "U-AOXS": {
+      "category": "Fixed (All-on-4)",
+      "description": "AOX sold case marker (U-AOXS)",
+      "volumeBucket": "aox",
+      "isSoldCase": true
+    },
+    "U-AOXD": {
+      "category": "Fixed (All-on-4)",
+      "description": "AOX sold case marker (U-AOXD)",
+      "volumeBucket": "aox",
+      "isSoldCase": true
+    },
+    "U-FMR": {
+      "category": "Fixed (All-on-4)",
+      "description": "AOX sold case marker (U-FMR)",
+      "volumeBucket": "aox",
+      "isSoldCase": true
+    }
+  }
+}

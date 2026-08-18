@@ -1,0 +1,26 @@
+---
+description: React + TypeScript + Tailwind conventions for src/
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend (Next.js App Router)
+
+## Files
+
+- Split: page/container, presentational component, types, API call in `lib/`
+- Reuse `components/` and `lib/` clients before adding new ones
+- Tailwind utilities only — no inline CSS or ad-hoc style objects unless matching an existing exception (mockup theme vars in `globals.css` are allowed)
+
+## UI states
+
+Every data view must handle: loading, success, empty, error, retry. Disable submit while pending.
+
+## Metrics
+
+- Display values from server loaders / Route Handlers — never recompute cost-per / ROI in the client as the source of truth
+
+## Quality
+
+- Accessible: labels, keyboard, focus, meaningful ARIA where needed
+- Responsive by default (see `web-responsive.mdc`); one job per page/section

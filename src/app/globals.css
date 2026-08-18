@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* Clinical Teal — cool mint surfaces, deep teal nav, strong status contrast */
+:root {
+  --bg: #f0f9fb;
+  --sidebar: #0b3d4a;
+  --sidebar-2: #0f4d5c;
+  --sidebar-active: #156574;
+  --sidebar-text: #d5eef2;
+  --sidebar-muted: #8bb8c2;
+  --sidebar-line: #1a5a6a;
+  --card: #ffffff;
+  --ink: #0f3140;
+  --muted: #5a727c;
+  --line: #cfe3e8;
+  --accent: #0e7490;
+  --accent2: #0f766e;
+  --sand: #b45309;
+  --good: #15803d;
+  --warn: #c2410c;
+  --bad: #dc2626;
+  --notice-bg: #ecfeff;
+  --notice-border: #a5f3fc;
+  --badge-bg: #e6f7f4;
+  --badge-border: #99e2d5;
+  --c1: #0e7490;
+  --c2: #0f766e;
+  --c3: #b45309;
+  --c4: #0369a1;
+  --c5: #7c3aed;
+  --c6: #4d7c0f;
+  --c7: #dc2626;
+  --c8: #0f766e;
+  --background: var(--bg);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent2: var(--accent2);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-2: var(--sidebar-2);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-line: var(--sidebar-line);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-notice-bg: var(--notice-bg);
+  --color-notice-border: var(--notice-border);
+  --color-badge-bg: var(--badge-bg);
+  --color-badge-border: var(--badge-border);
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.animate-fade-up {
+  animation: fade-up 0.42s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 0.75s linear infinite;
+}

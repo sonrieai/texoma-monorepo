@@ -1,0 +1,39 @@
+---
+description: Mobile, tablet, and desktop responsive UI standards
+globs: src/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Responsive UI (mobile · tablet · desktop)
+
+Design mobile-first. Every screen must work at ~360px, ~768px, and ≥1024px.
+
+## Breakpoints (Tailwind)
+
+| Token | Min width | Use for |
+|-------|-----------|---------|
+| default | 0 | phones |
+| `sm:` | 640px | large phones |
+| `md:` | 768px | tablets |
+| `lg:` | 1024px | desktop |
+| `xl:` | 1280px | wide desktop |
+
+Prefer `md:` for tablet layout shifts and `lg:` for desktop-only chrome (sidebar).
+
+## Layout
+
+- Page shell: content `px-4 sm:px-6 md:px-8`, `max-w-*`; avoid fixed widths for charts
+- Stack on mobile (`flex-col`); row/grid from `md:` or `lg:`
+- Stats/grids: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` / `xl:grid-cols-4`
+- Sticky headers: keep height compact on mobile; hide secondary text until `sm:`/`md:`
+- No horizontal scroll — wrap / truncate long labels
+
+## Typography & touch
+
+- Body readable at 14–16px; inputs ≥16px on mobile where needed
+- Tap targets ≥ 44px
+- Sidebar may collapse / overlay on small screens
+
+## Motion
+
+- Respect `prefers-reduced-motion` for decorative animations

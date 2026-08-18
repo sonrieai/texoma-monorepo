@@ -1,0 +1,17 @@
+# Netlify — Texoma Dashboard (Next.js 16)
+# https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/
+# Next.js Runtime is applied automatically; do not pin @netlify/plugin-nextjs unless required.
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Optional: silence npm funding noise in build logs
+  NPM_FLAGS = "--no-fund --no-audit"
+
+# SPA-style redirects are NOT needed — App Router + API routes are handled by the Next runtime.
+
+# If framework detection ever fails in the UI, set:
+#   Build command: npm run build
+#   Publish directory: (leave blank / use Netlify Next.js default)

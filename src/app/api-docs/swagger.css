@@ -1,0 +1,76 @@
+/* Swagger UI shell — light panel on dark page header */
+.nexhealth-swagger {
+  background: #fff;
+  color: #3b4151;
+  min-height: calc(100vh - 140px);
+}
+
+.nexhealth-swagger .swagger-ui {
+  font-family: inherit;
+}
+
+.nexhealth-swagger .swagger-ui .topbar {
+  display: none;
+}
+
+.nexhealth-swagger .swagger-ui .info {
+  margin: 1rem 1.5rem 0;
+}
+
+.nexhealth-swagger .swagger-ui .info .title {
+  color: #1a1a2e;
+}
+
+.nexhealth-swagger .swagger-ui .info .description,
+.nexhealth-swagger .swagger-ui .info p,
+.nexhealth-swagger .swagger-ui .info li {
+  color: #3b4151;
+}
+
+.nexhealth-swagger .swagger-ui .scheme-container {
+  background: #fafafa;
+  box-shadow: none;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 0.75rem 1.5rem;
+}
+
+.nexhealth-swagger .swagger-ui .opblock-tag {
+  color: #1a1a2e;
+  border-bottom: 1px solid #e8e8e8;
+  margin: 0 1rem;
+}
+
+.nexhealth-swagger .swagger-ui .opblock-tag small {
+  color: #666;
+}
+
+.nexhealth-swagger .swagger-ui .opblock {
+  margin: 0 1rem 0.5rem;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.nexhealth-swagger .swagger-ui .opblock .opblock-summary-path {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.nexhealth-swagger .swagger-ui .opblock .opblock-summary-description {
+  color: #555;
+  font-size: 13px;
+}
+
+.nexhealth-swagger .swagger-ui section.models {
+  margin: 1rem;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+}
+
+.nexhealth-swagger .swagger-ui .model-box {
+  background: #fafafa;
+}
+
+/* Hide Swagger validator badge when spec is clean */
+.nexhealth-swagger .swagger-ui .validation-errors.errors-wrapper {
+  display: none;
+}

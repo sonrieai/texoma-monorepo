@@ -1,0 +1,35 @@
+---
+description: Production Cursor workflow — small scope, reuse first, no guessing
+alwaysApply: true
+---
+
+# Cursor engineering (Texoma Dashboard)
+
+Treat the agent as a senior engineer, not autocomplete.
+
+## Scope
+
+- One feature / one layer / one PR-sized change at a time
+- Prefer: types → client/mapper → Route Handler → UI → tests (do not generate everything at once)
+- Prefer explain architecture and wait when the user asks for design first
+
+## Reuse before create
+
+- Search the repo for an existing component, hook, service, schema, or util before adding a new one
+- Do not duplicate API client patterns — extend `src/lib/nexhealth` and `src/lib/ghl`
+
+## Structure
+
+- One responsibility per file (UI vs validation vs API vs mappers)
+- Prefer colocated feature folders when adding new domains; otherwise match `src/app` / `src/components` / `src/lib`
+- Keep React components ideally under ~200 lines (max ~250); split when larger
+
+## Quality defaults
+
+- Strong typing (no `any` unless unavoidable); no magic numbers — named constants
+- DRY: extract shared utils when duplicates appear; behavior unchanged
+- Comments only where intent is non-obvious
+
+## After each feature
+
+Review for: bugs, security, performance, accessibility, maintainability — then refactor if needed before commit.

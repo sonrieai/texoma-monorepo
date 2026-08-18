@@ -1,0 +1,71 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/dist
+
+# misc
+.DS_Store
+Thumbs.db
+desktop.ini
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# env files (commit .env.example only — no real secrets)
+.env*
+!.env.example
+
+# vercel / netlify local state
+.vercel
+.netlify
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local exports & scratch artifacts
+/exports/
+implant-practice-dashboard*.html
+
+# python (scripts/, .cursor/skills/)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# Cursor — local MCP config has machine-specific paths; rules/skills are OK to commit
+.cursor/mcp.json
+.cursor/**/__pycache__/
+.cursor/**/*.pyc
+
+# IDE (optional local settings)
+.vscode/
+.idea/
+*.swp
+*.swo

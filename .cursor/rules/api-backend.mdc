@@ -1,0 +1,27 @@
+---
+description: Next.js Route Handler layering for integrations and metrics
+globs: src/app/api/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Route Handlers
+
+## Layers
+
+```
+route (thin) → metrics/mapper → nexhealth|ghl client
+```
+
+- Business logic in `src/lib/metrics/` and mappers — not in Route Handlers
+- Money as integer cents in metrics lib when deriving CPL / ROI / production
+- Never import NexHealth/GHL clients into Client Components
+
+## API behavior
+
+- Explicit loading/error mapping via HTTP status codes and clear JSON errors
+- Unauthorized / validation / not-found / upstream failure handled distinctly
+- On upstream failure for read dashboards: prefer mock fallback with `{ source: "mock" }` rather than a blank page
+
+## Secrets
+
+- Read only from `process.env`; never return tokens or API keys in responses

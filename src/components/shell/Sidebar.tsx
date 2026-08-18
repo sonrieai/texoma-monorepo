@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { LIST_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
 import { parsePeriodParams, periodToSearchString } from "@/lib/ui/period";
 
@@ -307,7 +308,11 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
           })}
         </nav>
 
-        <div className="mt-auto shrink-0 border-t border-sidebar-line px-2 pt-3 text-[11px] text-sidebar-muted">
+        <div className="mt-auto shrink-0 space-y-2 px-1 pb-2 pt-2">
+          <LogoutButton variant="sidebar" />
+        </div>
+
+        <div className="shrink-0 border-t border-sidebar-line px-2 pt-3 text-[11px] text-sidebar-muted">
           <b className="block text-[12px] font-semibold text-sidebar-text">
             Texoma Dentures & Implants
           </b>

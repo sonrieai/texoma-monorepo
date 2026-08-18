@@ -89,6 +89,20 @@ body {
   line-height: 1.5;
 }
 
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+label[for],
+select,
+summary {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 .font-display {
   font-family: var(--font-display);
 }

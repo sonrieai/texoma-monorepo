@@ -2,17 +2,31 @@
 # Prerequisites: npx vercel login && npx vercel link --project texoma-dashboard --scope sonrie
 
 $ErrorActionPreference = "Stop"
-$envFile = Join-Path $PSScriptRoot ".." ".env.local" | Resolve-Path -ErrorAction SilentlyContinue
+$envFile = Join-Path (Join-Path $PSScriptRoot "..") ".env.local" | Resolve-Path -ErrorAction SilentlyContinue
 
 if (-not $envFile) {
   Write-Error ".env.local not found. Copy .env.example to .env.local and fill in values first."
 }
 
 $scope = if ($env:VERCEL_SCOPE) { $env:VERCEL_SCOPE } else { "sonrie" }
-$vercel = "npx vercel@latest"
+function Invoke-Vercel {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+  & npx vercel@latest @Args
+}
 
-Write-Host "Linking project texoma-dashboard (scope: $scope)..." -ForegroundColor Cyan
-& $vercel link --project texoma-dashboard --scope $scope --yes
+function Add-VercelEnv {
+  param([string]$Key, [string]$Value)
+  $temp = New-TemporaryFile
+  try {
+    Set-Content -Path $temp -Value $Value -NoNewline -Encoding utf8
+    Get-Content -Path $temp -Raw | Invoke-Vercel env add $Key production preview development --scope $scope --force
+  } finally {
+    Remove-Item -Path $temp -Force -ErrorAction SilentlyContinue
+  }
+}
+
+Write-Host "Linking project texoma-monorepo (scope: $scope)..." -ForegroundColor Cyan
+Invoke-Vercel link --project texoma-monorepo --scope $scope --yes
 
 $keys = @(
   "MONGODB_URI",
@@ -44,7 +58,7 @@ foreach ($key in $keys) {
   if (-not $value) { continue }
 
   Write-Host "Adding $key ..." -ForegroundColor Green
-  $value | & $vercel env add $key production preview development --scope $scope --force
+  Add-VercelEnv -Key $key -Value $value
 }
 
 Write-Host "Done. Redeploy: npx vercel deploy --prod --scope $scope" -ForegroundColor Cyan

@@ -4,7 +4,7 @@ Custom KPI dashboard for Texoma implant / denture practices.
 
 - **UI:** Next.js App Router + Tailwind (layout from implant-practice Canva/HTML mockup)
 - **EHR path:** Open Dental → **NexHealth Synchronizer** → this app (`src/lib/nexhealth`). We never talk to OD directly.
-- **Views:** Overview, Doctor, Patients by Area (NexHealth appointments / providers / patients)
+- **Views:** Overview, Doctor, Patients by Area (city-level geo — no patient directory)
 
 > **Open Dental Trial:** the [official trial](https://www.opendental.com/site/trial.html) **does not support the API or eServices**, so it cannot feed NexHealth. Use NexHealth sandbox (or a registered OD office with Synchronizer) for live data. Details: [docs/OD_NEXHEALTH_CONNECTION.md](docs/OD_NEXHEALTH_CONNECTION.md).
 
@@ -29,7 +29,7 @@ See [docs/NETLIFY.md](docs/NETLIFY.md). Repo includes [`netlify.toml`](netlify.t
 
 ## Docs for discovery
 
-- [docs/OD_NEXHEALTH_CONNECTION.md](docs/OD_NEXHEALTH_CONNECTION.md) — OD → NexHealth → dashboard + trial analysis
+- [docs/HIPAA_NO_EPHI.md](docs/HIPAA_NO_EPHI.md) — BAA checklist, allowed fields, NO-ePHI flow
 - [docs/DATA_ACCESS.md](docs/DATA_ACCESS.md) — what NexHealth / GHL can and cannot provide; Formulas tab → code map
 - [docs/FORMULAS_DR_QUESTIONS.md](docs/FORMULAS_DR_QUESTIONS.md) — KPI formula questions to freeze with Dr
 - [docs/FIELD_MAP.md](docs/FIELD_MAP.md) — field mapping draft for Beshoy
@@ -46,5 +46,4 @@ See [docs/NETLIFY.md](docs/NETLIFY.md). Repo includes [`netlify.toml`](netlify.t
 ## Health check
 
 `GET /api/health/nexhealth` — NexHealth auth smoke test  
-`GET /api/metrics/overview` — overview JSON (Mongo warehouse; same engine as `/overview`)  
-`GET /api/debug/nexhealth` — NexHealth endpoint inspector (JSON; requires `NEXHEALTH_DEBUG=1`)
+`GET /api/metrics/overview` — overview JSON (Mongo warehouse; same engine as `/overview`)

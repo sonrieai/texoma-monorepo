@@ -1,28 +1,22 @@
 /**
- * PHI-safe geographic aggregates — city-level counts from synced patient addresses.
- * Map coordinates geocoded from real OD address fields (Census / Nominatim).
+ * City-level geographic aggregates from the de-identified patient index.
+ * Geocodes city keys ("City, ST") — never street addresses.
  */
 
 import { geocodeAddressQueries, normalizeGeocodeKey } from "@/lib/geo/geocode";
 import { COLLECTIONS, getCollection, isMongoConfigured } from "@/lib/mongo/client";
-import type { ChargeDoc } from "@/lib/mongo/types";
-import { loadWarehousePatientRaws } from "@/lib/mongo/warehouse-patients";
-import type { NexPatient } from "@/lib/nexhealth/client";
+import type { ChargeDoc, PatientDoc } from "@/lib/mongo/types";
 import {
   aggregateProductionCentsByCity,
   TEXOMA_REGION_COUNTY_COUNT,
+  type PatientCityRow,
 } from "@/lib/nexhealth/geo-production";
 import {
   cityLabel,
   formatGeocodeQuery,
   hasGeocodableAddress,
-  indexPatientsByNexId,
-  resolvePatientAddress,
+  type PatientAddress,
 } from "@/lib/nexhealth/patient-address";
-import {
-  mapPatientDirectoryRows,
-  type PatientDirectoryRow,
-} from "@/lib/nexhealth/patients";
 import type { GeoCity } from "@/lib/types/viz";
 
 export type GeoSummary = {
@@ -49,13 +43,51 @@ type CityAgg = {
   sampleQuery: string | null;
 };
 
+export type PatientGeoIndex = PatientCityRow & {
+  inactive: boolean;
+};
+
+function addressFromIndex(p: PatientGeoIndex): PatientAddress {
+  return {
+    addressLine: null,
+    city: p.city,
+    state: p.state,
+    postalCode: p.zip,
+    county: null,
+    latitude: null,
+    longitude: null,
+  };
+}
+
+export async function loadPatientGeoIndex(): Promise<PatientGeoIndex[]> {
+  if (!isMongoConfigured()) {
+    throw new Error(
+      "Practice data warehouse is not configured. Set MONGODB_URI in .env.local and run npm run sync:nexhealth.",
+    );
+  }
+
+  const locationId = Number(process.env.NEXHEALTH_LOCATION_ID || 0);
+  if (!locationId) return [];
+
+  const docs = await getCollection<PatientDoc>(COLLECTIONS.patients).then((c) =>
+    c.find({ locationId }).toArray(),
+  );
+
+  return docs.map((d) => ({
+    patientId: d.patientId,
+    inactive: d.inactive,
+    city: d.geoCity,
+    state: d.geoState,
+    zip: d.geoZip,
+  }));
+}
+
 export async function loadGeoSummary(): Promise<GeoSummary> {
   const notices: string[] = [];
-  let patients: PatientDirectoryRow[] = [];
+  let patients: PatientGeoIndex[] = [];
 
   try {
-    const raw = await loadWarehousePatientRaws();
-    patients = mapPatientDirectoryRows(raw).filter((p) => !p.inactive);
+    patients = (await loadPatientGeoIndex()).filter((p) => !p.inactive);
   } catch (e) {
     return {
       available: false,
@@ -82,11 +114,13 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
     );
   }
 
-  const withAddress = patients.filter((p) => hasGeocodableAddress(p));
+  const withAddress = patients.filter((p) =>
+    hasGeocodableAddress(addressFromIndex(p)),
+  );
 
   if (withAddress.length === 0) {
     notices.push(
-      "No patient address fields in sync. Family records should include street, city, state, and ZIP.",
+      "No city/state/ZIP on the patient index. Re-run npm run sync:nexhealth:full.",
     );
     return {
       available: true,
@@ -122,44 +156,34 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
   }
 
   const byCity = new Map<string, CityAgg>();
-  const queriesToGeocode: string[] = [];
-  let patientsWithSyncCoords = 0;
 
   for (const p of withAddress) {
-    const label = cityLabel(p);
+    const addr = addressFromIndex(p);
+    const label = cityLabel(addr);
     if (!label) continue;
 
     let row = byCity.get(label);
     if (!row) {
       row = {
         city: label,
-        county: p.county,
+        county: null,
         patients: 0,
         latSum: 0,
         lonSum: 0,
         coordCount: 0,
-        sampleQuery: formatGeocodeQuery(p),
+        sampleQuery: formatGeocodeQuery(addr),
       };
       byCity.set(label, row);
     }
 
     row.patients += 1;
-    if (!row.county && p.county) row.county = p.county;
-    if (!row.sampleQuery) row.sampleQuery = formatGeocodeQuery(p);
-
-    if (p.latitude != null && p.longitude != null) {
-      row.latSum += p.latitude;
-      row.lonSum += p.longitude;
-      row.coordCount += 1;
-      patientsWithSyncCoords += 1;
-    }
+    if (!row.sampleQuery) row.sampleQuery = formatGeocodeQuery(addr);
   }
 
-  for (const row of [...byCity.values()].sort((a, b) => b.patients - a.patients)) {
-    if (row.coordCount === 0 && row.sampleQuery) {
-      queriesToGeocode.push(row.sampleQuery);
-    }
-  }
+  const queriesToGeocode = [...byCity.values()]
+    .filter((row) => row.coordCount === 0 && row.sampleQuery)
+    .sort((a, b) => b.patients - a.patients)
+    .map((row) => row.sampleQuery as string);
 
   const geocoded = await geocodeAddressQueries(queriesToGeocode);
   let geocodeHits = 0;
@@ -172,7 +196,7 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
     row.latSum = hit.lat;
     row.lonSum = hit.lon;
     row.coordCount = 1;
-    if (!row.county && hit.county) row.county = hit.county;
+    if (hit.county) row.county = hit.county;
     geocodeHits += 1;
   }
 
@@ -198,24 +222,23 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
   ).size;
 
   const patientsGeocoded = withAddress.filter((p) => {
-    if (p.latitude != null && p.longitude != null) return true;
-    const label = cityLabel(p);
+    const label = cityLabel(addressFromIndex(p));
     if (!label) return false;
     const row = byCity.get(label);
     return row != null && row.coordCount > 0;
   }).length;
 
   notices.push(
-    `${withAddress.length} patients with address · ${mapCities.length} cities on map (${patientsWithSyncCoords} synced coords, ${geocodeHits} cities geocoded from OD address).`,
+    `${withAddress.length} patients with city/ZIP · ${mapCities.length} cities on map (${geocodeHits} city keys geocoded).`,
   );
   if (withAddress.length > 0 && mapCities.length === 0) {
     notices.push(
-      "Address fields present but geocoding returned no matches — verify city/state/ZIP.",
+      "City/state present but geocoding returned no matches — verify city/state/ZIP.",
     );
   }
-  if (queriesToGeocode.length > geocodeHits && geocodeHits < queriesToGeocode.length) {
+  if (queriesToGeocode.length > geocodeHits) {
     notices.push(
-      `Geocoded ${geocodeHits} of ${queriesToGeocode.length} unique address(es) this load (cap ${60}/request). Refresh to resolve remaining cities.`,
+      `Geocoded ${geocodeHits} of ${queriesToGeocode.length} unique city key(s) this load. Refresh to resolve remaining cities.`,
     );
   }
 
@@ -234,20 +257,17 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
   };
 }
 
-/** Used by debug tooling to inspect raw address field coverage. */
-export function summarizePatientAddressFields(
-  patients: NexPatient[],
-): { total: number; withStreet: number; withCity: number; withState: number; withZip: number } {
-  let withStreet = 0;
+/** Debug tooling: coverage of de-identified geo fields. */
+export function summarizePatientGeoFields(
+  patients: PatientGeoIndex[],
+): { total: number; withCity: number; withState: number; withZip: number } {
   let withCity = 0;
   let withState = 0;
   let withZip = 0;
   for (const p of patients) {
-    const a = resolvePatientAddress(p, indexPatientsByNexId(patients));
-    if (a.addressLine) withStreet += 1;
-    if (a.city) withCity += 1;
-    if (a.state) withState += 1;
-    if (a.postalCode) withZip += 1;
+    if (p.city) withCity += 1;
+    if (p.state) withState += 1;
+    if (p.zip) withZip += 1;
   }
-  return { total: patients.length, withStreet, withCity, withState, withZip };
+  return { total: patients.length, withCity, withState, withZip };
 }

@@ -1,6 +1,6 @@
 import type { NexPatient } from "@/lib/nexhealth/client";
 
-/** Normalized address from NexHealth / Open Dental sync (PHI — geo + patients tab only). */
+/** Normalized city/state/ZIP from NexHealth (street is extracted at sync then discarded). */
 export type PatientAddress = {
   addressLine: string | null;
   city: string | null;
@@ -209,31 +209,19 @@ export function hasGeocodableAddress(addr: PatientAddress): boolean {
   if (addr.latitude != null && addr.longitude != null) return true;
   if (addr.city?.trim() && addr.state?.trim()) return true;
   if (addr.postalCode?.trim() && addr.state?.trim()) return true;
-  if (addr.addressLine?.trim() && (addr.city?.trim() || addr.postalCode?.trim())) {
-    return true;
-  }
-  // International / freeform OD address when city/state not mapped by NexHealth.
-  if (addr.addressLine?.trim() && addr.addressLine.trim().length >= 2) return true;
   return false;
 }
 
-/** Single-line query for US Census / Nominatim (derived from synced OD fields). */
+/** Single-line query for US Census / Nominatim — city/state/ZIP only (no street). */
 export function formatGeocodeQuery(addr: PatientAddress): string | null {
   if (addr.latitude != null && addr.longitude != null) return null;
 
-  const parts: string[] = [];
-  if (addr.addressLine) parts.push(addr.addressLine);
-  if (addr.city) parts.push(addr.city);
-  if (addr.state) parts.push(addr.state);
-  if (addr.postalCode) parts.push(addr.postalCode);
-  if (parts.length === 0) return null;
-
-  const hasCityState = Boolean(addr.city && addr.state);
-  const hasZipState = Boolean(addr.postalCode && addr.state);
-  if (!hasCityState && !hasZipState && !addr.addressLine) return null;
-  if (!hasCityState && !hasZipState && addr.addressLine) return addr.addressLine.trim();
-
-  return parts.join(", ");
+  const city = addr.city?.trim();
+  const state = addr.state?.trim();
+  const zip = addr.postalCode?.trim();
+  if (city && state) return `${city}, ${state}`;
+  if (zip && state) return `${zip}, ${state}`;
+  return null;
 }
 
 export function cityLabel(addr: PatientAddress): string | null {
@@ -241,9 +229,6 @@ export function cityLabel(addr: PatientAddress): string | null {
   if (!city) {
     if (addr.postalCode?.trim() && addr.state?.trim()) {
       return `ZIP ${addr.postalCode.trim()}, ${addr.state.trim()}`;
-    }
-    if (addr.addressLine?.trim() && !addr.state?.trim() && !addr.postalCode?.trim()) {
-      return addr.addressLine.trim();
     }
     return null;
   }

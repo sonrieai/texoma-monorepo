@@ -125,12 +125,38 @@ export function isSoonerCareCarrier(
   return SOONERCARE_CARRIER_PATTERN.test(carrier);
 }
 
+export type PatientCarrierRecord = {
+  id: number;
+  primaryInsuranceCarrier?: string | null;
+};
+
+function carrierFromPatient(
+  patient: NexPatient | PatientCarrierRecord,
+): string | null {
+  if (
+    "primaryInsuranceCarrier" in patient &&
+    typeof patient.primaryInsuranceCarrier === "string"
+  ) {
+    return patient.primaryInsuranceCarrier;
+  }
+  if ("id" in patient && "bio" in patient) {
+    return extractPrimaryInsuranceCarrier(patient as NexPatient);
+  }
+  if (
+    "primaryInsuranceCarrier" in patient &&
+    patient.primaryInsuranceCarrier === null
+  ) {
+    return null;
+  }
+  return extractPrimaryInsuranceCarrier(patient as NexPatient);
+}
+
 export function buildSoonerCarePatientSet(
-  patients: NexPatient[],
+  patients: Array<NexPatient | PatientCarrierRecord>,
 ): Set<number> {
   const set = new Set<number>();
   for (const patient of patients) {
-    if (isSoonerCareCarrier(extractPrimaryInsuranceCarrier(patient))) {
+    if (isSoonerCareCarrier(carrierFromPatient(patient))) {
       set.add(patient.id);
     }
   }

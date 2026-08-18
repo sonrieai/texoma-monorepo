@@ -2,7 +2,7 @@
 
 Draft for Beshoy discovery. Update status as sandbox responses are inspected.
 
-**Product note:** Overview / Doctor analytics are **appointment + production aggregates only** (no patient names, DOB, phone, email, address). Geo is deferred.
+**Product note:** Overview / Doctor analytics are **appointment + production aggregates only**. Geo uses city/state/ZIP only (no street, names, or contact). `/patients` is removed (NO-ePHI). See [HIPAA_NO_EPHI.md](./HIPAA_NO_EPHI.md).
 
 ## NexHealth
 
@@ -18,7 +18,7 @@ Draft for Beshoy discovery. Update status as sandbox responses are inspected.
 | Patient cancel | OD confirm **67** (drop from denom, like 66) | Same candidate fields as 66; frozen OD default = cancel, not miss |
 | Consult code | Procedure `code` **N9310** Complete | Conversion consult event; appointment type IDs / name heuristic = fallback |
 | Same-day sold | Procedure `code` **U-AOXS** / **U-AOXD** / **U-FMR** Complete same patient+day as consult | Conversion; else first non-consult Complete proc |
-| Patient address | `bio.address_*` (unused on analytics paths) | Geo **deferred** |
+| Patient city/ZIP | `bio.city` / `state` / `zip_code` (stripped at sync) | Geo city aggregates — **no street** |
 | New patient | `new_patient` query / patient flag | Deferred (count-only if added) |
 | EHR PatNum | `foreign_id` | Write-back / join later |
 | Procedure code | `/procedures` items | Confirm / may 404 |
@@ -29,15 +29,18 @@ Draft for Beshoy discovery. Update status as sandbox responses are inspected.
 | Location | `location_id` | Expected |
 | Write-back source note | `appt.note` or custom | Confirm |
 
-## GoHighLevel (stub interface)
+## GoHighLevel (read-only marketing)
 
-| Dashboard concept | GHL field (planned) | Status |
-|-------------------|---------------------|--------|
-| Lead created_at | contact/opportunity created | Stub |
-| Channel / source | attribution / UTM / pipeline source | Stub |
-| Booked consult | opportunity stage or calendar | Stub |
-| Ad spend | campaign spend import | Stub |
-| Pipeline stage | opportunity status | Stub |
+GHL is **outside** the warehouse. The dashboard fetches opportunities at page load, drops `contact` and opportunity `name` at parse, and never writes GHL payloads to Mongo. Sign a GHL BAA if the CRM stores patient names/phones.
+
+| Dashboard concept | GHL field | Status |
+|-------------------|-----------|--------|
+| Lead created_at | opportunity `createdAt` | Confirmed (aggregated) |
+| Channel / source | `attributions.utmSessionSource` / `source` | Confirmed |
+| Booked / showed / accepted | pipeline stage name → funnel tier | Confirmed |
+| Ad spend | ads platforms (not GHL CRM) | Deferred — always $0 |
+| Pipeline stage | opportunity `pipelineStageId` | Confirmed |
+| Contact name | `contact.name` | **Stripped** — not used in UI or warehouse |
 
 ## Derived metrics (`src/lib/metrics`)
 

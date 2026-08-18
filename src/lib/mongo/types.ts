@@ -1,6 +1,7 @@
 /**
  * Document shapes stored in the Texoma Mongo warehouse.
- * `raw` keeps the NexHealth payload so aggregators can reuse existing mappers.
+ * Patient docs are a de-identified index (no names/contact/`raw`).
+ * Other entities store PHI-stripped `raw` for existing aggregators.
  */
 
 import type {
@@ -12,7 +13,6 @@ import type {
   NexGuarantorBalance,
   NexInsuranceBalance,
   NexInsurancePlan,
-  NexPatient,
   NexPayment,
   NexProcedure,
   NexProvider,
@@ -87,11 +87,11 @@ export type TreatmentPlanDoc = WarehouseBase & {
 
 export type PatientDoc = WarehouseBase & {
   patientId: number;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
   inactive: boolean;
-  raw: NexPatient;
+  primaryInsuranceCarrier: string | null;
+  geoCity: string | null;
+  geoState: string | null;
+  geoZip: string | null;
 };
 
 export type GuarantorBalanceDoc = WarehouseBase & {

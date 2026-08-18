@@ -73,6 +73,21 @@ import {
   type NexProvider,
   type NexTreatmentPlan,
 } from "@/lib/nexhealth/client";
+import {
+  indexPatientsForPhiStrip,
+  PATIENT_PHI_UNSET_FIELDS,
+  slimNexAdjustment,
+  slimNexAppointment,
+  slimNexCharge,
+  slimNexClaim,
+  slimNexGuarantorBalance,
+  slimNexInsuranceBalance,
+  slimNexInsurancePlan,
+  slimNexPayment,
+  slimNexProcedure,
+  slimNexTreatmentPlan,
+  stripPhiFromNexPatient,
+} from "@/lib/mongo/phi-policy";
 import { resolveNpConsultTypeIds } from "@/lib/nexhealth/conversion";
 
 const LOOKBACK_DAYS = 365;
@@ -257,7 +272,7 @@ async function upsertAppointments(
       appointmentTypeId: appointmentTypeId(raw),
       startTime: raw.start_time ?? null,
       cancelled: Boolean(raw.cancelled),
-      raw,
+      raw: slimNexAppointment(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -291,7 +306,7 @@ async function upsertProcedures(
       procedureCode: raw.code ?? null,
       startDate: raw.start_date ?? null,
       status: raw.status ?? null,
-      raw,
+      raw: slimNexProcedure(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -325,7 +340,7 @@ async function upsertCharges(
       procedureCode: raw.procedure_code ?? null,
       chargedAt: raw.charged_at ?? null,
       deletedAt: raw.deleted_at ?? null,
-      raw,
+      raw: slimNexCharge(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -357,7 +372,7 @@ async function upsertPayments(
       providerId: typeof raw.provider_id === "number" ? raw.provider_id : null,
       paidAt: raw.paid_at ?? null,
       deletedAt: raw.deleted_at ?? null,
-      raw,
+      raw: slimNexPayment(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -389,7 +404,7 @@ async function upsertAdjustments(
       providerId: typeof raw.provider_id === "number" ? raw.provider_id : null,
       adjustedAt: raw.adjusted_at ?? null,
       deletedAt: raw.deleted_at ?? null,
-      raw,
+      raw: slimNexAdjustment(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -420,7 +435,7 @@ async function upsertTreatmentPlans(
       syncedAt,
       patientId: typeof raw.patient_id === "number" ? raw.patient_id : null,
       status: raw.status ?? null,
-      raw,
+      raw: slimNexTreatmentPlan(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -439,26 +454,27 @@ async function upsertPatients(
 ): Promise<number> {
   const col = await getCollection<PatientDoc>(COLLECTIONS.patients);
   const syncedAt = nowIso();
+  const byNexId = indexPatientsForPhiStrip(rows);
   let count = 0;
   for (const raw of rows) {
-    const id = nexId(raw);
-    if (id == null) continue;
+    const slim = stripPhiFromNexPatient(raw, byNexId);
+    if (!slim) continue;
     const doc: PatientDoc = {
       locationId,
       subdomain,
-      nexhealthId: id,
+      nexhealthId: slim.patientId,
       updatedAt: typeof raw.updated_at === "string" ? raw.updated_at : null,
       syncedAt,
-      patientId: id,
-      firstName: raw.first_name ?? null,
-      lastName: raw.last_name ?? null,
-      email: raw.email ?? null,
-      inactive: Boolean(raw.inactive),
-      raw,
+      patientId: slim.patientId,
+      inactive: slim.inactive,
+      primaryInsuranceCarrier: slim.primaryInsuranceCarrier,
+      geoCity: slim.geoCity,
+      geoState: slim.geoState,
+      geoZip: slim.geoZip,
     };
     await col.updateOne(
-      { locationId, nexhealthId: id },
-      { $set: doc },
+      { locationId, nexhealthId: slim.patientId },
+      { $set: doc, $unset: PATIENT_PHI_UNSET_FIELDS },
       { upsert: true },
     );
     count += 1;
@@ -486,7 +502,7 @@ async function upsertGuarantorBalances(
       updatedAt: raw.updated_at ?? null,
       syncedAt,
       guarantorId: typeof raw.guarantor_id === "number" ? raw.guarantor_id : null,
-      raw,
+      raw: slimNexGuarantorBalance(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -521,7 +537,7 @@ async function upsertClaims(
         typeof raw.primary_insurance_plan_id === "number"
           ? raw.primary_insurance_plan_id
           : null,
-      raw,
+      raw: slimNexClaim(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -554,7 +570,7 @@ async function upsertInsuranceBalances(
       syncedAt,
       patientId: typeof raw.patient_id === "number" ? raw.patient_id : null,
       guarantorId: typeof raw.guarantor_id === "number" ? raw.guarantor_id : null,
-      raw,
+      raw: slimNexInsuranceBalance(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },
@@ -584,7 +600,7 @@ async function upsertInsurancePlans(
       updatedAt: raw.updated_at ?? null,
       syncedAt,
       name: raw.name ?? null,
-      raw,
+      raw: slimNexInsurancePlan(raw),
     };
     await col.updateOne(
       { locationId, nexhealthId: id },

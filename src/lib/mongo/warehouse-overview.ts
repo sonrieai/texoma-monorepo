@@ -343,7 +343,10 @@ async function buildWarehouseOverview(
     charges: charges.map((d) => d.raw),
     payments: payments.map((d) => d.raw),
     adjustments: adjustments.map((d) => d.raw),
-    patients: patientDocs.map((d) => d.raw),
+    patients: patientDocs.map((d) => ({
+      id: d.patientId,
+      primaryInsuranceCarrier: d.primaryInsuranceCarrier,
+    })),
     cdt,
   });
 

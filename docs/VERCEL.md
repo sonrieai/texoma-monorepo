@@ -9,9 +9,9 @@ Config in repo: [`vercel.json`](../vercel.json).
 | Field | Value |
 |-------|-------|
 | Team | Sonrie (`sonrie`) |
-| Project | `texoma-dashboard` |
+| Project | `texoma-monorepo` |
 | Git repo | `sonrieai/texoma-monorepo` |
-| Dashboard | https://vercel.com/sonrie/texoma-dashboard |
+| Dashboard | https://vercel.com/sonrie/texoma-monorepo |
 
 ## Before first deploy
 
@@ -30,7 +30,9 @@ Config in repo: [`vercel.json`](../vercel.json).
 | `NEXHEALTH_API_VERSION` | Yes | `v3.0.0` |
 | `NEXHEALTH_NP_CONSULT_TYPE_IDS` | Recommended | Comma-separated appointment type ids |
 | `SYNC_SECRET` | Recommended | Protects `POST /api/sync/nexhealth` |
-| `NEXHEALTH_DEBUG` | Optional | Set `0` in production |
+| `NEXHEALTH_DEBUG` | **Set `0` in production** | Debug/proxy APIs return 404 in production anyway |
+| `SYNC_STRIP_PHI` | Yes (`1`) | Slim warehouse writes (default on unless `0`) |
+| `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Required for Vercel production builds |
 | `GHL_API_KEY` | Optional | GoHighLevel (later) |
 | `GHL_LOCATION_ID` | Optional | GoHighLevel (later) |
 | `GHL_BASE_URL` | Optional | GoHighLevel (later) |

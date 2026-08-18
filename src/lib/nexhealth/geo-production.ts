@@ -1,25 +1,44 @@
 import { nexPriceToCents, type NexCharge } from "@/lib/nexhealth/client";
 import { cityLabel } from "@/lib/nexhealth/patient-address";
-import type { PatientDirectoryRow } from "@/lib/nexhealth/patients";
 
 /** Texoma region county count (prototype reference map). */
 export const TEXOMA_REGION_COUNTY_COUNT = 10;
 
+/** De-identified geo row (city/state/ZIP only). */
+export type PatientCityRow = {
+  patientId: number;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+};
+
+function cityFromRow(p: PatientCityRow): string | null {
+  return cityLabel({
+    addressLine: null,
+    city: p.city,
+    state: p.state,
+    postalCode: p.zip,
+    county: null,
+    latitude: null,
+    longitude: null,
+  });
+}
+
 /** Map NexHealth patient id → city label for charge rollups. */
 export function buildPatientCityIndex(
-  patients: PatientDirectoryRow[],
+  patients: PatientCityRow[],
 ): Map<number, string> {
   const out = new Map<number, string>();
   for (const p of patients) {
-    const label = cityLabel(p);
-    if (label) out.set(p.nexId, label);
+    const label = cityFromRow(p);
+    if (label) out.set(p.patientId, label);
   }
   return out;
 }
 
 /** Sum charge production cents by patient city (mapped areas only). */
 export function aggregateProductionCentsByCity(
-  patients: PatientDirectoryRow[],
+  patients: PatientCityRow[],
   charges: NexCharge[],
 ): Map<string, number> {
   const patientCity = buildPatientCityIndex(patients);

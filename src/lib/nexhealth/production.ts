@@ -35,6 +35,7 @@ import { inferCategoryFromDescription } from "@/lib/cdt/infer-procedure-category
 import {
   buildSoonerCarePatientSet,
   isScProductionCharge,
+  type PatientCarrierRecord,
 } from "@/lib/nexhealth/sc-production";
 
 const PROCEDURE_MIX_TOP_N = 15;
@@ -479,7 +480,7 @@ export function summarizeProductionFromLedger(params: {
   charges: NexCharge[];
   payments: NexPayment[];
   adjustments: NexAdjustment[];
-  patients?: NexPatient[];
+  patients?: Array<NexPatient | PatientCarrierRecord>;
   notices?: string[];
   proceduresAvailable?: boolean;
   chargesAvailable?: boolean;

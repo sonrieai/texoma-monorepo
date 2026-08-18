@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { SwaggerPanel } from "@/components/api-docs/SwaggerPanel";
 import { isNexHealthDebugEnabled } from "@/lib/nexhealth/logger";
 import "@/app/api-docs/swagger.css";
@@ -5,6 +6,10 @@ import "@/app/api-docs/swagger.css";
 export const dynamic = "force-dynamic";
 
 export default function NexHealthApiDocsPage() {
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
   const debugEnabled = isNexHealthDebugEnabled();
 
   return (

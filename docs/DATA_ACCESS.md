@@ -33,7 +33,7 @@ SYNC_SECRET=...
 SYNC_NEXHEALTH_ENABLED=true
 ```
 
-Sign a [MongoDB Atlas BAA](https://www.mongodb.com/products/platform/trust/hipaa) before storing real office PHI.
+Sign a [MongoDB Atlas BAA](https://www.mongodb.com/products/platform/trust/hipaa) before any PHI-adjacent hosting. After NO-ePHI sync, Atlas stores IDs + city/ZIP only — see [HIPAA_NO_EPHI.md](./HIPAA_NO_EPHI.md).
 
 ## Formulas tab → code mapping
 
@@ -145,7 +145,7 @@ python scripts/sync-cdt-from-xlsx.py "C:\Users\RohitSahu\Downloads\TEXOMA OPEN D
 | `procedures`, `charges`, `payments`, `adjustments` | Production / collections |
 | `treatment_plans`, `guarantor_balances` | Conversion + AR |
 | `claims`, `insurance_balances`, `insurance_plans` | Insurance coordinator |
-| `patients` | Directory (PHI — auth before production) |
+| `patients` | De-identified index: `patientId`, inactive, carrier, city/state/ZIP |
 | `cdt_codes` | Flat List + Code Chart KPI map |
 
 ## Sync commands
@@ -171,7 +171,7 @@ curl -X POST http://localhost:5001/api/sync/nexhealth -H "x-sync-secret: $SYNC_S
 | Claims | `GET /claims` (`updated_since`) | Insurance submitted/paid/canceled, outstanding aging, payer mix |
 | Insurance balances | `GET /insurance_balances` | Insurance-only AR aging · days in AR |
 | Insurance plans | `GET /insurance_plans` | Payer names (Delta, SoonerCare, …) |
-| Patients | `updated_since` | Patients + geo (PHI) |
+| Patients | `updated_since` | Geo city index (no names) |
 
 ## Not from NexHealth — GHL / ads
 
@@ -187,7 +187,7 @@ curl -X POST http://localhost:5001/api/sync/nexhealth -H "x-sync-secret: $SYNC_S
 KPI formula blockers are listed under **Questions for Dr** above. Remaining engineering:
 
 1. Live Texoma institution subdomain vs Sonrie sandbox only.
-2. Auth gate on `/patients` before real PHI lands in Atlas.
+2. Auth required in Vercel production (`AUTH_SESSION_SECRET`). `/patients` removed — NO-ePHI.
 3. Whether NexHealth appointment payloads expose OD confirm codes 66 / 67 / 69.
 
 ## Integration stance

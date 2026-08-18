@@ -12,6 +12,7 @@ const REDACT_QUERY_KEYS = new Set([
 ]);
 
 export function isNexHealthDebugEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   const flag = process.env.NEXHEALTH_DEBUG?.trim().toLowerCase();
   if (flag === "1" || flag === "true" || flag === "yes") return true;
   if (flag === "0" || flag === "false" || flag === "no") return false;

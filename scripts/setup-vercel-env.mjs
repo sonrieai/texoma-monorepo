@@ -8,7 +8,7 @@ const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const envPath = resolve(root, ".env.local");
 const scope = process.env.VERCEL_SCOPE ?? "sonrie";
-const project = process.env.VERCEL_PROJECT ?? "texoma-dashboard";
+const project = process.env.VERCEL_PROJECT ?? "texoma-monorepo";
 
 const keys = [
   "MONGODB_URI",
@@ -24,6 +24,7 @@ const keys = [
   "NEXHEALTH_DEBUG",
   "SYNC_SECRET",
   "SYNC_NEXHEALTH_ENABLED",
+  "SYNC_STRIP_PHI",
   "GHL_API_KEY",
   "GHL_LOCATION_ID",
   "GHL_BASE_URL",
@@ -57,7 +58,9 @@ const parsed = Object.fromEntries(
 );
 
 for (const key of keys) {
-  const value = parsed[key]?.trim();
+  let value = parsed[key]?.trim();
+  if (!value && key === "SYNC_STRIP_PHI") value = "1";
+  if (key === "NEXHEALTH_DEBUG") value = "0";
   if (!value) continue;
 
   console.log(`Adding ${key}...`);

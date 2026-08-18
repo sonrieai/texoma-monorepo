@@ -112,7 +112,6 @@ type GhlAttribution = {
 
 type GhlOpportunity = {
   id: string;
-  name?: string;
   monetaryValue?: number | null;
   pipelineId?: string;
   pipelineStageId?: string;
@@ -128,7 +127,6 @@ type GhlOpportunity = {
   user?: { id?: string; name?: string | null } | null;
   assignedUser?: { id?: string; name?: string | null } | null;
   attributions?: GhlAttribution[];
-  contact?: { name?: string | null; tags?: string[] };
 };
 
 type FunnelTier = "lead" | "booked" | "showed" | "accepted" | "surgery";
@@ -306,6 +304,13 @@ async function listPipelines(config: GhlConfig): Promise<GhlPipeline[]> {
   return data.pipelines ?? [];
 }
 
+function slimGhlOpportunity(raw: GhlOpportunity): GhlOpportunity {
+  const rest = { ...raw };
+  delete (rest as { contact?: unknown }).contact;
+  delete (rest as { name?: unknown }).name;
+  return rest;
+}
+
 async function listOpportunitiesForPipeline(
   config: GhlConfig,
   pipelineId: string,
@@ -336,7 +341,7 @@ async function listOpportunitiesForPipeline(
       };
     }>(`/opportunities/search?${params.toString()}`, {}, config);
 
-    const batch = data.opportunities ?? [];
+    const batch = (data.opportunities ?? []).map(slimGhlOpportunity);
     out.push(...batch);
     if (batch.length < PAGE_SIZE || !data.meta?.nextPage) break;
     startAfter =

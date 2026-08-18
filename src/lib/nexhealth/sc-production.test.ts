@@ -51,6 +51,16 @@ describe("isSoonerCareCarrier", () => {
   });
 });
 
+describe("buildSoonerCarePatientSet", () => {
+  it("accepts slim warehouse carrier records (no bio)", () => {
+    const set = buildSoonerCarePatientSet([
+      { id: 7, primaryInsuranceCarrier: "SoonerCare" },
+      { id: 8, primaryInsuranceCarrier: "Delta Dental" },
+    ]);
+    assert.deepEqual([...set], [7]);
+  });
+});
+
 describe("extractPrimaryInsuranceCarrier", () => {
   it("reads nested bio primary insurance", () => {
     const carrier = extractPrimaryInsuranceCarrier({

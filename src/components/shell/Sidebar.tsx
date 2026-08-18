@@ -19,7 +19,9 @@ const NAV = [
 
 const SETTINGS_LINKS = [
   { href: "/settings/procedure-codes", label: "Procedure codes" },
-  { href: "/api-docs", label: "NexHealth API (Swagger)" },
+  ...(process.env.NODE_ENV === "production"
+    ? []
+    : [{ href: "/api-docs", label: "NexHealth API (Swagger)" }]),
 ] as const;
 
 const SIDEBAR_PROVIDER_LIMIT = LIST_PAGE_SIZE;

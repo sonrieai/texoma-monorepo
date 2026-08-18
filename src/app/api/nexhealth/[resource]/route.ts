@@ -16,15 +16,8 @@ type RouteContext = { params: Promise<{ resource: string }> };
  * Requires NEXHEALTH_DEBUG=1 (or development).
  */
 export async function GET(request: Request, context: RouteContext) {
-  if (!isNexHealthDebugEnabled()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "NexHealth proxy is disabled. Set NEXHEALTH_DEBUG=1 in .env.local and restart.",
-      },
-      { status: 403 },
-    );
+  if (process.env.NODE_ENV === "production" || !isNexHealthDebugEnabled()) {
+    return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 
   const { resource: rawResource } = await context.params;

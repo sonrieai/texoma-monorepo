@@ -19,15 +19,8 @@ function sampleItems(items: unknown[], limit = 3): unknown[] {
  * Requires NEXHEALTH_DEBUG=1 (or development default).
  */
 export async function GET() {
-  if (!isNexHealthDebugEnabled()) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          "Debug JSON is disabled. Set NEXHEALTH_DEBUG=1 in .env.local and restart.",
-      },
-      { status: 403 },
-    );
+  if (process.env.NODE_ENV === "production" || !isNexHealthDebugEnabled()) {
+    return NextResponse.json({ ok: false, message: "Not found" }, { status: 404 });
   }
 
   const config = getNexHealthConfig();

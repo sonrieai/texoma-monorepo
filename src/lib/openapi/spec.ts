@@ -70,6 +70,9 @@ const UPSTREAM_PATH: Record<(typeof NEXHEALTH_PROXY_RESOURCES)[number], string> 
   adjustments: "GET /adjustments",
   treatment_plans: "GET /treatment_plans",
   guarantor_balances: "GET /guarantor_balances",
+  claims: "GET /claims",
+  insurance_balances: "GET /insurance_balances",
+  insurance_plans: "GET /insurance_plans",
 };
 
 function buildResourcePath(resource: Exclude<(typeof NEXHEALTH_PROXY_RESOURCES)[number], "health">) {

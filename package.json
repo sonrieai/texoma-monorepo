@@ -11,12 +11,18 @@
     "sync:nexhealth": "tsx scripts/sync-nexhealth-to-mongo.ts",
     "sync:nexhealth:full": "tsx scripts/sync-nexhealth-to-mongo.ts --full",
     "export:nexhealth": "tsx scripts/export-nexhealth-json.ts",
-    "sync:cdt": "python scripts/sync-cdt-from-xlsx.py"
+    "sync:cdt": "python scripts/sync-cdt-from-xlsx.py",
+    "vercel:env": "powershell -ExecutionPolicy Bypass -File scripts/setup-vercel-env.ps1",
+    "vercel:deploy": "npx vercel@latest deploy --prod --scope sonrie"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "mongodb": "^7.5.0",
+    "mysql2": "^3.23.3",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

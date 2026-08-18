@@ -634,7 +634,7 @@ export function summarizeProductionFromLedger(params: {
   if (charges.length > 0) {
     for (const c of charges) {
       const code = (c.procedure_code || "UNKNOWN").trim() || "UNKNOWN";
-      const chargeName = (c.description || code).trim();
+      const chargeName = String(c.description ?? code).trim() || code;
       const cents = nexPriceToCents(c.fee);
       bumpMix(practiceMix, code, chargeName, cents);
       bumpCategory(

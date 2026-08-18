@@ -1,0 +1,85 @@
+# Deploy on Vercel
+
+This app is a **single Next.js 16 project** — UI pages and API Route Handlers (`/api/*`) deploy together on one Vercel project. There is no separate backend service.
+
+Config in repo: [`vercel.json`](../vercel.json).
+
+## Vercel project
+
+| Field | Value |
+|-------|-------|
+| Team | Sonrie (`sonrie`) |
+| Project | `texoma-dashboard` |
+| Git repo | `sonrieai/texoma-monorepo` |
+| Dashboard | https://vercel.com/sonrie/texoma-dashboard |
+
+## Before first deploy
+
+1. Push this repo to GitHub (already linked to Vercel).
+2. **Do not** commit `.env.local` (gitignored).
+3. Add environment variables in Vercel (**Project → Settings → Environment Variables**) for **Production** and **Preview**:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `MONGODB_URI` | Yes | Atlas connection string (warehouse reads) |
+| `MONGODB_DB` | Yes | e.g. `open-dental-backup` |
+| `NEXHEALTH_API_KEY` | Yes | NexHealth API key (secret) |
+| `NEXHEALTH_SUBDOMAIN` | Yes | Institution subdomain |
+| `NEXHEALTH_LOCATION_ID` | Yes | Location id |
+| `NEXHEALTH_BASE_URL` | Yes | `https://nexhealth.info` |
+| `NEXHEALTH_API_VERSION` | Yes | `v3.0.0` |
+| `NEXHEALTH_NP_CONSULT_TYPE_IDS` | Recommended | Comma-separated appointment type ids |
+| `SYNC_SECRET` | Recommended | Protects `POST /api/sync/nexhealth` |
+| `NEXHEALTH_DEBUG` | Optional | Set `0` in production |
+| `GHL_API_KEY` | Optional | GoHighLevel (later) |
+| `GHL_LOCATION_ID` | Optional | GoHighLevel (later) |
+| `GHL_BASE_URL` | Optional | GoHighLevel (later) |
+
+Without `MONGODB_URI`, Overview and most KPI pages will fail. Without `NEXHEALTH_*`, sync jobs and debug routes fail.
+
+## CLI: push env from `.env.local`
+
+After `npx vercel login` and linking the project:
+
+```powershell
+npm run vercel:env
+```
+
+Or manually:
+
+```powershell
+npx vercel link --project texoma-dashboard --scope sonrie
+.\scripts\setup-vercel-env.ps1
+```
+
+## Deploy
+
+**Git push (recommended):** merge to `main` → Vercel builds automatically.
+
+**CLI:**
+
+```powershell
+npx vercel login
+npx vercel link --project texoma-dashboard --scope sonrie
+npx vercel deploy --prod
+```
+
+## Verify
+
+1. `GET https://<your-domain>/api/health/nexhealth` — NexHealth auth smoke test
+2. `GET https://<your-domain>/api/metrics/overview` — overview JSON
+3. Open `/overview` in the browser
+
+## Permissions note
+
+If deployment fails with **403 Forbidden** / "no permission to create a Production Deployment", a **Team Owner** must either:
+
+- Redeploy from the Vercel dashboard, or
+- Grant your account the **Developer** role (or higher) on the Sonrie team.
+
+## Architecture
+
+- **Frontend:** React pages under `src/app/*`
+- **Backend:** Route Handlers under `src/app/api/*` (serverless functions on Vercel)
+- **Data:** MongoDB Atlas warehouse (synced via `npm run sync:nexhealth` locally or `POST /api/sync/nexhealth`)
+- Open Dental / MySQL stays on the practice network — not deployed to Vercel

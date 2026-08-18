@@ -1,6 +1,6 @@
 import "server-only";
 
-import mysql from "mysql2/promise";
+import mysql, { type ExecuteValues } from "mysql2/promise";
 import {
   getOpenDentalMysqlConfig,
   requireOpenDentalMysqlConfig,
@@ -21,7 +21,10 @@ export async function queryOpenDental<T extends mysql.RowDataPacket>(
   });
 
   try {
-    const [rows] = await connection.execute<T[]>(sql, params);
+    const [rows] = await connection.execute<T[]>(
+      sql,
+      params as ExecuteValues,
+    );
     return rows;
   } finally {
     await connection.end();

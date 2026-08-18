@@ -19,6 +19,10 @@ npm run dev                  # http://localhost:5001 → /overview
 
 Overview reads **MongoDB only** on page load — not NexHealth. Set `MONGODB_URI` and run `npm run sync:nexhealth` (or `sync:nexhealth:full`) before expecting KPIs. `NEXHEALTH_API_KEY` is for the sync job and debug routes, not for each dashboard view.
 
+## Deploy (Vercel)
+
+See [docs/VERCEL.md](docs/VERCEL.md). Project: **texoma-dashboard** on team **Sonrie**, linked to `sonrieai/texoma-monorepo`. Frontend + API routes deploy as one Next.js app. Push env vars with `npm run vercel:env` (after `npx vercel login`), then deploy via Git push or `npm run vercel:deploy`.
+
 ## Deploy (Netlify)
 
 See [docs/NETLIFY.md](docs/NETLIFY.md). Repo includes [`netlify.toml`](netlify.toml) (`npm run build`, Node 20). Add `NEXHEALTH_*` secrets in the Netlify UI before the first deploy.

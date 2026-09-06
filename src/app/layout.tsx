@@ -9,9 +9,13 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Texoma Implant — Practice KPI Dashboard",
+  title: "Texoma Dentures & Implants — Practice KPI Dashboard",
   description:
-    "Practice KPI dashboard for Texoma implant & denture operations",
+    "Practice KPI dashboard for Texoma Dentures & Implants",
+  icons: {
+    icon: "/texoma-logo.png",
+    apple: "/texoma-logo.png",
+  },
 };
 
 export const viewport: Viewport = {

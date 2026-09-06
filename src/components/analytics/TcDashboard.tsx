@@ -247,25 +247,12 @@ export function TcConversionFunnelSection({
   conv: ConversionSummary;
   tc: TcMetrics;
 }) {
-  const presented = tc.tpPresentedCount;
-  const accepted = tc.tpAcceptedCount;
-  const sameDay = conv.sameDayStarts;
-  const scheduled = tc.scheduledCount;
-
   return (
     <>
       <SectionHeading title="Conversion Funnel" />
       <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Card title="Presented → Scheduled → Same-Day">
-          <FunnelChart
-            variant="tc"
-            stages={[
-              { label: "Plans presented", value: presented },
-              { label: "Accepted", value: accepted },
-              { label: "Scheduled", value: scheduled },
-              { label: "Closed same day", value: sameDay },
-            ]}
-          />
+        <Card title="Presented → Showed → Closed">
+          <FunnelChart variant="tc" stages={tc.conversionFunnel} />
         </Card>
         <Card title="Follow-Up Recapture">
           <p className="mt-0 mb-3 text-[11.5px] text-muted">
@@ -389,7 +376,7 @@ export function TcKeyFiguresSection({
 
   const figA = [
     { label: "Plans presented", value: String(presented) },
-    { label: "Plans accepted", value: String(accepted) },
+    { label: "Plans closed", value: String(accepted) },
     {
       label: "Presented ($)",
       value: productionAvailable
@@ -397,13 +384,13 @@ export function TcKeyFiguresSection({
         : "—",
     },
     {
-      label: "Accepted ($)",
+      label: "Closed ($)",
       value: productionAvailable
         ? formatUsd(centsToDollars(tc.tpAcceptedCents))
         : "—",
     },
     {
-      label: "Acceptance by $",
+      label: "Close rate",
       value: pctOrDash(acceptPct),
     },
     {
@@ -416,9 +403,14 @@ export function TcKeyFiguresSection({
     },
   ];
 
+  const funnel = tc.conversionFunnel;
+  const funnelShowed = funnel.find((s) => s.label === "Showed")?.value ?? 0;
+  const funnelClosed = funnel.find((s) => s.label === "Closed")?.value ?? 0;
+
   const figB = [
-    { label: "Closed same day", value: String(sameDay) },
-    { label: "Accepted & scheduled", value: String(tc.scheduledCount) },
+    { label: "Consult showed", value: String(funnelShowed) },
+    { label: "Plans closed", value: String(funnelClosed) },
+    { label: "Same-day starts", value: String(sameDay) },
     {
       label: "Denture acceptance",
       value:

@@ -15,6 +15,8 @@ const consultType: NexAppointmentType = {
   name: "NP Consult",
 };
 
+const consultTypeDoc = { nexhealthId: CONSULT_TYPE_ID, isNpConsult: true };
+
 function appt(partial: Partial<NexAppointment> & Pick<NexAppointment, "id">): NexAppointment {
   return {
     appointment_type_id: CONSULT_TYPE_ID,
@@ -69,6 +71,7 @@ describe("summarizeConversion", () => {
       fromYmd: "2026-08-01",
       toYmd: "2026-08-31",
       appointmentTypes: [consultType],
+      appointmentTypeDocs: [consultTypeDoc],
       appointments: [
         appt({
           id: 1,
@@ -103,51 +106,60 @@ describe("summarizeConversion", () => {
     assert.equal(summary.npConsultShowRate, 0.5);
   });
 
-  it("counts NP as first completed non-consult appointment in period", () => {
+  it("counts NP as first completed non-consult procedure in period", () => {
+    const cdt = createCdtLookupFromDocs([
+      {
+        code: "N9310",
+        category: "Hygiene",
+        description: "NP Consult",
+        isConsult: true,
+      },
+    ]);
     const summary = summarizeConversion({
       fromYmd: "2026-08-01",
       toYmd: "2026-08-31",
       appointmentTypes: [consultType],
-      appointments: [
-        appt({
+      appointmentTypeDocs: [consultTypeDoc],
+      appointments: [],
+      procedures: [
+        {
           id: 1,
           patient_id: 10,
-          start_time: "2026-07-15T14:00:00+0000",
-          apt_status: "Complete",
-        }),
+          code: "N9310",
+          status: "completed",
+          start_date: "2026-07-15",
+        },
         {
           id: 2,
           patient_id: 10,
-          appointment_type_id: 99,
-          start_time: "2026-08-08T14:00:00+0000",
-          apt_status: "Complete",
+          code: "D2750",
+          status: "completed",
+          start_date: "2026-08-08",
         },
         {
           id: 3,
           patient_id: 11,
-          appointment_type_id: 99,
-          start_time: "2026-08-09T14:00:00+0000",
-          apt_status: "Complete",
+          code: "D2750",
+          status: "completed",
+          start_date: "2026-08-09",
         },
         {
           id: 4,
           patient_id: 12,
-          appointment_type_id: 99,
-          start_time: "2026-07-01T14:00:00+0000",
-          apt_status: "Complete",
+          code: "D2750",
+          status: "completed",
+          start_date: "2026-07-01",
         },
         {
           id: 5,
           patient_id: 12,
-          appointment_type_id: 99,
-          start_time: "2026-08-20T14:00:00+0000",
-          apt_status: "Complete",
+          code: "D2750",
+          status: "completed",
+          start_date: "2026-08-20",
         },
       ],
+      cdt,
     });
-    // 10: first Tx is Aug 8 (consult in July does not count) → NP
-    // 11: first Tx is Aug 9 → NP
-    // 12: first Tx is July 1 (outside period) → not NP
     assert.equal(summary.newPatients, 2);
   });
 
@@ -165,6 +177,7 @@ describe("summarizeConversion", () => {
       fromYmd: "2026-08-01",
       toYmd: "2026-08-31",
       appointmentTypes: [consultType],
+      appointmentTypeDocs: [consultTypeDoc],
       appointments: [
         appt({
           id: 1,
@@ -266,6 +279,7 @@ describe("summarizeConversion", () => {
       fromYmd: "2026-08-01",
       toYmd: "2026-08-31",
       appointmentTypes: [consultType],
+      appointmentTypeDocs: [consultTypeDoc],
       appointments: [],
       plans: [incomplete, complete],
     });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LIST_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
 import { parsePeriodParams, periodToSearchString } from "@/lib/ui/period";
 
@@ -131,12 +132,9 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
   const doctorOpen = pathname.startsWith("/doctor");
   const tcOpen = pathname.startsWith("/tc");
   const settingsOpen = pathname.startsWith("/settings");
-  const [providers, setProviders] = useState<ProviderLink[]>(
-    () => readStoredProviders() ?? [],
-  );
-  const [coordinators, setCoordinators] = useState<CoordinatorLink[]>(
-    () => readStoredCoordinators() ?? [],
-  );
+  // Start empty so SSR and first client paint match; hydrate from storage in useEffect.
+  const [providers, setProviders] = useState<ProviderLink[]>([]);
+  const [coordinators, setCoordinators] = useState<CoordinatorLink[]>([]);
 
   useEffect(() => {
     const cached = readStoredProviders();
@@ -208,9 +206,7 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
       >
         <div className="mb-3.5 flex items-center justify-between gap-2 px-1.5">
           <div className="flex min-w-0 items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-sidebar-2 text-base font-bold text-white">
-              T
-            </div>
+            <BrandLogo size="sm" className="shrink-0" />
             <div className="min-w-0">
               <h1 className="m-0 text-[12.5px] font-bold leading-tight tracking-wide text-white">
                 Texoma Dentures & Implants

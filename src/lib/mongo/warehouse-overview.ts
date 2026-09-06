@@ -16,10 +16,10 @@ import {
   inYmdRange,
   isConsultAppointment,
   mapConversionAttendance,
-  resolveNpConsultTypeIds,
   summarizeConversion,
   perProviderSameDayNp,
 } from "@/lib/nexhealth/conversion";
+import { resolveNpConsultTypeIds } from "@/lib/nexhealth/kpi-reference";
 import { emptyTcMetrics, summarizeTcMetrics } from "@/lib/nexhealth/tc-metrics";
 import { buildTcCoordinatorRows } from "@/lib/tc/coordinator-metrics";
 import { safeRate } from "@/lib/metrics";
@@ -31,6 +31,7 @@ import {
 } from "@/lib/mongo/client";
 import type {
   AdjustmentDoc,
+  AdjustmentTypeDoc,
   AppointmentDoc,
   AppointmentTypeDoc,
   CdtCodeDoc,
@@ -66,6 +67,7 @@ import {
   emptyProviderProduction,
   summarizeProductionFromLedger,
 } from "@/lib/nexhealth/production";
+import { adjustmentTypeRecordsFromDocs } from "@/lib/nexhealth/adjusted-production";
 import type {
   LiveOverview,
   LiveProduction,
@@ -155,6 +157,7 @@ function emptyLiveProduction(
     monthlyProduction: [],
     treatmentByMonth: [],
     dentureWarranty: production.dentureWarranty,
+    partialWarranty: production.partialWarranty,
     monthlyCollections: [],
   };
 }
@@ -263,6 +266,7 @@ async function buildWarehouseOverview(
     charges,
     payments,
     adjustments,
+    adjustmentTypeDocs,
     treatmentPlans,
     guarantorBalances,
     claimDocs,
@@ -298,6 +302,9 @@ async function buildWarehouseOverview(
     getCollection<AdjustmentDoc>(COLLECTIONS.adjustments).then((c) =>
       c.find({ locationId }).toArray(),
     ),
+    getCollection<AdjustmentTypeDoc>(COLLECTIONS.adjustmentTypes).then((c) =>
+      c.find({ locationId, active: true }).toArray(),
+    ),
     getCollection<TreatmentPlanDoc>(COLLECTIONS.treatmentPlans).then((c) =>
       c.find({ locationId }).toArray(),
     ),
@@ -329,6 +336,10 @@ async function buildWarehouseOverview(
     inYmdRange(a.start_time, fromYmd, toYmd),
   );
   const typeRaws = appointmentTypes.map((d) => d.raw);
+  const appointmentTypeDocs = appointmentTypes.map((d) => ({
+    nexhealthId: d.nexhealthId,
+    isNpConsult: d.isNpConsult,
+  }));
   const procRaws = procedures.map((d) => d.raw);
   const typeCatalog = new Map<number, NexAppointmentType>();
   for (const t of typeRaws) typeCatalog.set(t.id, t);
@@ -343,6 +354,7 @@ async function buildWarehouseOverview(
     charges: charges.map((d) => d.raw),
     payments: payments.map((d) => d.raw),
     adjustments: adjustments.map((d) => d.raw),
+    adjustmentTypes: adjustmentTypeRecordsFromDocs(adjustmentTypeDocs),
     patients: patientDocs.map((d) => ({
       id: d.patientId,
       primaryInsuranceCarrier: d.primaryInsuranceCarrier,
@@ -355,6 +367,7 @@ async function buildWarehouseOverview(
     toYmd,
     appointments: apptRawsAll,
     appointmentTypes: typeRaws,
+    appointmentTypeDocs,
     procedures: procRaws,
     plans: treatmentPlans.map((d) => d.raw),
     cdt,
@@ -365,6 +378,7 @@ async function buildWarehouseOverview(
     toYmd,
     appointments: apptRawsAll,
     appointmentTypes: typeRaws,
+    appointmentTypeDocs,
     plans: treatmentPlans.map((d) => d.raw),
     procedures: procRaws,
     payments: payments.map((d) => d.raw),
@@ -399,7 +413,9 @@ async function buildWarehouseOverview(
   notices.push(...accountsReceivable.notices);
   notices.push(...insurance.notices);
 
-  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds(typeRaws);
+  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds({
+    appointmentTypeDocs,
+  });
   const npConsultTypeSet = new Set(npConsultTypeIds);
   const consultProcedureDays = buildConsultProcedureDays(procRaws, cdt);
 
@@ -494,7 +510,7 @@ async function buildWarehouseOverview(
     toYmd,
     appointments: apptRawsAll,
     procedures: procRaws,
-    appointmentTypes: typeRaws,
+    appointmentTypeDocs,
     cdt,
   });
   for (const [pid, count] of sameDayByProvider) {
@@ -558,6 +574,7 @@ async function buildWarehouseOverview(
       monthlyProduction: production.monthlyProduction,
       treatmentByMonth: production.treatmentByMonth,
       dentureWarranty: production.dentureWarranty,
+      partialWarranty: production.partialWarranty,
       monthlyCollections: production.monthlyCollections,
     },
     conversion,

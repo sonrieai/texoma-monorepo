@@ -29,9 +29,9 @@ async function main() {
       console.log(
         `OK · ${result.nexhealthRequestCount} NexHealth request batches · synced ${result.lastSyncedAt}`,
       );
-      if (result.suggestedNpConsultTypeIds?.length) {
+      if (result.npConsultAppointmentTypeIds?.length) {
         console.log(
-          `Tip: set NEXHEALTH_NP_CONSULT_TYPE_IDS=${result.suggestedNpConsultTypeIds.join(",")} in .env.local for consult KPIs.`,
+          `NP consult appointment types: ${result.npConsultAppointmentTypeIds.join(",")}`,
         );
       }
     }

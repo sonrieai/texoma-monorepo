@@ -2,15 +2,14 @@
 
 import dynamic from "next/dynamic";
 import type { GeoCity } from "@/lib/types/viz";
+import { LoadingBox } from "@/components/ui/States";
 
 const GeoMapInner = dynamic(
   () => import("./GeoMapInner").then((m) => m.GeoMapInner),
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[360px] items-center justify-center rounded-lg border border-line bg-background text-[12px] text-muted">
-        Loading map…
-      </div>
+      <LoadingBox className="h-[360px] rounded-lg border border-line bg-background" />
     ),
   },
 );

@@ -21,7 +21,7 @@ Overview reads **MongoDB only** on page load — not NexHealth. Set `MONGODB_URI
 
 ## Deploy (Vercel)
 
-See [docs/VERCEL.md](docs/VERCEL.md). Project: **texoma-dashboard** on team **Sonrie**, linked to `sonrieai/texoma-monorepo`. Frontend + API routes deploy as one Next.js app. Push env vars with `npm run vercel:env` (after `npx vercel login`), then deploy via Git push or `npm run vercel:deploy`.
+See [docs/VERCEL.md](docs/VERCEL.md). **Production:** https://texoma.vercel.app/login — project **texoma-monorepo** on team **Sonrie**. Push env vars with `npm run vercel:env` (after `npx vercel login`), then deploy via Git push or `npm run vercel:deploy`.
 
 ## Deploy (Netlify)
 

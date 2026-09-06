@@ -23,11 +23,18 @@ import {
   buildConsultProcedureDays,
   inYmdRange,
   isConsultAppointment,
-  isProcedureComplete,
   isTreatmentPlanClosed,
   mapConversionAttendance,
-  resolveNpConsultTypeIds,
 } from "@/lib/nexhealth/conversion";
+import {
+  isProcedureComplete,
+  procedurePatientId,
+  procedureYmd,
+} from "@/lib/nexhealth/procedure-status";
+import {
+  resolveNpConsultTypeIds,
+  type NpConsultTypeDoc,
+} from "@/lib/nexhealth/kpi-reference";
 import {
   aggregateFinancingVendorMix,
   financingVendorDonutSlices,
@@ -72,8 +79,58 @@ export type TcMetrics = {
   npSuccessRate: number | null;
   financingVendorMix: FinancingVendorMix;
   financingDonutSlices: { label: string; value: number }[];
+  /** Patient-linked funnel: presented ⊇ showed ⊇ closed (unique patients). */
+  conversionFunnel: TcFunnelStage[];
   notices: string[];
 };
+
+export type TcFunnelStage = { label: string; value: number };
+
+/**
+ * Nested patient funnel for TC conversion chart.
+ * Stage 2 = presented patients who consult-showed; stage 3 = those who fully closed.
+ */
+export function buildPatientConversionFunnel(params: {
+  presentedPatients: Set<number>;
+  consultShowPatients: Set<number>;
+  closedPatients: Set<number>;
+}): TcFunnelStage[] {
+  const { presentedPatients, consultShowPatients, closedPatients } = params;
+
+  if (presentedPatients.size > 0) {
+    let showed = 0;
+    let closed = 0;
+    for (const pid of presentedPatients) {
+      if (consultShowPatients.has(pid)) showed += 1;
+      if (consultShowPatients.has(pid) && closedPatients.has(pid)) {
+        closed += 1;
+      }
+    }
+    return [
+      { label: "Plans presented", value: presentedPatients.size },
+      { label: "Showed", value: showed },
+      { label: "Closed", value: closed },
+    ];
+  }
+
+  if (consultShowPatients.size > 0) {
+    let closed = 0;
+    for (const pid of consultShowPatients) {
+      if (closedPatients.has(pid)) closed += 1;
+    }
+    return [
+      { label: "Plans presented", value: consultShowPatients.size },
+      { label: "Showed", value: consultShowPatients.size },
+      { label: "Closed", value: closed },
+    ];
+  }
+
+  return [
+    { label: "Plans presented", value: 0 },
+    { label: "Showed", value: 0 },
+    { label: "Closed", value: 0 },
+  ];
+}
 
 export function emptyTcMetrics(): TcMetrics {
   const financingVendorMix = aggregateFinancingVendorMix([]);
@@ -95,6 +152,11 @@ export function emptyTcMetrics(): TcMetrics {
     npSuccessRate: null,
     financingVendorMix,
     financingDonutSlices: [],
+    conversionFunnel: buildPatientConversionFunnel({
+      presentedPatients: new Set(),
+      consultShowPatients: new Set(),
+      closedPatients: new Set(),
+    }),
     notices: [],
   };
 }
@@ -229,6 +291,7 @@ export function summarizeTcMetrics(params: {
   toYmd: string;
   appointments: NexAppointment[];
   appointmentTypes: NexAppointmentType[];
+  appointmentTypeDocs?: NpConsultTypeDoc[];
   plans: NexTreatmentPlan[];
   procedures: NexProcedure[];
   payments: NexPayment[];
@@ -268,9 +331,9 @@ export function summarizeTcMetrics(params: {
 
   const cdt = params.cdt ?? emptyCdtLookup;
   const consultProcedureDays = buildConsultProcedureDays(params.procedures, cdt);
-  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds(
-    params.appointmentTypes,
-  );
+  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds({
+    appointmentTypeDocs: params.appointmentTypeDocs ?? [],
+  });
   const consultTypeSet = new Set(npConsultTypeIds);
   const typeCatalog = new Map<number, NexAppointmentType>();
   for (const t of params.appointmentTypes) typeCatalog.set(t.id, t);
@@ -290,6 +353,9 @@ export function summarizeTcMetrics(params: {
   const declineMap = new Map<string, number>();
 
   const consultShowYmdByPatient = new Map<number, string>();
+  const consultShowPatients = new Set<number>();
+  const presentedPatients = new Set<number>();
+  const closedPatients = new Set<number>();
   let scNpSeen = 0;
 
   for (const appt of appointments) {
@@ -305,9 +371,26 @@ export function summarizeTcMetrics(params: {
       if (!prev || ymd < prev) {
         consultShowYmdByPatient.set(appt.patient_id, ymd);
       }
+      consultShowPatients.add(appt.patient_id);
       if (SOONERCARE_PATTERN.test(apptSoonercareHaystack(appt, typeCatalog))) {
         scNpSeen += 1;
       }
+    }
+  }
+
+  for (const proc of params.procedures) {
+    if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
+      continue;
+    }
+    const patientId = procedurePatientId(proc);
+    const ymd = procedureYmd(proc);
+    if (patientId == null || !ymd || !inYmdRange(ymd, params.fromYmd, params.toYmd)) {
+      continue;
+    }
+    consultShowPatients.add(patientId);
+    const prev = consultShowYmdByPatient.get(patientId);
+    if (!prev || ymd < prev) {
+      consultShowYmdByPatient.set(patientId, ymd);
     }
   }
 
@@ -323,6 +406,8 @@ export function summarizeTcMetrics(params: {
     if (presentedInRange) {
       tpPresentedCount += 1;
       tpPresentedCents += sumPlanFees(plan);
+      const patientId = planPatientId(plan);
+      if (patientId != null) presentedPatients.add(patientId);
       const caseType = planCaseType(plan, cdt);
       if (caseType === "implant") implantPresented += 1;
       else if (caseType === "denture") denturePresented += 1;
@@ -338,6 +423,7 @@ export function summarizeTcMetrics(params: {
       const patientId = planPatientId(plan);
       const closeYmd = closedYmd!;
       if (patientId != null) {
+        closedPatients.add(patientId);
         const consultYmd = consultShowYmdByPatient.get(patientId);
         if (consultYmd) {
           const days = daysBetweenYmd(consultYmd, closeYmd);
@@ -367,6 +453,22 @@ export function summarizeTcMetrics(params: {
     tpPresentedCount = params.conversion.npConsultShow;
     notices.push(
       "TX plans presented uses NP consult shows until treatment-plan presentation dates sync.",
+    );
+  }
+
+  const conversionFunnel = buildPatientConversionFunnel({
+    presentedPatients,
+    consultShowPatients,
+    closedPatients,
+  });
+
+  if (
+    presentedPatients.size === 0 &&
+    consultShowPatients.size > 0 &&
+    tpPresentedCount > 0
+  ) {
+    notices.push(
+      "Conversion funnel uses consult shows as presented until treatment-plan patient ids sync.",
     );
   }
 
@@ -465,6 +567,7 @@ export function summarizeTcMetrics(params: {
     npSuccessRate,
     financingVendorMix,
     financingDonutSlices,
+    conversionFunnel,
     notices,
   };
 }

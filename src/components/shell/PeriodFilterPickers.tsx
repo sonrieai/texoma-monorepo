@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { MONTH_LABELS, rangePreset } from "@/lib/ui/period";
 
 function shiftMonth(yyyyMm: string, delta: number): string {
@@ -142,11 +143,11 @@ export function MonthCalendar({
 export function RangePicker({
   from,
   to,
-  onChange,
+  onApply,
 }: {
   from: string;
   to: string;
-  onChange: (from: string, to: string) => void;
+  onApply: (from: string, to: string) => void;
 }) {
   const presets = [
     ["thisYear", "This Year"],
@@ -154,34 +155,55 @@ export function RangePicker({
     ["past6", "Past 6 Months"],
     ["lastYear", "Last Year"],
   ] as const;
+  const [draftFrom, setDraftFrom] = useState(from);
+  const [draftTo, setDraftTo] = useState(to);
+
+  useEffect(() => {
+    setDraftFrom(from);
+    setDraftTo(to);
+  }, [from, to]);
+
+  const setDraftRange = (nextFrom: string, nextTo: string) => {
+    setDraftFrom(nextFrom);
+    setDraftTo(nextFrom > nextTo ? nextFrom : nextTo);
+  };
 
   return (
     <div className="w-[210px]">
       <div className="grid grid-cols-2 gap-1.5">
-        {presets.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className="min-h-10 rounded-md border border-line bg-background px-1.5 text-[11px] font-semibold hover:border-accent2 hover:bg-accent2 hover:text-white"
-            onClick={() => {
-              const next = rangePreset(key);
-              onChange(next.from, next.to);
-            }}
-          >
-            {label}
-          </button>
-        ))}
+        {presets.map(([key, label]) => {
+          const preset = rangePreset(key);
+          const selected = preset.from === draftFrom && preset.to === draftTo;
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={selected}
+              className={`min-h-10 rounded-md border px-1.5 text-[11px] font-semibold ${
+                selected
+                  ? "border-accent2 bg-accent2 text-white"
+                  : "border-line bg-background hover:border-accent2 hover:bg-accent2 hover:text-white"
+              }`}
+              onClick={() => {
+                setDraftFrom(preset.from);
+                setDraftTo(preset.to);
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
       <div className="my-2.5 h-px bg-line" />
       <label className="flex flex-col gap-1 text-[11px] font-semibold text-muted">
         From
         <input
           type="date"
-          value={from}
+          value={draftFrom}
           onChange={(e) => {
             const next = e.target.value;
             if (!next) return;
-            onChange(next, next > to ? next : to);
+            setDraftRange(next, draftTo);
           }}
           className="min-h-11 rounded-md border border-line bg-background px-2 text-[16px] text-foreground sm:min-h-9 sm:text-[12.5px]"
         />
@@ -190,15 +212,22 @@ export function RangePicker({
         To
         <input
           type="date"
-          value={to}
+          value={draftTo}
           onChange={(e) => {
             const next = e.target.value;
             if (!next) return;
-            onChange(next < from ? next : from, next);
+            setDraftRange(next < draftFrom ? next : draftFrom, next);
           }}
           className="min-h-11 rounded-md border border-line bg-background px-2 text-[16px] text-foreground sm:min-h-9 sm:text-[12.5px]"
         />
       </label>
+      <button
+        type="button"
+        className="mt-2.5 min-h-11 w-full rounded-md bg-accent2 text-[12px] font-semibold text-white hover:opacity-90 sm:min-h-9"
+        onClick={() => onApply(draftFrom, draftTo)}
+      >
+        Apply
+      </button>
     </div>
   );
 }

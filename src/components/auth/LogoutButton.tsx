@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { InlineSpinner } from "@/components/ui/States";
 
 type LogoutButtonProps = {
   variant?: "topbar" | "sidebar";
@@ -23,15 +24,6 @@ function LogOutIcon({ className }: { className?: string }) {
       <polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
-  );
-}
-
-function ButtonSpinner({ className }: { className?: string }) {
-  return (
-    <span
-      className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className ?? "h-4 w-4"}`}
-      aria-hidden
-    />
   );
 }
 
@@ -67,33 +59,9 @@ export function LogoutButton({ variant = "topbar" }: LogoutButtonProps) {
     }
   }
 
-  if (status === "hidden") return null;
+  if (status === "hidden" || status === "loading") return null;
 
   const isSidebar = variant === "sidebar";
-
-  if (status === "loading") {
-    return (
-      <div
-        className={
-          isSidebar
-            ? "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sidebar-muted"
-            : "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-line bg-background text-muted sm:w-auto sm:min-w-[7.5rem] sm:px-3"
-        }
-        aria-hidden
-      >
-        <ButtonSpinner className={isSidebar ? "h-4 w-4" : "h-4 w-4"} />
-        <span
-          className={
-            isSidebar
-              ? "text-[12.5px]"
-              : "hidden text-[11.5px] font-semibold sm:inline"
-          }
-        >
-          Checking…
-        </span>
-      </div>
-    );
-  }
 
   return (
     <button
@@ -109,13 +77,15 @@ export function LogoutButton({ variant = "topbar" }: LogoutButtonProps) {
       }
     >
       {signingOut ? (
-        <ButtonSpinner className="h-4 w-4 shrink-0" />
+        <InlineSpinner size="xs" />
       ) : (
-        <LogOutIcon className="h-4 w-4 shrink-0" />
+        <>
+          <LogOutIcon className="h-4 w-4 shrink-0" />
+          <span className={isSidebar ? "truncate" : "hidden sm:inline"}>
+            Sign out
+          </span>
+        </>
       )}
-      <span className={isSidebar ? "truncate" : "hidden sm:inline"}>
-        {signingOut ? "Signing out…" : "Sign out"}
-      </span>
     </button>
   );
 }

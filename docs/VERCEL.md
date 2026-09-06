@@ -10,6 +10,8 @@ Config in repo: [`vercel.json`](../vercel.json).
 |-------|-------|
 | Team | Sonrie (`sonrie`) |
 | Project | `texoma-monorepo` |
+| Production URL | https://texoma.vercel.app |
+| Login | https://texoma.vercel.app/login |
 | Git repo | `sonrieai/texoma-monorepo` |
 | Dashboard | https://vercel.com/sonrie/texoma-monorepo |
 
@@ -28,11 +30,11 @@ Config in repo: [`vercel.json`](../vercel.json).
 | `NEXHEALTH_LOCATION_ID` | Yes | Location id |
 | `NEXHEALTH_BASE_URL` | Yes | `https://nexhealth.info` |
 | `NEXHEALTH_API_VERSION` | Yes | `v3.0.0` |
-| `NEXHEALTH_NP_CONSULT_TYPE_IDS` | Recommended | Comma-separated appointment type ids |
 | `SYNC_SECRET` | Recommended | Protects `POST /api/sync/nexhealth` |
 | `NEXHEALTH_DEBUG` | **Set `0` in production** | Debug/proxy APIs return 404 in production anyway |
 | `SYNC_STRIP_PHI` | Yes (`1`) | Slim warehouse writes (default on unless `0`) |
 | `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Required for Vercel production builds |
+| `PASSWORD_RESET_WEB_BASE_URL` | Recommended | `https://texoma.vercel.app` (password reset email links) |
 | `GHL_API_KEY` | Optional | GoHighLevel (later) |
 | `GHL_LOCATION_ID` | Optional | GoHighLevel (later) |
 | `GHL_BASE_URL` | Optional | GoHighLevel (later) |
@@ -68,9 +70,9 @@ npx vercel deploy --prod
 
 ## Verify
 
-1. `GET https://<your-domain>/api/health/nexhealth` — NexHealth auth smoke test
-2. `GET https://<your-domain>/api/metrics/overview` — overview JSON
-3. Open `/overview` in the browser
+1. `GET https://texoma.vercel.app/api/health/nexhealth` — NexHealth auth smoke test
+2. `GET https://texoma.vercel.app/api/metrics/overview` — overview JSON
+3. Open https://texoma.vercel.app/login or `/overview` in the browser
 
 ## Permissions note
 

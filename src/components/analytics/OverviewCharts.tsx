@@ -152,26 +152,40 @@ export function PaymentAndDentureSection({
   ];
 
   const dw = production.dentureWarranty;
-  const warrantyRows = [
+  const pw = production.partialWarranty;
+  const dentureWarrantyRows = [
     { label: "6-month", value: centsToDollars(dw.m6Cents) },
     { label: "1-Yr", value: centsToDollars(dw.y1Cents) },
     { label: "3-Yr", value: centsToDollars(dw.y3Cents) },
     { label: "5-Yr", value: centsToDollars(dw.y5Cents) },
   ];
+  const partialWarrantyRows = [
+    { label: "6-month", value: centsToDollars(pw.m6Cents) },
+    { label: "1-Yr", value: centsToDollars(pw.y1Cents) },
+    { label: "3-Yr", value: centsToDollars(pw.y3Cents) },
+    { label: "5-Yr", value: centsToDollars(pw.y5Cents) },
+  ];
 
   return (
     <>
       <SectionHeading title="Denture Production & Payments" />
-      <div className="mb-4 grid gap-4 md:grid-cols-2">
+      <div className="mb-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card
           title="Denture Production by Warranty"
           subtitle="6-mo · 1-Yr · 3-Yr · 5-Yr"
         >
-          <HBarChart rows={warrantyRows} />
+          <HBarChart rows={dentureWarrantyRows} />
+        </Card>
+        <Card
+          title="Partial Production by Warranty"
+          subtitle="6-mo · 1-Yr · 3-Yr · 5-Yr"
+        >
+          <HBarChart rows={partialWarrantyRows} />
         </Card>
         <Card
           title="Payment Mix"
           subtitle="Cash · Insurance · Financed · SoonerCare"
+          className="md:col-span-2 lg:col-span-1"
         >
           <DonutChart
             slices={paymentSlices}

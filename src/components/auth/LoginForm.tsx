@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
+import { InlineSpinner, Spinner } from "@/components/ui/States";
 
 function LoginFormInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/overview";
+  const timeoutReason = searchParams.get("reason");
+
+  const timeoutMessage =
+    timeoutReason === "timeout"
+      ? "Your session ended after 10 minutes of inactivity. Please sign in again."
+      : timeoutReason === "expired"
+        ? "Your session has expired. Please sign in again."
+        : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -82,6 +91,12 @@ function LoginFormInner() {
         />
       </div>
 
+      {timeoutMessage ? (
+        <p className="rounded-lg border border-warn/20 bg-warn/5 px-3 py-2 text-[12px] text-warn">
+          {timeoutMessage}
+        </p>
+      ) : null}
+
       {error ? (
         <p className="rounded-lg border border-bad/20 bg-bad/5 px-3 py-2 text-[12px] text-bad">
           {error}
@@ -91,9 +106,15 @@ function LoginFormInner() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-busy={loading}
+        aria-label={loading ? "Signing in" : undefined}
+        className="flex w-full items-center justify-center rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? (
+          <InlineSpinner className="border-white/30 border-t-white" />
+        ) : (
+          "Sign in"
+        )}
       </button>
 
       <div className="text-center">
@@ -110,13 +131,7 @@ function LoginFormInner() {
 
 export function LoginForm() {
   return (
-    <Suspense
-      fallback={
-        <div className="py-8 text-center text-[12.5px] text-muted">
-          Loading sign-in…
-        </div>
-      }
-    >
+    <Suspense fallback={<Spinner size="sm" />}>
       <LoginFormInner />
     </Suspense>
   );

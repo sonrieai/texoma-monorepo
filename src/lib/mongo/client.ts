@@ -17,6 +17,7 @@ export const COLLECTIONS = {
   charges: "charges",
   payments: "payments",
   adjustments: "adjustments",
+  adjustmentTypes: "adjustment_types",
   treatmentPlans: "treatment_plans",
   patients: "patients",
   guarantorBalances: "guarantor_balances",
@@ -38,6 +39,7 @@ export type SyncResource =
   | "charges"
   | "payments"
   | "adjustments"
+  | "adjustment_types"
   | "treatment_plans"
   | "patients"
   | "guarantor_balances"

@@ -68,6 +68,7 @@ export type LiveProduction = {
   monthlyProduction: MonthlyProductionSeries[];
   treatmentByMonth: TreatmentByMonthRow[];
   dentureWarranty: DentureWarrantyMix;
+  partialWarranty: DentureWarrantyMix;
   monthlyCollections: { label: string; monthKey: string; cents: number }[];
 };
 

@@ -58,7 +58,6 @@ export type CdtLookup = {
   isAoxSoldCode(code: string | null | undefined): boolean;
   isAoxCode(code: string | null | undefined): boolean;
   isConsultCode(code: string | null | undefined): boolean;
-  isDentureRemakeCode(code: string | null | undefined): boolean;
 };
 
 /** @deprecated category order comes from Mongo procedure_categories at runtime */
@@ -142,27 +141,12 @@ function makeLookup(state: CatalogState): CdtLookup {
     return entryFor(state, normalized)?.isConsult === true;
   };
 
-  const isDentureRemakeCode = (code: string | null | undefined): boolean => {
-    const normalized = normalizeProcedureCode(code);
-    if (normalized === "UNKNOWN") return false;
-    const entry = entryFor(state, normalized);
-    if (entry?.volumeBucket === "remakes") return true;
-    const cat = entry?.category;
-    const desc = entry?.description?.toLowerCase() ?? "";
-    return (
-      (cat === "Dentures" || cat === "Partial Dentures") &&
-      /\b(repair|replace broken|remake)\b/i.test(desc)
-    );
-  };
-
+  /** Volume KPIs use Code Chart `volumeBucket` only (no description heuristics). */
   const volumeBucket = (
     code: string | null | undefined,
   ): ProcedureVolumeBucket | null => {
     const normalized = normalizeProcedureCode(code);
     if (normalized === "UNKNOWN") return null;
-
-    if (isDentureRemakeCode(normalized)) return "remakes";
-    if (isAoxCode(normalized)) return "aox";
 
     const fromEntry = entryFor(state, normalized)?.volumeBucket;
     if (
@@ -170,20 +154,11 @@ function makeLookup(state: CatalogState): CdtLookup {
       fromEntry === "implants" ||
       fromEntry === "aox" ||
       fromEntry === "dentures" ||
-      fromEntry === "partials"
+      fromEntry === "partials" ||
+      fromEntry === "remakes"
     ) {
       return fromEntry;
     }
-
-    const entry = entryFor(state, normalized);
-    const inferred = inferCategoryFromDescription(entry?.description ?? "");
-    if (inferred?.volumeBucket) return inferred.volumeBucket;
-
-    const cat = lookupCategory(normalized);
-    if (cat === "Extractions") return "extractions";
-    if (cat === "Partial Dentures") return "partials";
-    if (cat === "Dentures") return "dentures";
-    if (cat === "Implants") return "implants";
     return null;
   };
 
@@ -195,7 +170,6 @@ function makeLookup(state: CatalogState): CdtLookup {
     isAoxSoldCode,
     isAoxCode,
     isConsultCode,
-    isDentureRemakeCode,
   };
 }
 

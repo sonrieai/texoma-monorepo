@@ -35,8 +35,16 @@ import { inferCategoryFromDescription } from "@/lib/cdt/infer-procedure-category
 import {
   buildSoonerCarePatientSet,
   isScProductionCharge,
+  isScChartDescription,
+  resolveProcedureDescription,
   type PatientCarrierRecord,
 } from "@/lib/nexhealth/sc-production";
+import {
+  buildAdjustmentTypeMap,
+  isWriteOffAdjustment,
+  type AdjustmentTypeRecord,
+} from "@/lib/nexhealth/adjusted-production";
+import { accumulateProcedureVolume } from "@/lib/nexhealth/procedure-volume";
 
 const PROCEDURE_MIX_TOP_N = 15;
 const UNMAPPED_CODES_TOP_N = 20;
@@ -73,6 +81,10 @@ export type DentureWarrantyMix = {
   y3Cents: number;
   y5Cents: number;
 };
+
+export function emptyDentureWarrantyMix(): DentureWarrantyMix {
+  return { m6Cents: 0, y1Cents: 0, y3Cents: 0, y5Cents: 0 };
+}
 
 export type MonthlyProductionSeries = {
   label: string;
@@ -136,6 +148,7 @@ export type ProductionSummary = ProductionTotals & {
   monthlyProduction: MonthlyProductionSeries[];
   treatmentByMonth: TreatmentByMonthRow[];
   dentureWarranty: DentureWarrantyMix;
+  partialWarranty: DentureWarrantyMix;
   monthlyCollections: { label: string; monthKey: string; cents: number }[];
   byProvider: Map<number, ProviderProduction>;
   notices: string[];
@@ -212,18 +225,35 @@ function bumpProviderCategory(
   }
   row.productionCents += cents;
   row.count += 1;
-
-  const bucket = cdt.volumeBucket(code);
-  if (bucket) prov.procedureVolume[bucket] += 1;
 }
 
-function bumpProviderVolumeFromCode(
+
+function bumpWarrantyProduction(
   cdt: CdtLookup,
-  prov: ProviderProduction,
   code: string,
+  chargeName: string,
+  cents: number,
+  dentureWarranty: DentureWarrantyMix,
+  partialWarranty: DentureWarrantyMix,
 ): void {
-  const bucket = cdt.volumeBucket(code);
-  if (bucket) prov.procedureVolume[bucket] += 1;
+  const bucket = cdt.lookupWarrantyBucket(code);
+  if (!bucket) return;
+  const description = resolveProcedureDescription(code, chargeName, cdt);
+  if (isScChartDescription(description)) return;
+
+  const category = cdt.lookupCategory(code);
+  const target =
+    category === "Partial Dentures"
+      ? partialWarranty
+      : category === "Dentures"
+        ? dentureWarranty
+        : null;
+  if (!target) return;
+
+  if (bucket === "m6") target.m6Cents += cents;
+  else if (bucket === "y1") target.y1Cents += cents;
+  else if (bucket === "y3") target.y3Cents += cents;
+  else target.y5Cents += cents;
 }
 
 function monthKeyFromDate(date: string | null | undefined): string | null {
@@ -412,7 +442,6 @@ function bumpCategory(
   code: string,
   name: string,
   cents: number,
-  volume: ProcedureVolume,
   unmapped: Map<string, ProcedureMixRow>,
 ): void {
   let category = cdt.lookupCategory(code);
@@ -427,9 +456,6 @@ function bumpCategory(
     }
     row.productionCents += cents;
     row.count += 1;
-
-    const bucket = cdt.volumeBucket(code);
-    if (bucket) volume[bucket] += 1;
   } else if (code && code !== "UNKNOWN") {
     bumpMix(unmapped, code, name, cents);
   }
@@ -487,6 +513,7 @@ export function summarizeProductionFromLedger(params: {
   paymentsAvailable?: boolean;
   adjustmentsAvailable?: boolean;
   cdt?: CdtLookup;
+  adjustmentTypes?: AdjustmentTypeRecord[];
 }): ProductionSummary {
   const notices = [...(params.notices ?? [])];
   const { fromYmd, toYmd } = params;
@@ -572,7 +599,11 @@ export function summarizeProductionFromLedger(params: {
 
   if (adjustmentsAvailable) {
     totals.adjustmentCount = adjustments.length;
+    const typesById = buildAdjustmentTypeMap(params.adjustmentTypes ?? []);
+    const typesAvailable = typesById.size > 0;
+
     for (const a of adjustments) {
+      if (!typesAvailable || !isWriteOffAdjustment(a, typesById)) continue;
       const cents = Math.abs(nexPriceToCents(a.adjustment_amount));
       totals.adjustmentsCents += cents;
       if (a.provider_id != null) {
@@ -580,6 +611,20 @@ export function summarizeProductionFromLedger(params: {
         prov.adjustmentsCents += cents;
         prov.adjustmentCount += 1;
       }
+    }
+
+    if (!typesAvailable && adjustments.length > 0) {
+      notices.push(
+        "Adjusted production needs synced adjustment_types — run warehouse sync to flag write-off types.",
+      );
+    } else if (
+      typesAvailable &&
+      totals.adjustmentsCents === 0 &&
+      adjustments.length > 0
+    ) {
+      notices.push(
+        "No write-off adjustments matched synced adjustment_types flagged for adjusted production.",
+      );
     }
   } else {
     notices.push("Adjustments unavailable.");
@@ -616,20 +661,18 @@ export function summarizeProductionFromLedger(params: {
   const procedureVolume = emptyProcedureVolume();
   const treatmentEntries: { monthKey: string; category: string; cents: number }[] =
     [];
-  const dentureWarranty: DentureWarrantyMix = {
-    m6Cents: 0,
-    y1Cents: 0,
-    y3Cents: 0,
-    y5Cents: 0,
-  };
+  const dentureWarranty = emptyDentureWarrantyMix();
+  const partialWarranty = emptyDentureWarrantyMix();
 
-  const bumpWarranty = (code: string, cents: number) => {
-    const bucket = cdt.lookupWarrantyBucket(code);
-    if (!bucket) return;
-    if (bucket === "m6") dentureWarranty.m6Cents += cents;
-    else if (bucket === "y1") dentureWarranty.y1Cents += cents;
-    else if (bucket === "y3") dentureWarranty.y3Cents += cents;
-    else dentureWarranty.y5Cents += cents;
+  const bumpWarranty = (code: string, chargeName: string, cents: number) => {
+    bumpWarrantyProduction(
+      cdt,
+      code,
+      chargeName,
+      cents,
+      dentureWarranty,
+      partialWarranty,
+    );
   };
 
   if (charges.length > 0) {
@@ -638,16 +681,8 @@ export function summarizeProductionFromLedger(params: {
       const chargeName = String(c.description ?? code).trim() || code;
       const cents = nexPriceToCents(c.fee);
       bumpMix(practiceMix, code, chargeName, cents);
-      bumpCategory(
-        cdt,
-        categoryMap,
-        code,
-        chargeName,
-        cents,
-        procedureVolume,
-        unmappedMap,
-      );
-      bumpWarranty(code, cents);
+      bumpCategory(cdt, categoryMap, code, chargeName, cents, unmappedMap);
+      bumpWarranty(code, chargeName, cents);
       bumpScProduction(
         cdt,
         soonerCarePatients,
@@ -681,16 +716,8 @@ export function summarizeProductionFromLedger(params: {
       const name = (p.name || code).trim();
       const cents = nexPriceToCents(p.fee);
       bumpMix(practiceMix, code, name, cents);
-      bumpCategory(
-        cdt,
-        categoryMap,
-        code,
-        name,
-        cents,
-        procedureVolume,
-        unmappedMap,
-      );
-      bumpWarranty(code, cents);
+      bumpCategory(cdt, categoryMap, code, name, cents, unmappedMap);
+      bumpWarranty(code, name, cents);
       bumpScProduction(
         cdt,
         soonerCarePatients,
@@ -717,9 +744,34 @@ export function summarizeProductionFromLedger(params: {
         bumpMix(pMix, code, name, cents);
         const prov = ensureProvider(byProvider, p.provider_id);
         bumpProviderCategory(cdt, prov, code, name, cents);
-        bumpProviderVolumeFromCode(cdt, prov, code);
       }
     }
+  }
+
+  accumulateProcedureVolume({
+    cdt,
+    procedures: params.procedures,
+    fromYmd,
+    toYmd,
+    volume: procedureVolume,
+    onProviderVolume: (providerId, bucket) => {
+      ensureProvider(byProvider, providerId).procedureVolume[bucket] += 1;
+    },
+  });
+
+  if (
+    procedureVolume.extractions +
+      procedureVolume.implants +
+      procedureVolume.aox +
+      procedureVolume.dentures +
+      procedureVolume.partials +
+      procedureVolume.remakes ===
+      0 &&
+    proceduresAvailable
+  ) {
+    notices.push(
+      "Procedure volume empty — map volumeBucket on Code Chart codes and ensure procedures sync as completed.",
+    );
   }
 
   const paymentMix = paymentsAvailable
@@ -749,14 +801,24 @@ export function summarizeProductionFromLedger(params: {
     ? buildMonthlyCollections(payments)
     : [];
 
-  const warrantyTotal =
+  const dentureWarrantyTotal =
     dentureWarranty.m6Cents +
     dentureWarranty.y1Cents +
     dentureWarranty.y3Cents +
     dentureWarranty.y5Cents;
-  if (procedureVolume.dentures > 0 && warrantyTotal === 0) {
+  const partialWarrantyTotal =
+    partialWarranty.m6Cents +
+    partialWarranty.y1Cents +
+    partialWarranty.y3Cents +
+    partialWarranty.y5Cents;
+  if (procedureVolume.dentures > 0 && dentureWarrantyTotal === 0) {
     notices.push(
-      "Denture warranty buckets empty — chart warranty suffix codes (D5110.1–.4) to fill 6-mo / 1 / 3 / 5-yr.",
+      "Denture warranty buckets empty — chart warranty suffix codes on denture codes (not SC partials).",
+    );
+  }
+  if (procedureVolume.partials > 0 && partialWarrantyTotal === 0) {
+    notices.push(
+      "Partial warranty buckets empty — chart warrantyBucket on partial denture codes.",
     );
   }
 
@@ -828,6 +890,7 @@ export function summarizeProductionFromLedger(params: {
     monthlyProduction,
     treatmentByMonth,
     dentureWarranty,
+    partialWarranty,
     monthlyCollections,
     byProvider,
     notices,

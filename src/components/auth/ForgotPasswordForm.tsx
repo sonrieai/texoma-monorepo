@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { InlineSpinner } from "@/components/ui/States";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -104,9 +105,15 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-busy={loading}
+        aria-label={loading ? "Sending reset link" : undefined}
+        className="flex w-full items-center justify-center rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Sending reset link…" : "Send reset link"}
+        {loading ? (
+          <InlineSpinner className="border-white/30 border-t-white" />
+        ) : (
+          "Send reset link"
+        )}
       </button>
 
       <div className="text-center">

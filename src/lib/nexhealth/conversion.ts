@@ -9,11 +9,19 @@ import {
   emptyCdtLookup,
   type CdtLookup,
 } from "@/lib/cdt/categories";
+import {
+  resolveNpConsultTypeIds,
+  type NpConsultTypeDoc,
+} from "@/lib/nexhealth/kpi-reference";
+import {
+  isProcedureComplete,
+  patientDayKey,
+  procedurePatientId,
+  procedureYmd,
+} from "@/lib/nexhealth/procedure-status";
 import { safeRate } from "@/lib/metrics";
 import {
   appointmentTypeId,
-  listProcedures,
-  listTreatmentPlans,
   mapAttendance,
   nexPriceToCents,
   type NexAppointment,
@@ -21,9 +29,6 @@ import {
   type NexProcedure,
   type NexTreatmentPlan,
 } from "@/lib/nexhealth/client";
-
-const NP_CONSULT_NAME_PATTERN =
-  /\b(new patient|np consult|new pt|initial consult|consultation)\b/i;
 
 const OD_CONFIRM_CANCEL = new Set([66, 67]);
 const OD_CONFIRM_NO_SHOW = new Set([69]);
@@ -94,27 +99,6 @@ export function inYmdRange(
   return d >= fromYmd && d <= toYmd;
 }
 
-function patientDayKey(patientId: number, ymd: string): string {
-  return `${patientId}:${ymd}`;
-}
-
-export function isProcedureComplete(
-  status: string | null | undefined,
-): boolean {
-  const s = (status ?? "").trim().toLowerCase();
-  return s === "completed" || s === "complete" || s === "c";
-}
-
-function procedureYmd(proc: NexProcedure): string | null {
-  const raw = proc.start_date || proc.end_date || proc.updated_at;
-  if (!raw) return null;
-  return raw.slice(0, 10);
-}
-
-function procedurePatientId(proc: NexProcedure): number | null {
-  return typeof proc.patient_id === "number" ? proc.patient_id : null;
-}
-
 /** Patient+ymd keys with a consult procedure posted (Mongo `cdt_codes.isConsult`). */
 export function buildConsultProcedureDays(
   procedures: NexProcedure[],
@@ -130,6 +114,9 @@ export function buildConsultProcedureDays(
   }
   return days;
 }
+
+export type { NpConsultTypeDoc } from "@/lib/nexhealth/kpi-reference";
+export { isProcedureComplete } from "@/lib/nexhealth/procedure-status";
 
 function parseOdConfirmCode(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -205,26 +192,6 @@ export function isConsultAppointment(
   return false;
 }
 
-/** Resolve NP consult appointment type IDs from env or type-name heuristics. */
-export function resolveNpConsultTypeIds(
-  types: NexAppointmentType[],
-): { ids: number[]; source: "env" | "name_match" | "none" } {
-  const env = process.env.NEXHEALTH_NP_CONSULT_TYPE_IDS?.trim();
-  if (env) {
-    const ids = env
-      .split(",")
-      .map((part) => Number.parseInt(part.trim(), 10))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    if (ids.length > 0) return { ids, source: "env" };
-  }
-
-  const matched = types
-    .filter((t) => NP_CONSULT_NAME_PATTERN.test(t.name?.trim() || ""))
-    .map((t) => t.id);
-  if (matched.length > 0) return { ids: matched, source: "name_match" };
-  return { ids: [], source: "none" };
-}
-
 function sumPlanFees(plan: NexTreatmentPlan): number {
   let cents = 0;
   for (const proc of plan.procedures ?? []) {
@@ -252,24 +219,12 @@ function planClosedYmd(plan: NexTreatmentPlan): string | null {
   return null;
 }
 
-type Settled<T> = { ok: true; data: T } | { ok: false; error: string };
-
-async function settle<T>(p: Promise<T>): Promise<Settled<T>> {
-  try {
-    return { ok: true, data: await p };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "request failed",
-    };
-  }
-}
-
 export function summarizeConversion(params: {
   fromYmd: string;
   toYmd: string;
   appointments: NexAppointment[];
   appointmentTypes: NexAppointmentType[];
+  appointmentTypeDocs?: NpConsultTypeDoc[];
   procedures?: NexProcedure[];
   plans?: NexTreatmentPlan[];
   cdt?: CdtLookup;
@@ -279,26 +234,22 @@ export function summarizeConversion(params: {
   const plans = params.plans ?? [];
   const cdt = params.cdt ?? emptyCdtLookup;
   const consultProcedureDays = buildConsultProcedureDays(procedures, cdt);
-  const { ids: npConsultTypeIds, source } = resolveNpConsultTypeIds(
-    params.appointmentTypes,
-  );
+  const { ids: npConsultTypeIds, source } = resolveNpConsultTypeIds({
+    appointmentTypeDocs: params.appointmentTypeDocs ?? [],
+  });
   const consultTypeSet = new Set(npConsultTypeIds);
   const hasConsultProcedures = consultProcedureDays.size > 0;
   const hasConsultFilter = consultTypeSet.size > 0 || hasConsultProcedures;
 
-  if (source === "env") {
+  if (source === "chart_appointments") {
     notices.push(
-      `NP consult filter: ${npConsultTypeIds.length} appointment type ID(s) configured.`,
-    );
-  } else if (source === "name_match") {
-    notices.push(
-      `NP consult filter: matched ${npConsultTypeIds.length} type(s) by name.`,
+      `NP consult filter: ${npConsultTypeIds.length} appointment type(s) from chart + schedule.`,
     );
   } else if (hasConsultProcedures) {
     notices.push("NP consult filter: consult procedure codes from code chart.");
   } else {
     notices.push(
-      "NP consult types not configured — ask an administrator to set consult appointment types.",
+      "NP consult not linked yet — mark consult codes on the Code Chart and re-sync.",
     );
   }
 
@@ -408,14 +359,14 @@ export function summarizeConversion(params: {
   }
 
   const firstTxYmdByPatient = new Map<number, string>();
-  for (const appt of params.appointments) {
-    if (mapConversionAttendance(appt) !== "show") continue;
-    if (typeof appt.patient_id !== "number" || !appt.start_time) continue;
-    const ymd = appt.start_time.slice(0, 10);
-    if (ymd > params.toYmd) continue;
-    if (isConsultAppointment(appt, consultTypeSet, consultProcedureDays)) continue;
-    const prev = firstTxYmdByPatient.get(appt.patient_id);
-    if (!prev || ymd < prev) firstTxYmdByPatient.set(appt.patient_id, ymd);
+  for (const proc of procedures) {
+    if (!isProcedureComplete(proc.status)) continue;
+    if (cdt.isConsultCode(proc.code)) continue;
+    const patientId = procedurePatientId(proc);
+    const ymd = procedureYmd(proc);
+    if (patientId == null || !ymd) continue;
+    const prev = firstTxYmdByPatient.get(patientId);
+    if (!prev || ymd < prev) firstTxYmdByPatient.set(patientId, ymd);
   }
 
   let newPatients = 0;
@@ -449,14 +400,14 @@ export function perProviderSameDayNp(params: {
   toYmd: string;
   appointments: NexAppointment[];
   procedures: NexProcedure[];
-  appointmentTypes: NexAppointmentType[];
+  appointmentTypeDocs?: NpConsultTypeDoc[];
   cdt?: CdtLookup;
 }): Map<number, number> {
   const cdt = params.cdt ?? emptyCdtLookup;
   const consultProcedureDays = buildConsultProcedureDays(params.procedures, cdt);
-  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds(
-    params.appointmentTypes,
-  );
+  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds({
+    appointmentTypeDocs: params.appointmentTypeDocs ?? [],
+  });
   const consultTypeSet = new Set(npConsultTypeIds);
   const hasConsultFilter =
     consultTypeSet.size > 0 || consultProcedureDays.size > 0;
@@ -534,53 +485,4 @@ export function perProviderSameDayNp(params: {
     if (total > 0) counts.set(pid, total);
   }
   return counts;
-}
-
-export async function loadConversionSummary(params: {
-  range: { start: string; end: string };
-  appointments: NexAppointment[];
-  appointmentTypes: NexAppointmentType[];
-}): Promise<{
-  summary: ConversionSummary;
-  procedures: NexProcedure[];
-  plans: NexTreatmentPlan[];
-}> {
-  const fromYmd = nexTsToYmd(params.range.start);
-  const toYmd = nexTsToYmd(params.range.end);
-  const updatedSince = nexTsToIso(params.range.start);
-
-  const [plansR, proceduresR] = await Promise.all([
-    settle(listTreatmentPlans({ updatedSince, maxPages: 5 })),
-    settle(
-      listProcedures({
-        startedAfter: fromYmd,
-        startedBefore: toYmd,
-        maxPages: 5,
-      }),
-    ),
-  ]);
-
-  const extraNotices: string[] = [];
-  if (!plansR.ok) extraNotices.push(`Treatment plans unavailable (${plansR.error}).`);
-  else if (plansR.data.length === 0) {
-    extraNotices.push("No treatment plans returned for this window.");
-  }
-  if (!proceduresR.ok) {
-    extraNotices.push(`Procedures unavailable (${proceduresR.error}).`);
-  }
-
-  const summary = summarizeConversion({
-    fromYmd,
-    toYmd,
-    appointments: params.appointments,
-    appointmentTypes: params.appointmentTypes,
-    procedures: proceduresR.ok ? proceduresR.data : [],
-    plans: plansR.ok ? plansR.data : [],
-  });
-  summary.notices = [...extraNotices, ...summary.notices];
-  return {
-    summary,
-    procedures: proceduresR.ok ? proceduresR.data : [],
-    plans: plansR.ok ? plansR.data : [],
-  };
 }

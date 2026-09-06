@@ -162,6 +162,17 @@ export type NexAdjustment = {
   adjusted_at?: string | null;
   deleted_at?: string | null;
   updated_at?: string;
+  adjustment_type_id?: number | null;
+  description?: string | null;
+  [key: string]: unknown;
+};
+
+export type NexAdjustmentType = {
+  id: number;
+  name?: string | null;
+  active?: boolean | null;
+  action?: string | null;
+  updated_at?: string | null;
   [key: string]: unknown;
 };
 
@@ -816,6 +827,28 @@ export async function listAdjustments(params: {
       provider_id: params.providerId,
       sort: "-updated_at",
       include_deleted: false,
+    }),
+    params.maxPages ?? 5,
+    params.perPage ?? 1000,
+  );
+}
+
+/**
+ * GET /adjustment_types — Open Dental Adj Types (sync to Mongo for KPI filters).
+ * @see https://docs.nexhealth.com/reference/getadjustmenttypes
+ */
+export async function listAdjustmentTypes(params: {
+  updatedSince?: string;
+  perPage?: number;
+  maxPages?: number;
+} = {}): Promise<NexAdjustmentType[]> {
+  return listCursorPages<NexAdjustmentType>(
+    "/adjustment_types",
+    "adjustment_types",
+    withLocation({
+      ...(params.updatedSince ? { updated_since: params.updatedSince } : {}),
+      active: true,
+      sort: "-updated_at",
     }),
     params.maxPages ?? 5,
     params.perPage ?? 1000,

@@ -5,6 +5,9 @@ import { isMongoConfigured } from "@/lib/mongo/client";
 export const SESSION_COOKIE = "texoma_session";
 export const SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60;
 
+/** Canonical production dashboard URL (Vercel alias). */
+export const PRODUCTION_APP_URL = "https://texoma.vercel.app";
+
 export const PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL = 15;
 export const PASSWORD_RESET_RATE_WINDOW_MS = 60 * 60 * 1000;
 

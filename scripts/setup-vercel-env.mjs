@@ -19,7 +19,6 @@ const keys = [
   "NEXHEALTH_LOCATION_ID",
   "NEXHEALTH_BASE_URL",
   "NEXHEALTH_API_VERSION",
-  "NEXHEALTH_NP_CONSULT_TYPE_IDS",
   "NEXHEALTH_TIMEZONE",
   "NEXHEALTH_DEBUG",
   "SYNC_SECRET",
@@ -60,6 +59,9 @@ const parsed = Object.fromEntries(
 for (const key of keys) {
   let value = parsed[key]?.trim();
   if (!value && key === "SYNC_STRIP_PHI") value = "1";
+  if (!value && key === "PASSWORD_RESET_WEB_BASE_URL") {
+    value = "https://texoma.vercel.app";
+  }
   if (key === "NEXHEALTH_DEBUG") value = "0";
   if (!value) continue;
 

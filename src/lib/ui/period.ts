@@ -44,15 +44,31 @@ export function lastDayOfMonth(yyyyMm: string): string {
   return `${yyyyMm}-${String(last).padStart(2, "0")}`;
 }
 
+export function rangePreset(
+  key: "thisYear" | "past3" | "past6" | "lastYear",
+  now = new Date(),
+): { from: string; to: string } {
+  const to = todayYmd(now);
+  const y = now.getFullYear();
+  if (key === "thisYear") return { from: `${y}-01-01`, to };
+  if (key === "lastYear") {
+    return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+  }
+  const monthsBack = key === "past3" ? 3 : 6;
+  const fromDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, now.getDate());
+  return { from: todayYmd(fromDate), to };
+}
+
 export function defaultPeriodState(now = new Date()): PeriodState {
   const day = todayYmd(now);
   const month = currentMonthKey(now);
+  const thisYear = rangePreset("thisYear", now);
   return {
-    mode: "monthly",
+    mode: "range",
     day,
     month,
-    from: `${month}-01`,
-    to: day,
+    from: thisYear.from,
+    to: thisYear.to,
   };
 }
 
@@ -76,7 +92,7 @@ export function parsePeriodParams(
   const mode: PeriodMode =
     modeRaw === "daily" || modeRaw === "monthly" || modeRaw === "range"
       ? modeRaw
-      : "monthly";
+      : defaults.mode;
   const dayRaw = readParam(raw, "day");
   const monthRaw = readParam(raw, "month");
   const fromRaw = readParam(raw, "from");
@@ -137,21 +153,6 @@ export function treatmentChartSubtitle(state: PeriodState): string {
     return "Last 6 months · hover a segment for detail";
   }
   return `${periodLabel(state)} · hover a segment for detail`;
-}
-
-export function rangePreset(
-  key: "thisYear" | "past3" | "past6" | "lastYear",
-  now = new Date(),
-): { from: string; to: string } {
-  const to = todayYmd(now);
-  const y = now.getFullYear();
-  if (key === "thisYear") return { from: `${y}-01-01`, to };
-  if (key === "lastYear") {
-    return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
-  }
-  const monthsBack = key === "past3" ? 3 : 6;
-  const fromDate = new Date(now.getFullYear(), now.getMonth() - monthsBack, now.getDate());
-  return { from: todayYmd(fromDate), to };
 }
 
 export const MONTH_LABELS = MONTH_ABBR;

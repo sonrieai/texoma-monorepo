@@ -6,6 +6,7 @@
 
 import type {
   NexAdjustment,
+  NexAdjustmentType,
   NexAppointment,
   NexAppointmentType,
   NexCharge,
@@ -35,6 +36,8 @@ export type ProviderDoc = WarehouseBase & {
 
 export type AppointmentTypeDoc = WarehouseBase & {
   name: string;
+  /** Set on sync when type co-schedules with a chart consult procedure. */
+  isNpConsult?: boolean;
   raw: NexAppointmentType;
 };
 
@@ -77,6 +80,15 @@ export type AdjustmentDoc = WarehouseBase & {
   adjustedAt: string | null;
   deletedAt: string | null;
   raw: NexAdjustment;
+};
+
+export type AdjustmentTypeDoc = WarehouseBase & {
+  name: string;
+  active: boolean;
+  action: string | null;
+  /** When true, adjustments of this type reduce gross production (write-offs). */
+  includeInAdjustedProduction: boolean;
+  raw: NexAdjustmentType;
 };
 
 export type TreatmentPlanDoc = WarehouseBase & {

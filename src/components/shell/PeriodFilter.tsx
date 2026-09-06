@@ -123,8 +123,8 @@ export function PeriodFilter() {
                   <RangePicker
                     from={state.from}
                     to={state.to}
-                    onChange={(from, to) =>
-                      apply({ ...state, mode: "range", from, to }, "range")
+                    onApply={(from, to) =>
+                      apply({ ...state, mode: "range", from, to })
                     }
                   />
                 ) : null}
@@ -144,7 +144,7 @@ export function PeriodFilterFallback() {
         <span
           key={m.id}
           className={`inline-flex min-h-11 min-w-[4.5rem] items-center justify-center px-2.5 text-[12px] font-semibold sm:min-h-9 sm:px-3.5 sm:text-[13px] ${
-            m.id === "monthly" ? "bg-accent2 text-white" : "text-muted"
+            m.id === "range" ? "bg-accent2 text-white" : "text-muted"
           } ${m.id !== "range" ? "border-r border-line" : ""}`}
         >
           {m.label}

@@ -177,7 +177,9 @@ async function main() {
       env: {
         locationId,
         dbName,
-        npConsultTypeIds: process.env.NEXHEALTH_NP_CONSULT_TYPE_IDS,
+        npConsultTypeIds: (
+          await db.collection("appointment_types").find({ locationId, isNpConsult: true }).project({ nexhealthId: 1 }).toArray()
+        ).map((d) => d.nexhealthId),
       },
       meta: {
         lastSyncedAt: meta?.lastSyncedAt,

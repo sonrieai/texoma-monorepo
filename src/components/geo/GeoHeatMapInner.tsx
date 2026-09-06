@@ -9,6 +9,7 @@ import {
   useMap,
 } from "react-leaflet";
 import type { GeoCity } from "@/lib/types/viz";
+import { LoadingBox } from "@/components/ui/States";
 import "leaflet/dist/leaflet.css";
 
 const HEAT_GRADIENT: Record<number, string> = {
@@ -123,9 +124,7 @@ export function GeoHeatMap({
 
   if (!ready) {
     return (
-      <div className="flex h-[420px] items-center justify-center rounded-lg border border-line bg-background text-[12px] text-muted">
-        Loading map…
-      </div>
+      <LoadingBox className="h-[420px] rounded-lg border border-line bg-background" />
     );
   }
 

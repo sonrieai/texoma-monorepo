@@ -1,5 +1,7 @@
 import "server-only";
 
+import { PRODUCTION_APP_URL } from "@/lib/auth/config";
+
 export function getMailgunConfig(): { apiKey: string; domain: string } | null {
   const apiKey = process.env.MAILGUN_API_KEY?.trim();
   const domain = process.env.MAILGUN_DOMAIN?.trim() || "m.sonrie.ai";
@@ -15,6 +17,10 @@ export function getPasswordResetWebBaseUrl(requestOrigin?: string): string {
 
   if (configured) {
     return configured.replace(/\/+$/, "");
+  }
+
+  if (process.env.VERCEL_ENV === "production") {
+    return PRODUCTION_APP_URL;
   }
 
   if (requestOrigin) {

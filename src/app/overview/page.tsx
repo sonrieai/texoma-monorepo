@@ -37,7 +37,10 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       <AppShell title="Overview" subtitle="Practice KPIs">
         <EmptyState
           title="Unable to load dashboard"
-          description="Dashboard data is unavailable. Try again shortly or contact your administrator."
+          description={
+            error ??
+            "Dashboard data is unavailable. Try again shortly or contact your administrator."
+          }
         />
       </AppShell>
     );

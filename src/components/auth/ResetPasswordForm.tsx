@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState, type FormEvent } from "react";
+import { InlineSpinner, Spinner } from "@/components/ui/States";
 
 function passwordChecks(password: string) {
   return {
@@ -165,9 +166,15 @@ function ResetPasswordFormInner() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-busy={loading}
+        aria-label={loading ? "Updating password" : undefined}
+        className="flex w-full items-center justify-center rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Updating password…" : "Reset password"}
+        {loading ? (
+          <InlineSpinner className="border-white/30 border-t-white" />
+        ) : (
+          "Reset password"
+        )}
       </button>
 
       <div className="text-center">
@@ -184,13 +191,7 @@ function ResetPasswordFormInner() {
 
 export function ResetPasswordForm() {
   return (
-    <Suspense
-      fallback={
-        <div className="py-8 text-center text-[12.5px] text-muted">
-          Loading reset form…
-        </div>
-      }
-    >
+    <Suspense fallback={<Spinner size="sm" />}>
       <ResetPasswordFormInner />
     </Suspense>
   );

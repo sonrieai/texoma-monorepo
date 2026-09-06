@@ -22,8 +22,10 @@ import {
 import { buildProcedureCodeFees } from "@/lib/nexhealth/procedure-code-fees";
 import type {
   AdjustmentDoc,
+  AdjustmentTypeDoc,
   AppointmentDoc,
   AppointmentTypeDoc,
+  CdtCodeDoc,
   ChargeDoc,
   ClaimDoc,
   GuarantorBalanceDoc,
@@ -40,6 +42,7 @@ import {
   getNexHealthConfig,
   isNexHealthConfigured,
   listAdjustments,
+  listAdjustmentTypes,
   listAppointments,
   listAppointmentTypes,
   listCharges,
@@ -62,6 +65,7 @@ import {
   type NexAppointment,
   type NexAppointmentType,
   type NexAdjustment,
+  type NexAdjustmentType,
   type NexCharge,
   type NexGuarantorBalance,
   type NexClaim,
@@ -88,7 +92,16 @@ import {
   slimNexTreatmentPlan,
   stripPhiFromNexPatient,
 } from "@/lib/mongo/phi-policy";
-import { resolveNpConsultTypeIds } from "@/lib/nexhealth/conversion";
+import {
+  createCdtLookupFromDocs,
+  emptyCdtLookup,
+  type CdtLookup,
+} from "@/lib/cdt/categories";
+import {
+  inferNpConsultAppointmentTypeIds,
+  npConsultTypeIdsFromDocs,
+} from "@/lib/nexhealth/kpi-reference";
+import { defaultIncludeInAdjustedProduction } from "@/lib/nexhealth/adjusted-production";
 
 const LOOKBACK_DAYS = 365;
 const LOOKAHEAD_DAYS = 365;
@@ -103,8 +116,8 @@ export type SyncResult = {
   nexhealthRequestCount: number;
   upserts: Record<string, number>;
   errors: string[];
-  /** Set when NEXHEALTH_NP_CONSULT_TYPE_IDS is empty — name-match from synced types. */
-  suggestedNpConsultTypeIds?: number[];
+  /** NP consult appointment types inferred on last sync (chart + schedule). */
+  npConsultAppointmentTypeIds?: number[];
 };
 
 /** Load `.env.local` into process.env when running via CLI (tsx). */
@@ -231,6 +244,7 @@ async function upsertAppointmentTypes(
   for (const raw of rows) {
     const id = nexId(raw);
     if (id == null) continue;
+    const existing = await col.findOne({ locationId, nexhealthId: id });
     const doc: AppointmentTypeDoc = {
       locationId,
       subdomain,
@@ -238,6 +252,7 @@ async function upsertAppointmentTypes(
       updatedAt: null,
       syncedAt,
       name: raw.name?.trim() || `Type ${id}`,
+      isNpConsult: existing?.isNpConsult,
       raw,
     };
     await col.updateOne(
@@ -414,6 +429,68 @@ async function upsertAdjustments(
     count += 1;
   }
   return count;
+}
+
+async function upsertAdjustmentTypes(
+  locationId: number,
+  subdomain: string,
+  rows: NexAdjustmentType[],
+): Promise<number> {
+  const col = await getCollection<AdjustmentTypeDoc>(COLLECTIONS.adjustmentTypes);
+  const syncedAt = nowIso();
+  let count = 0;
+  for (const raw of rows) {
+    const id = nexId(raw);
+    if (id == null) continue;
+    const existing = await col.findOne({ locationId, nexhealthId: id });
+    const action =
+      typeof raw.action === "string" ? raw.action.trim().toLowerCase() : null;
+    const doc: AdjustmentTypeDoc = {
+      locationId,
+      subdomain,
+      nexhealthId: id,
+      updatedAt: raw.updated_at ?? null,
+      syncedAt,
+      name: raw.name?.trim() || `Type ${id}`,
+      active: raw.active !== false,
+      action,
+      includeInAdjustedProduction:
+        existing?.includeInAdjustedProduction ??
+        defaultIncludeInAdjustedProduction(action),
+      raw,
+    };
+    await col.updateOne(
+      { locationId, nexhealthId: id },
+      { $set: doc },
+      { upsert: true },
+    );
+    count += 1;
+  }
+  return count;
+}
+
+async function refreshNpConsultAppointmentTypes(
+  locationId: number,
+  appointments: NexAppointment[],
+  procedures: NexProcedure[],
+  cdt: CdtLookup,
+): Promise<number[]> {
+  const inferred = new Set(
+    inferNpConsultAppointmentTypeIds(appointments, procedures, cdt),
+  );
+  const col = await getCollection<AppointmentTypeDoc>(COLLECTIONS.appointmentTypes);
+  const docs = await col.find({ locationId }).toArray();
+  const syncedAt = nowIso();
+  for (const doc of docs) {
+    const isNpConsult = doc.isNpConsult === true || inferred.has(doc.nexhealthId);
+    if (doc.isNpConsult === isNpConsult) continue;
+    await col.updateOne(
+      { locationId, nexhealthId: doc.nexhealthId },
+      { $set: { isNpConsult, syncedAt } },
+    );
+    doc.isNpConsult = isNpConsult;
+  }
+  return npConsultTypeIdsFromDocs(docs);
 }
 
 async function upsertTreatmentPlans(
@@ -635,6 +712,7 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
   let chargeRows: NexCharge[] = [];
   let treatmentPlanRows: NexTreatmentPlan[] = [];
   let appointmentTypeRows: NexAppointmentType[] = [];
+  let appointmentRows: NexAppointment[] = [];
   const syncMaxPages = resolveListMaxPages();
 
   let locationName: string | null = null;
@@ -712,13 +790,13 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
 
   await track("appointments", async () => {
     const range = appointmentRange();
-    const rows = await listAppointments({
+    appointmentRows = await listAppointments({
       start: range.start,
       end: range.end,
       perPage: 1000,
       maxPages: syncMaxPages,
     });
-    return upsertAppointments(config.locationId, config.subdomain, rows);
+    return upsertAppointments(config.locationId, config.subdomain, appointmentRows);
   });
 
   await track("procedures", async () => {
@@ -743,6 +821,14 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
   await track("adjustments", async (updatedSince) => {
     const rows = await listAdjustments({ updatedSince, maxPages: syncMaxPages });
     return upsertAdjustments(config.locationId, config.subdomain, rows);
+  });
+
+  await track("adjustment_types", async (updatedSince) => {
+    const rows = await listAdjustmentTypes({
+      updatedSince,
+      maxPages: syncMaxPages,
+    });
+    return upsertAdjustmentTypes(config.locationId, config.subdomain, rows);
   });
 
   await track("treatment_plans", async (updatedSince) => {
@@ -844,13 +930,16 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
     return upsertInsurancePlans(config.locationId, config.subdomain, rows);
   });
 
-  let suggestedNpConsultTypeIds: number[] | undefined;
-  if (!process.env.NEXHEALTH_NP_CONSULT_TYPE_IDS?.trim()) {
-    const resolved = resolveNpConsultTypeIds(appointmentTypeRows);
-    if (resolved.ids.length > 0) {
-      suggestedNpConsultTypeIds = resolved.ids;
-    }
-  }
+  const cdtCol = await getCollection<CdtCodeDoc>(COLLECTIONS.cdtCodes);
+  const cdtDocs = await cdtCol.find({ locationId: config.locationId }).toArray();
+  const cdtLookup =
+    cdtDocs.length > 0 ? createCdtLookupFromDocs(cdtDocs) : emptyCdtLookup;
+  const npConsultAppointmentTypeIds = await refreshNpConsultAppointmentTypes(
+    config.locationId,
+    appointmentRows,
+    procedureRows,
+    cdtLookup,
+  );
 
   const lastSyncedAt = nowIso();
   const meta: WarehouseMetaDoc = {
@@ -877,8 +966,8 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
     nexhealthRequestCount,
     upserts,
     errors,
-    ...(suggestedNpConsultTypeIds?.length
-      ? { suggestedNpConsultTypeIds }
+    ...(npConsultAppointmentTypeIds.length
+      ? { npConsultAppointmentTypeIds }
       : {}),
   };
 }

@@ -10,8 +10,8 @@ import {
   isConsultAppointment,
   mapConversionAttendance,
   perProviderSameDayNp,
-  resolveNpConsultTypeIds,
 } from "../src/lib/nexhealth/conversion";
+import { resolveNpConsultTypeIds } from "../src/lib/nexhealth/kpi-reference";
 import { summarizeProductionFromLedger } from "../src/lib/nexhealth/production";
 import { loadEnvLocal } from "../src/lib/mongo/sync";
 import type { CdtCodeDoc } from "../src/lib/mongo/types";
@@ -60,6 +60,10 @@ async function main() {
   const apptRaws = apptRawsAll.filter((a) => inRange(a.start_time, fromYmd, toYmd));
   const procRaws = procedures.map((p) => p.raw);
   const typeRaws = appointmentTypes.map((t) => t.raw);
+  const appointmentTypeDocs = appointmentTypes.map((t) => ({
+    nexhealthId: t.nexhealthId as number,
+    isNpConsult: t.isNpConsult as boolean | undefined,
+  }));
 
   const cdt = createCdtLookupFromDocs(
     cdtDocs.map((d) => ({
@@ -84,7 +88,9 @@ async function main() {
     cdt,
   });
 
-  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds(typeRaws);
+  const { ids: npConsultTypeIds } = resolveNpConsultTypeIds({
+    appointmentTypeDocs,
+  });
   const npConsultTypeSet = new Set(npConsultTypeIds);
   const consultProcedureDays = buildConsultProcedureDays(procRaws, cdt);
 
@@ -110,7 +116,7 @@ async function main() {
     toYmd,
     appointments: apptRawsAll,
     procedures: procRaws,
-    appointmentTypes: typeRaws,
+    appointmentTypeDocs,
     cdt,
   });
 

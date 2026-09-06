@@ -30,7 +30,8 @@ Config in repo: [`vercel.json`](../vercel.json).
 | `NEXHEALTH_LOCATION_ID` | Yes | Location id |
 | `NEXHEALTH_BASE_URL` | Yes | `https://nexhealth.info` |
 | `NEXHEALTH_API_VERSION` | Yes | `v3.0.0` |
-| `SYNC_SECRET` | Recommended | Protects `POST /api/sync/nexhealth` |
+| `SYNC_SECRET` | Recommended | Protects `GET/POST /api/sync/nexhealth` |
+| `CRON_SECRET` | Recommended | Vercel Cron Bearer token (can match `SYNC_SECRET`) |
 | `NEXHEALTH_DEBUG` | **Set `0` in production** | Debug/proxy APIs return 404 in production anyway |
 | `SYNC_STRIP_PHI` | Yes (`1`) | Slim warehouse writes (default on unless `0`) |
 | `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Required for Vercel production builds |
@@ -85,5 +86,9 @@ If deployment fails with **403 Forbidden** / "no permission to create a Producti
 
 - **Frontend:** React pages under `src/app/*`
 - **Backend:** Route Handlers under `src/app/api/*` (serverless functions on Vercel)
-- **Data:** MongoDB Atlas warehouse (synced via `npm run sync:nexhealth` locally or `POST /api/sync/nexhealth`)
+- **Data:** MongoDB Atlas warehouse (synced via `npm run sync:nexhealth` locally, **Vercel Cron daily**, or `GET/POST /api/sync/nexhealth`)
+
+## Scheduled sync (24 hr)
+
+Vercel Cron runs **daily at 12:00 UTC** (`vercel.json`). Set `CRON_SECRET` in Production (Vercel sends `Authorization: Bearer …` on cron invocations). Full runbook: [SYNC_SCHEDULE.md](./SYNC_SCHEDULE.md).
 - Open Dental / MySQL stays on the practice network — not deployed to Vercel

@@ -46,14 +46,16 @@ import {
   filterPlansForCoordinator,
   planPatientId,
 } from "@/lib/tc/plan-attribution";
+import {
+  declineReasonFromPlanFields,
+  isDeclinedTreatmentPlanStatus,
+  type DeclineReasonRow,
+} from "@/lib/tc/decline-reasons";
 
 const SOONERCARE_PATTERN =
   /\b(sooner\s*care|soonercare|medicaid|sooner)\b/i;
 
-export type TcDeclineReason = {
-  reason: string;
-  count: number;
-};
+export type TcDeclineReason = DeclineReasonRow;
 
 export type TcFollowRecapture = {
   day1: number;
@@ -212,37 +214,8 @@ function planCaseType(plan: NexTreatmentPlan, cdt: CdtLookup): PlanCaseType {
   return "other";
 }
 
-function normalizeDeclineReason(text: string): string {
-  const t = text.toLowerCase();
-  if (/cost|afford|price|expensive|money/.test(t)) return "Cost / affordability";
-  if (/financ|credit|loan|declin/.test(t)) return "Financing declined";
-  if (/think|time|later|consider/.test(t)) return "Wants to think it over";
-  if (/spouse|family|partner|husband|wife/.test(t)) {
-    return "Needs spouse / family OK";
-  }
-  if (/second opinion|another doctor|elsewhere/.test(t)) {
-    return "Seeking second opinion";
-  }
-  if (/fear|anxiety|scared|nervous/.test(t)) return "Fear / anxiety";
-  return text.length > 48 ? `${text.slice(0, 45)}…` : text;
-}
-
 function declineReasonFromPlan(plan: NexTreatmentPlan): string {
-  const raw = plan as Record<string, unknown>;
-  const candidates = [
-    raw.decline_reason,
-    raw.rejection_reason,
-    raw.reject_reason,
-    raw.notes,
-    raw.note,
-    plan.name,
-  ];
-  for (const c of candidates) {
-    if (typeof c === "string" && c.trim()) {
-      return normalizeDeclineReason(c.trim());
-    }
-  }
-  return "Other";
+  return declineReasonFromPlanFields(plan as Record<string, unknown>);
 }
 
 function daysBetweenYmd(fromYmd: string, toYmd: string): number {
@@ -441,7 +414,7 @@ export function summarizeTcMetrics(params: {
     }
 
     if (
-      plan.status === "rejected" &&
+      isDeclinedTreatmentPlanStatus(plan.status) &&
       inYmdRange(activityYmd, params.fromYmd, params.toYmd)
     ) {
       const reason = declineReasonFromPlan(plan);
@@ -520,7 +493,7 @@ export function summarizeTcMetrics(params: {
   const declineTotal = declineReasons.reduce((sum, row) => sum + row.count, 0);
   if (declineTotal === 0) {
     notices.push(
-      "Decline reasons need rejected treatment plans with notes in Open Dental.",
+      "Decline reasons use rejected treatment plans (Open Dental) and lost GHL pipeline stages when CRM is connected.",
     );
   }
 

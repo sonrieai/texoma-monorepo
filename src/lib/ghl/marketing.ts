@@ -414,13 +414,13 @@ export async function loadMarketingSummary(
   range?: MarketingRange,
   coordinator?: TcCoordinator,
 ): Promise<MarketingSummary> {
-  if (!isGhlConfigured()) {
+  if (!(await isGhlConfigured())) {
     return emptySummary([
-      "Connect marketing CRM credentials for live funnel and sources.",
+      "Connect GoHighLevel in Settings to show live funnel and referral sources.",
     ]);
   }
 
-  const config = getGhlConfig();
+  const config = await getGhlConfig();
   const notices: string[] = [];
 
   try {

@@ -23,9 +23,13 @@ export function FunnelChart({
   variant?: "center" | "tc";
 }) {
   const max = Math.max(...stages.map((s) => s.value), 1);
-  const rowH = variant === "tc" ? 46 : 36;
+  const rowH = variant === "tc" ? 46 : 40;
   const width = 560;
   const barMax = width - 160;
+  const barPadY = 4;
+  const barHeight = rowH - barPadY * 2;
+  /** Extra space below the last row so labels are not clipped. */
+  const viewHeight = stages.length * rowH + 12;
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<FunnelHover | null>(null);
@@ -59,11 +63,13 @@ export function FunnelChart({
       : null;
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative pb-1">
       <svg
-        viewBox={`0 0 ${width} ${stages.length * rowH + 8}`}
+        viewBox={`0 0 ${width} ${viewHeight}`}
         width="100%"
-        className="max-h-[280px]"
+        preserveAspectRatio="xMidYMid meet"
+        className="block h-auto w-full"
+        aria-label="Funnel chart"
       >
         {stages.map((s, i) => {
           const barWidth = (s.value / max) * barMax;
@@ -111,6 +117,8 @@ export function FunnelChart({
           }
 
           const w = Math.max(80, (s.value / max) * 480);
+          const rowTop = i * rowH;
+          const barY = rowTop + barPadY;
           return (
             <g
               key={s.label}
@@ -121,9 +129,9 @@ export function FunnelChart({
             >
               <rect
                 x={(width - w) / 2}
-                y={y + 4}
+                y={barY}
                 width={w}
-                height={rowH - 8}
+                height={barHeight}
                 rx={4}
                 fill={color}
                 opacity={0.85}
@@ -131,8 +139,9 @@ export function FunnelChart({
               />
               <text
                 x={width / 2}
-                y={y + (rowH - 8) / 2 + 4}
+                y={rowTop + rowH / 2}
                 textAnchor="middle"
+                dominantBaseline="middle"
                 fontSize={11}
                 fill="white"
                 fontWeight={600}

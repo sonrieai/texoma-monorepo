@@ -2,7 +2,15 @@
  * GoHighLevel adapter — live when GHL_API_KEY + GHL_LOCATION_ID are set.
  */
 
-export { isGhlConfigured, getGhlConfig, GhlConfigError } from "@/lib/ghl/config";
+export {
+  isGhlConfigured,
+  isGhlConfiguredFromEnv,
+  getGhlConfig,
+  resolveGhlConfigSource,
+  GhlConfigError,
+  type GhlConfigSource,
+} from "@/lib/ghl/config";
+export type { GhlConfig } from "@/lib/ghl/types";
 export {
   loadMarketingSummary,
   adSpendByChannel,

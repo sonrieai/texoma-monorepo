@@ -17,7 +17,7 @@ npm run sync:nexhealth       # NexHealth → Mongo warehouse (required once)
 npm run dev                  # http://localhost:5001 → /overview
 ```
 
-Overview reads **MongoDB only** on page load — not NexHealth. Set `MONGODB_URI` and run `npm run sync:nexhealth` (or `sync:nexhealth:full`) before expecting KPIs. `NEXHEALTH_API_KEY` is for the sync job and debug routes, not for each dashboard view.
+Overview reads **MongoDB only** on page load — not NexHealth. Set `MONGODB_URI` and run `npm run sync:nexhealth` (or `sync:nexhealth:full`) before expecting KPIs. Production can sync automatically every 24h via **Vercel Cron** or Windows Task Scheduler — see [docs/SYNC_SCHEDULE.md](docs/SYNC_SCHEDULE.md).
 
 ## Deploy (Vercel)
 

@@ -19,6 +19,8 @@ const NAV = [
 ] as const;
 
 const SETTINGS_LINKS = [
+  { href: "/settings/sync", label: "Data sync" },
+  { href: "/settings/ghl", label: "GoHighLevel" },
   { href: "/settings/procedure-codes", label: "Procedure codes" },
   ...(process.env.NODE_ENV === "production"
     ? []
@@ -229,7 +231,7 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
         <div className="px-2 pb-1 pt-2 text-[10px] uppercase tracking-[1px] text-sidebar-muted">
           Views
         </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain">
+        <nav className="scrollbar-none flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain">
           {NAV.map((item) => {
             const active = navActive(pathname, item.href);
             const showDoctorSubs = item.href === "/doctor" && doctorOpen;

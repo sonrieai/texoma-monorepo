@@ -22,6 +22,7 @@ import {
   resolvePatientAddress,
 } from "@/lib/nexhealth/patient-address";
 import { extractPrimaryInsuranceCarrier } from "@/lib/nexhealth/sc-production";
+import { extractDeclineReasonLabel } from "@/lib/tc/decline-reasons";
 
 /** Default on. Set SYNC_STRIP_PHI=0 only for local debugging of unsanitized payloads. */
 export function isPhiStripEnabled(): boolean {
@@ -139,7 +140,14 @@ export function slimNexAdjustment(raw: NexAdjustment): NexAdjustment {
 }
 
 export function slimNexTreatmentPlan(raw: NexTreatmentPlan): NexTreatmentPlan {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexTreatmentPlan;
+  const declineReason = extractDeclineReasonLabel(
+    raw as Record<string, unknown>,
+  );
+  const slim = omitPhiKeys(raw as Record<string, unknown>) as NexTreatmentPlan;
+  if (declineReason) {
+    (slim as Record<string, unknown>).decline_reason = declineReason;
+  }
+  return slim;
 }
 
 export function slimNexClaim(raw: NexClaim): NexClaim {

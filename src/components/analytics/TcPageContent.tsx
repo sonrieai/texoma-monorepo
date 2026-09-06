@@ -5,7 +5,12 @@ import {
   TcKeyFiguresSection,
   TcPatientJourneySection,
 } from "@/components/analytics/TcDashboard";
+import { loadGhlDeclineReasons } from "@/lib/ghl/decline-reasons";
 import { isGhlConfigured, loadMarketingSummary } from "@/lib/ghl/client";
+import {
+  declineReasonTotal,
+  mergeDeclineReasons,
+} from "@/lib/tc/decline-reasons";
 import type { ConversionSummary } from "@/lib/nexhealth/conversion";
 import type { LiveOverview } from "@/lib/nexhealth/live";
 import type { TcMetrics } from "@/lib/nexhealth/tc-metrics";
@@ -34,11 +39,20 @@ export async function TcPageContent({
 }: TcPageContentProps) {
   const startYmd = range.start.slice(0, 10);
   const endYmd = range.end.slice(0, 10);
-  const ghlReady = isGhlConfigured();
+  const ghlReady = await isGhlConfigured();
   const marketing = await loadMarketingSummary(
     { startYmd, endYmd },
     coordinator,
   );
+  const ghlDeclines = await loadGhlDeclineReasons(
+    { startYmd, endYmd },
+    coordinator,
+  );
+  const declineReasons = mergeDeclineReasons(
+    tc.declineReasons,
+    ghlDeclines.reasons,
+  );
+  const declineTotal = declineReasonTotal(declineReasons);
 
   return (
     <>
@@ -58,7 +72,12 @@ export async function TcPageContent({
         subtitle={journeySubtitle}
       />
       <TcConversionFunnelSection conv={conv} tc={tc} />
-      <TcDenialReasonsSection tc={tc} periodLabel={periodLabel} />
+      <TcDenialReasonsSection
+        declineReasons={declineReasons}
+        declineTotal={declineTotal}
+        ghlReady={ghlReady}
+        periodLabel={periodLabel}
+      />
       <TcKeyFiguresSection
         conv={conv}
         tc={tc}

@@ -13,7 +13,9 @@ import {
   type SyncResource,
   type SyncStateDoc,
   type WarehouseMetaDoc,
+  type SyncTrigger,
 } from "@/lib/mongo/client";
+import { recordSyncHistory } from "@/lib/mongo/sync-history";
 import { syncProcedureCodesFromNexHealth } from "@/lib/mongo/sync-procedure-codes";
 import {
   procedureCategoryMap,
@@ -106,6 +108,11 @@ import { defaultIncludeInAdjustedProduction } from "@/lib/nexhealth/adjusted-pro
 const LOOKBACK_DAYS = 365;
 const LOOKAHEAD_DAYS = 365;
 const DEFAULT_UPDATED_SINCE_DAYS = 400;
+
+export type SyncRunOptions = {
+  trigger?: SyncTrigger;
+  triggeredBy?: string | null;
+};
 
 export type SyncResult = {
   ok: boolean;
@@ -689,7 +696,13 @@ async function upsertInsurancePlans(
   return count;
 }
 
-export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
+export async function runNexHealthWarehouseSync(
+  options: SyncRunOptions = {},
+): Promise<SyncResult> {
+  const startedAt = nowIso();
+  const trigger = options.trigger ?? "cli";
+  const triggeredBy = options.triggeredBy ?? null;
+
   if (!isMongoConfigured()) {
     throw new Error("MONGODB_URI (or MONGODB_URL) is not set in .env.local");
   }
@@ -957,7 +970,7 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
   const metaCol = await getCollection<WarehouseMetaDoc>(COLLECTIONS.meta);
   await metaCol.updateOne({ _id: "overview" }, { $set: meta }, { upsert: true });
 
-  return {
+  const result: SyncResult = {
     ok: errors.length === 0,
     locationId: config.locationId,
     subdomain: config.subdomain,
@@ -970,4 +983,23 @@ export async function runNexHealthWarehouseSync(): Promise<SyncResult> {
       ? { npConsultAppointmentTypeIds }
       : {}),
   };
+
+  try {
+    await recordSyncHistory({
+      startedAt,
+      finishedAt: lastSyncedAt,
+      ok: result.ok,
+      trigger,
+      triggeredBy,
+      locationId: config.locationId,
+      subdomain: config.subdomain,
+      nexhealthRequestCount,
+      upserts,
+      errors,
+    });
+  } catch {
+    // History is auxiliary — do not fail the sync job.
+  }
+
+  return result;
 }

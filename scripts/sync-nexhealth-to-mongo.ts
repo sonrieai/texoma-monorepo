@@ -20,7 +20,10 @@ if (process.argv.includes("--full")) {
 async function main() {
   console.log("Starting NexHealth → MongoDB warehouse sync…");
   try {
-    const result = await runNexHealthWarehouseSync();
+    const result = await runNexHealthWarehouseSync({
+      trigger: "cli",
+      triggeredBy: "cli",
+    });
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) {
       console.error("Sync completed with errors.");

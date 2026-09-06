@@ -44,7 +44,7 @@ export default async function ProcedureCodesSettingsPage() {
       <NoticeList
         notices={[
           "Read-only view — codes and fees sync from Open Dental via NexHealth.",
-          "Run npm run sync:nexhealth after changes in Open Dental (Lists → Procedure Codes).",
+          "After OD changes, run a sync from Settings → Data sync.",
           "To change codes, fees, or descriptions, edit Open Dental — not this dashboard.",
         ]}
       />

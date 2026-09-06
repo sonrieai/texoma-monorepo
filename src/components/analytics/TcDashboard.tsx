@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { DonutChart, HBarChart } from "@/components/charts/DonutChart";
 import { PatientJourneyTable } from "@/components/analytics/PatientJourneyTable";
@@ -14,6 +15,7 @@ import {
 import type { ConversionSummary } from "@/lib/nexhealth/conversion";
 import type { LiveOverview } from "@/lib/nexhealth/live";
 import type { TcMetrics } from "@/lib/nexhealth/tc-metrics";
+import type { DeclineReasonRow } from "@/lib/tc/decline-reasons";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 const SAME_DAY_NP_TC_TARGET = 0.75;
@@ -221,8 +223,15 @@ export function TcPatientJourneySection({
         {!ghlReady ? (
           <EmptyState
             title="Marketing channels not connected"
-            description="Connect GoHighLevel credentials to show lead → paid journey by source."
-          />
+            description="Add your GoHighLevel API key and Location ID in Settings to show lead → paid journey by source."
+          >
+            <Link
+              href="/settings/ghl"
+              className="inline-flex min-h-9 items-center rounded-lg bg-accent2 px-4 py-2 text-[12.5px] font-semibold text-white transition hover:opacity-95"
+            >
+              Configure GoHighLevel
+            </Link>
+          </EmptyState>
         ) : !marketing.available || marketing.channels.length === 0 ? (
           <EmptyState
             title="No channel journey data"
@@ -310,13 +319,17 @@ export function TcConversionFunnelSection({
 }
 
 export function TcDenialReasonsSection({
-  tc,
+  declineReasons,
+  declineTotal,
+  ghlReady,
   periodLabel,
 }: {
-  tc: TcMetrics;
+  declineReasons: DeclineReasonRow[];
+  declineTotal: number;
+  ghlReady: boolean;
   periodLabel: string;
 }) {
-  const hasReasons = tc.declineReasons.length > 0;
+  const hasReasons = declineReasons.length > 0;
 
   return (
     <>
@@ -326,13 +339,13 @@ export function TcDenialReasonsSection({
           title="Why Presented Plans Didn't Close"
           subtitle={
             hasReasons
-              ? `Reasons cases were not accepted · ${tc.declineTotal} unaccepted plans · ${periodLabel}`
-              : `Decline reasons from rejected treatment plans · ${periodLabel}`
+              ? `Reasons cases were not accepted · ${declineTotal} unaccepted · ${periodLabel}`
+              : `Decline reasons from Open Dental + GoHighLevel · ${periodLabel}`
           }
         >
           {hasReasons ? (
             <HBarChart
-              rows={tc.declineReasons.map((row, i) => ({
+              rows={declineReasons.map((row, i) => ({
                 label: row.reason,
                 value: row.count,
                 color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
@@ -341,10 +354,23 @@ export function TcDenialReasonsSection({
               labelWidth={195}
             />
           ) : (
-            <p className="m-0 text-[12px] text-muted">
-              Rejected treatment plans with decline notes in Open Dental will
-              populate this chart after sync.
-            </p>
+            <div>
+              <p className="m-0 text-[12px] text-muted">
+                Mark treatment plans as rejected in Open Dental (with a decline
+                note) or move GHL opportunities to a lost / declined stage.
+                {ghlReady
+                  ? " GHL is connected — check that pipeline stages include decline labels."
+                  : " Connect GoHighLevel in Settings for CRM decline stages."}
+              </p>
+              {!ghlReady ? (
+                <Link
+                  href="/settings/ghl"
+                  className="mt-3 inline-flex min-h-9 items-center rounded-lg bg-accent2 px-4 py-2 text-[12.5px] font-semibold text-white transition hover:opacity-95"
+                >
+                  Configure GoHighLevel
+                </Link>
+              ) : null}
+            </div>
           )}
         </Card>
       </div>

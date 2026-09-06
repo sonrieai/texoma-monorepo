@@ -27,6 +27,8 @@ export const COLLECTIONS = {
   cdtCodes: "cdt_codes",
   procedureCategories: "procedure_categories",
   meta: "meta",
+  syncHistory: "sync_history",
+  integrationSettings: "integration_settings",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
@@ -69,6 +71,21 @@ export type WarehouseMetaDoc = {
   lastNexhealthRequestCount: number;
   /** Labels for procedure code fee columns (from NexHealth fee schedules). */
   feeScheduleNames?: [string | null, string | null, string | null];
+};
+
+export type SyncTrigger = "manual" | "cron" | "cli" | "http";
+
+export type SyncHistoryDoc = {
+  locationId: number;
+  subdomain: string;
+  startedAt: string;
+  finishedAt: string;
+  ok: boolean;
+  trigger: SyncTrigger;
+  triggeredBy: string | null;
+  nexhealthRequestCount: number;
+  upsertTotal: number;
+  errorSummary: string | null;
 };
 
 let clientPromise: Promise<MongoClient> | null = null;
@@ -197,4 +214,8 @@ export async function ensureWarehouseIndexes(): Promise<void> {
   await db
     .collection(COLLECTIONS.cdtCodes)
     .createIndex({ code: 1 }, { unique: true, name: "code_uq" });
+
+  await db
+    .collection(COLLECTIONS.syncHistory)
+    .createIndex({ locationId: 1, finishedAt: -1 }, { name: "loc_finished" });
 }

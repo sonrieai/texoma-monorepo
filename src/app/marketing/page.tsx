@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { HBarChart } from "@/components/charts/DonutChart";
@@ -78,18 +79,23 @@ function Scorecard({ items }: { items: MarketingScoreItem[] }) {
 }
 
 export default async function MarketingPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const period = rangeFromSearchParams(params);
+
   let error: string | null = null;
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
 
   try {
-    const { start, end } = rangeFromSearchParams(await searchParams);
-    data = await loadLiveOverview(start, end);
+    data = await loadLiveOverview(period.start, period.end);
   } catch (e) {
     error = e instanceof Error ? e.message : "Failed to load data";
   }
 
-  const ghlReady = isGhlConfigured();
-  const marketing = await loadMarketingSummary();
+  const ghlReady = await isGhlConfigured();
+  const marketing = await loadMarketingSummary({
+    startYmd: period.start.slice(0, 10),
+    endYmd: period.end.slice(0, 10),
+  });
 
   if (error || !data) {
     return (
@@ -203,8 +209,15 @@ export default async function MarketingPage({ searchParams }: PageProps) {
       {!ghlReady ? (
         <EmptyState
           title="Marketing channels not connected"
-          description="Connect marketing CRM credentials to show leads, funnel, and referral sources."
-        />
+          description="Add your GoHighLevel API key and Location ID in Settings to show leads, funnel, and referral sources."
+        >
+          <Link
+            href="/settings/ghl"
+            className="inline-flex min-h-9 items-center rounded-lg bg-accent2 px-4 py-2 text-[12.5px] font-semibold text-white transition hover:opacity-95"
+          >
+            Configure GoHighLevel
+          </Link>
+        </EmptyState>
       ) : !marketing.available && marketing.channels.length === 0 ? (
         <EmptyState
           title="No opportunities in range"
@@ -335,7 +348,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
                   { label: "Booked", value: t.booked },
                   { label: "Showed", value: t.showed },
                   { label: "Accepted", value: t.accepted },
-                  { label: "Surgery started", value: t.surgery },
+                  { label: "Surgery", value: t.surgery },
                 ]}
               />
             </Card>

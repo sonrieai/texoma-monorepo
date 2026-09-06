@@ -18,7 +18,7 @@ export async function ghlFetch<T>(
   init: RequestInit = {},
   config?: GhlConfig,
 ): Promise<T> {
-  const cfg = config ?? getGhlConfig();
+  const cfg = config ?? (await getGhlConfig());
   const url = path.startsWith("http")
     ? path
     : `${cfg.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;

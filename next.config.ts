@@ -7,8 +7,11 @@ if (process.env.VERCEL === "1" && process.env.VERCEL_ENV === "production") {
       "AUTH_SESSION_SECRET (≥32 characters) is required for Vercel production.",
     );
   }
-  if (process.env.NEXHEALTH_DEBUG === "1") {
-    throw new Error("NEXHEALTH_DEBUG must be 0 (or unset) in Vercel production.");
+  const debugFlag = process.env.NEXHEALTH_DEBUG?.trim().toLowerCase();
+  if (debugFlag === "1" || debugFlag === "true" || debugFlag === "yes") {
+    console.warn(
+      "[texoma] NEXHEALTH_DEBUG is enabled in Vercel production env — debug routes stay disabled at runtime (NODE_ENV=production). Set NEXHEALTH_DEBUG=0 in Vercel → Settings → Environment Variables to silence this warning.",
+    );
   }
 }
 

@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Cards";
 import { Pagination } from "@/components/ui/Pagination";
 import { centsToDollars, formatCount, formatUsd, formatUsdFromCentsOrDash } from "@/lib/metrics";
 import { LIST_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
-import type { ProcedureVolume } from "@/lib/nexhealth/production";
+import type { ProcedureVolume } from "@/lib/warehouse/production";
 
 export type ProviderTableRow = {
   id: string;

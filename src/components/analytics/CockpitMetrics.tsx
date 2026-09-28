@@ -7,14 +7,14 @@ import {
   formatUsd,
   formatUsdCompact,
 } from "@/lib/metrics";
-import type { ArSummary } from "@/lib/nexhealth/ar";
-import type { ConversionSummary } from "@/lib/nexhealth/conversion";
-import type { LiveProduction } from "@/lib/nexhealth/live";
+import type { ArSummary } from "@/lib/warehouse/ar";
+import type { ConversionSummary } from "@/lib/warehouse/conversion";
+import type { LiveProduction } from "@/lib/warehouse/live";
 import {
   buildProductionCategoryDonutSlices,
   buildProductionChartCategories,
   productionCategoryDonutTotalCents,
-} from "@/lib/nexhealth/production-category-donut";
+} from "@/lib/warehouse/production-category-donut";
 import { cockpitPeriodLabel } from "@/lib/ui/practice-labels";
 
 /** Formulas-tab rate targets (not mockup demo dollars). */

@@ -10,8 +10,6 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/forgot-password") return true;
   if (pathname === "/reset-password") return true;
   if (pathname.startsWith("/api/auth/")) return true;
-  if (pathname === "/api/sync/nexhealth") return true;
-  if (pathname === "/api/sync/nexhealth/status") return true;
   return false;
 }
 

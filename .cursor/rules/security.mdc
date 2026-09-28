@@ -11,6 +11,6 @@ alwaysApply: false
 - Never commit secrets; use env vars / secret stores only
 - Validate Route Handler inputs; never trust client-only validation
 - Sanitize / escape user-controlled content; prevent XSS
-- NexHealth and GHL credentials stay server-side only
+- Open Dental and GHL credentials stay server-side only
 - Do not log PHI (patient names, DOB, full addresses, phone, email), tokens, or raw appointment payloads
 - Prefer aggregated geo metrics over raw address dumps in the UI unless the doctor session is authenticated

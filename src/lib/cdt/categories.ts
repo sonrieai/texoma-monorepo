@@ -1,6 +1,6 @@
 /**
  * Procedure code lookup for cockpit charts.
- * Mappings load from Mongo `cdt_codes` (synced from Open Dental via NexHealth).
+ * Mappings load from Open Dental procedurecode + ProcCat definitions.
  * No bundled code catalog at runtime.
  */
 
@@ -8,7 +8,7 @@ import { inferCategoryFromDescription } from "@/lib/cdt/infer-procedure-category
 
 export type CatalogEntryOptions = {
   procCatId?: number | null;
-  /** Category name from Open Dental ProcCat (NexHealth sync). */
+  /** Category name from Open Dental ProcCat (Open Dental sync). */
   categoryFromProcCat?: string | null;
 };
 
@@ -30,9 +30,9 @@ export type CdtCodeRow = {
   warrantyBucket?: string | null;
   isAox?: boolean;
   isSoldCase?: boolean;
-  /** NP consult procedure marker (Settings / Mongo `cdt_codes`). */
+  /** NP consult procedure marker inferred from Open Dental descriptions. */
   isConsult?: boolean;
-  /** Office / insurance fee schedule amounts from NexHealth (matches OD Fee 1–3). */
+  /** Office / insurance fee schedule amounts from Open Dental (matches OD Fee 1–3). */
   fee1?: string | null;
   fee2?: string | null;
   fee3?: string | null;
@@ -181,7 +181,7 @@ export const emptyCdtLookup = makeLookup({
   consult: new Set<string>(),
 });
 
-/** Build lookup from warehouse `cdt_codes` (Open Dental via NexHealth sync). */
+/** Build lookup from warehouse `cdt_codes` (Open Dental from Open Dental sync). */
 export function createCdtLookupFromDocs(docs: CdtCodeRow[]): CdtLookup {
   const byCode: Record<string, CodeEntry> = {};
   const aoxSold = new Set<string>();

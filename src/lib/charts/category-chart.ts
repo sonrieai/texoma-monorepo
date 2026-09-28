@@ -1,7 +1,7 @@
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 export type ChartCategoryDef = {
-  /** Stable key — Open Dental category name from NexHealth sync. */
+  /** Stable key — Open Dental category name from warehouse sync. */
   key: string;
   label: string;
   color: string;

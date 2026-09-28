@@ -16,7 +16,7 @@ Treat the agent as a senior engineer, not autocomplete.
 ## Reuse before create
 
 - Search the repo for an existing component, hook, service, schema, or util before adding a new one
-- Do not duplicate API client patterns — extend `src/lib/nexhealth` and `src/lib/ghl`
+- Do not duplicate API client patterns — extend `src/lib/opendental` and `src/lib/ghl`
 
 ## Structure
 

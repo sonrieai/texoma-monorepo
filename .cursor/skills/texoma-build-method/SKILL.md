@@ -22,11 +22,11 @@ description: >-
 | Phase | Must pass before next |
 |-------|------------------------|
 | 0 Scaffold | Next.js boots; skills/rules present; mock Overview renders |
-| 1 NexHealth discovery | Auth + appointments/providers/patients reachable in sandbox; show/no-show field map drafted |
+| 1 Open Dental discovery | Read-only MySQL appointments/providers/patients reachable; show/no-show field map drafted |
 | 2 Overview UI | Hybrid live + mock cockpit matches mockup layout |
 | 3 Marketing / GHL | Stub → live leads, spend, funnel; CPL / ROI from metrics lib |
-| 4 Geo | Patients-by-area heat map from addresses (mock → Nex patients) |
-| 5 Write-back | Appointment + new-patient source attribution into EHR via NexHealth |
+| 4 Geo | Patients-by-area heat map from Open Dental city/ZIP |
+| 5 Write-back | Appointment + new-patient source attribution into the EHR |
 
 ## Soft launch
 

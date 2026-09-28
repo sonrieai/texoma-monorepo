@@ -97,7 +97,7 @@ export function ProcedureCodesPanel({
                     className="px-2 py-6 text-center text-[12px] text-muted"
                   >
                     {codes.length === 0
-                      ? "No procedure codes in warehouse — run npm run sync:nexhealth first."
+                      ? "No procedure codes returned from Open Dental."
                       : "No codes match your search."}
                   </td>
                 </tr>

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { NexTreatmentPlan } from "@/lib/nexhealth/client";
-import { slimNexTreatmentPlan } from "@/lib/mongo/phi-policy";
-import { summarizeTcMetrics } from "@/lib/nexhealth/tc-metrics";
-import { emptyConversionSummary } from "@/lib/nexhealth/conversion";
+import type { TreatmentPlanRecord } from "@/lib/warehouse/types";
+import { slimTreatmentPlanRecord } from "@/lib/mongo/phi-policy";
+import { summarizeTcMetrics } from "@/lib/warehouse/tc-metrics";
+import { emptyConversionSummary } from "@/lib/warehouse/conversion";
 import {
   isGhlDeclineOpportunity,
   mergeDeclineReasons,
@@ -23,7 +23,7 @@ describe("decline reasons", () => {
   });
 
   it("preserves normalized decline_reason when notes are stripped at sync", () => {
-    const raw: NexTreatmentPlan = {
+    const raw: TreatmentPlanRecord = {
       id: 9,
       status: "rejected",
       updated_at: "2026-08-15T00:00:00Z",
@@ -37,7 +37,7 @@ describe("decline reasons", () => {
         },
       ],
     };
-    const slim = slimNexTreatmentPlan(raw);
+    const slim = slimTreatmentPlanRecord(raw);
     assert.equal(slim.decline_reason, "Needs spouse / family OK");
     assert.equal((slim as Record<string, unknown>).notes, undefined);
   });

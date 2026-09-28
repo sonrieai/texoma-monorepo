@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadLiveProviders } from "@/lib/nexhealth/live";
+import { loadLiveProviders } from "@/lib/warehouse/live";
 
 export const dynamic = "force-dynamic";
 

@@ -5,8 +5,8 @@ import { KeyFiguresTable } from "@/components/ui/KeyFiguresTable";
 import { EmptyState } from "@/components/ui/States";
 import { CLAIMS_SYNC_NOTE } from "@/lib/metrics/insurance";
 import { centsToDollars, formatPct, formatUsd } from "@/lib/metrics";
-import type { InsuranceMetrics } from "@/lib/nexhealth/insurance-metrics";
-import type { LiveProduction } from "@/lib/nexhealth/live";
+import type { InsuranceMetrics } from "@/lib/warehouse/insurance-metrics";
+import type { LiveProduction } from "@/lib/warehouse/live";
 
 const SC_APPROVAL_TARGET = 85;
 
@@ -81,7 +81,7 @@ export function InsuranceSoonerCareSection({
               label="SC approval rate"
               value="—"
               target="≥85%"
-              note="not in NexHealth claims"
+              note="not in Open Dental claims"
             />
             <ComboStat
               variant="inset"
@@ -180,7 +180,7 @@ export function InsuranceSoonerCareSection({
         >
           <EmptyState
             title="SC pre-authorizations unavailable"
-            description="NexHealth GET /claims has no pre-auth type or decision fields."
+            description="Open Dental GET /claims has no pre-auth type or decision fields."
           />
         </Card>
       </div>

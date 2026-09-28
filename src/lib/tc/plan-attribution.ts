@@ -1,11 +1,11 @@
-import type { NexTreatmentPlan } from "@/lib/nexhealth/client";
+import type { TreatmentPlanRecord } from "@/lib/warehouse/types";
 import {
   extractPlanCoordinatorRef,
   type PlanCoordinatorRef,
 } from "@/lib/tc/discover-coordinators";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
-export function planPatientId(plan: NexTreatmentPlan): number | null {
+export function planPatientId(plan: TreatmentPlanRecord): number | null {
   if (typeof plan.patient_id === "number") return plan.patient_id;
   for (const proc of plan.procedures ?? []) {
     if (typeof proc.patient_id === "number") return proc.patient_id;
@@ -35,7 +35,7 @@ function coordinatorSlugMatch(a: string, b: string): boolean {
 }
 
 export function planBelongsToCoordinator(
-  plan: NexTreatmentPlan,
+  plan: TreatmentPlanRecord,
   coordinator: TcCoordinator,
 ): boolean {
   const ref = extractPlanCoordinatorRef(plan);
@@ -44,7 +44,7 @@ export function planBelongsToCoordinator(
 }
 
 export function coordinatorPatientIds(
-  plans: NexTreatmentPlan[],
+  plans: TreatmentPlanRecord[],
   coordinator: TcCoordinator,
 ): Set<number> {
   const ids = new Set<number>();
@@ -57,14 +57,14 @@ export function coordinatorPatientIds(
 }
 
 export function filterPlansForCoordinator(
-  plans: NexTreatmentPlan[],
+  plans: TreatmentPlanRecord[],
   coordinator: TcCoordinator,
-): NexTreatmentPlan[] {
+): TreatmentPlanRecord[] {
   return plans.filter((plan) => planBelongsToCoordinator(plan, coordinator));
 }
 
 /** @deprecated use extractPlanCoordinatorRef */
-export function extractPlanUserId(plan: NexTreatmentPlan): number | null {
+export function extractPlanUserId(plan: TreatmentPlanRecord): number | null {
   const ref = extractPlanCoordinatorRef(plan);
   return ref?.attributionIds[0] ?? null;
 }

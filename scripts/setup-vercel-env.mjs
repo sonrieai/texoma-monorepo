@@ -11,19 +11,14 @@ const scope = process.env.VERCEL_SCOPE ?? "sonrie";
 const project = process.env.VERCEL_PROJECT ?? "texoma-monorepo";
 
 const keys = [
+  "OD_MYSQL_HOST",
+  "OD_MYSQL_PORT",
+  "OD_MYSQL_USER",
+  "OD_MYSQL_PASS",
+  "OD_MYSQL_DB",
   "MONGODB_URI",
   "MONGODB_URL",
   "MONGODB_DB",
-  "NEXHEALTH_API_KEY",
-  "NEXHEALTH_SUBDOMAIN",
-  "NEXHEALTH_LOCATION_ID",
-  "NEXHEALTH_BASE_URL",
-  "NEXHEALTH_API_VERSION",
-  "NEXHEALTH_TIMEZONE",
-  "NEXHEALTH_DEBUG",
-  "SYNC_SECRET",
-  "CRON_SECRET",
-  "SYNC_NEXHEALTH_ENABLED",
   "SYNC_STRIP_PHI",
   "GHL_API_KEY",
   "GHL_LOCATION_ID",
@@ -63,15 +58,13 @@ for (const key of keys) {
   if (!value && key === "PASSWORD_RESET_WEB_BASE_URL") {
     value = "https://texoma.vercel.app";
   }
-  if (key === "NEXHEALTH_DEBUG") value = "0";
   if (!value) continue;
 
   console.log(`Adding ${key}...`);
   const sensitive = [
+    "OD_MYSQL_PASS",
     "MONGODB_URI",
     "MONGODB_URL",
-    "NEXHEALTH_API_KEY",
-    "SYNC_SECRET",
     "GHL_API_KEY",
     "AUTH_PASSWORD",
     "AUTH_SESSION_SECRET",

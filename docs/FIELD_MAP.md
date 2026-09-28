@@ -4,9 +4,9 @@ Draft for Beshoy discovery. Update status as sandbox responses are inspected.
 
 **Product note:** Overview / Doctor analytics are **appointment + production aggregates only**. Geo uses city/state/ZIP only (no street, names, or contact). `/patients` is removed (NO-ePHI). See [HIPAA_NO_EPHI.md](./HIPAA_NO_EPHI.md).
 
-## NexHealth
+## Open Dental
 
-| Dashboard concept | NexHealth field (candidate) | Status |
+| Dashboard concept | Open Dental field (candidate) | Status |
 |-------------------|----------------------------|--------|
 | Appointment start | `appt.start_time` / list `start` | Expected |
 | Provider | `provider_id` → `/providers` | Expected |
@@ -38,7 +38,7 @@ GHL is **outside** the warehouse. The dashboard fetches opportunities at page lo
 | Lead created_at | opportunity `createdAt` | Confirmed (aggregated) |
 | Channel / source | `attributions.utmSessionSource` / `source` | Confirmed |
 | Booked / showed / accepted | pipeline stage name → funnel tier | Confirmed |
-| Ad spend | ads platforms (not GHL CRM) | Deferred — always $0 |
+| Ad spend | Ad Publishing `spend` / Google `cost_micros` | Live when ads connected + `adPublishing.readonly` |
 | Pipeline stage | opportunity `pipelineStageId` | Confirmed |
 | Contact name | `contact.name` | **Stripped** — not used in UI or warehouse |
 
@@ -54,3 +54,28 @@ GHL is **outside** the warehouse. The dashboard fetches opportunities at page lo
 | Lead time | timestamps per stage | avg days between stages |
 
 Statuses: Expected · Stub · Unknown · Confirmed · Deferred
+
+## Open Dental MySQL (local warehouse ingest)
+
+Open Dental native IDs map 1:1 into warehouse `sourceId` / `raw.id`.
+
+| Dashboard concept | Open Dental column | Mapper / notes |
+|-------------------|--------------------|----------------|
+| Appointment id | `appointment.AptNum` | `mapOdAppointment` |
+| Appointment start | `AptDateTime` | ISO via `odDateToIso` |
+| Provider | `ProvNum` → `provider` | `mapOdProvider` |
+| Appointment type | `AppointmentTypeNum` | `appointmenttype` |
+| Apt status | `AptStatus` (2 Complete, 5 Broken) | `apt_status` Complete/Broken |
+| Confirm / cancel / no-show | `Confirmed` DefNum **66/67/69** | `def_num`, `confirmation_id` |
+| Procedure | `procedurelog.ProcNum` + `procedurecode.ProcCode` | Complete → also charge |
+| Production $ | `ProcFee` on Complete procs | Charge `fee.amount` |
+| Collections | `paysplit.SplitAmt` | Payment rows keyed by `SplitNum` |
+| Adjustments | `adjustment.AdjAmt` / `AdjType` | Types from `definition` AdjTypes |
+| Patient geo | `patient.City/State/Zip` | PHI stripped at upsert |
+| Primary carrier | `patplan` ordinal 1 → `carrier.CarrierName` | `insurance_plans[0]` |
+| Treatment plan | `treatplan` + `proctp` | Nested procedures |
+| Claims | `claim.ClaimStatus` U/S/R | draft/sent/received |
+| Guarantor AR | patient where `PatNum=Guarantor` aging cols | `mapOdGuarantorBalance` |
+| ProcCat | `procedurecode.ProcCat` / `definition` cat 11 | CDT catalog sync |
+
+See [LOCAL_OPENDENTAL.md](./LOCAL_OPENDENTAL.md).

@@ -19,12 +19,8 @@ const NAV = [
 ] as const;
 
 const SETTINGS_LINKS = [
-  { href: "/settings/sync", label: "Data sync" },
   { href: "/settings/ghl", label: "GoHighLevel" },
   { href: "/settings/procedure-codes", label: "Procedure codes" },
-  ...(process.env.NODE_ENV === "production"
-    ? []
-    : [{ href: "/api-docs", label: "NexHealth API (Swagger)" }]),
 ] as const;
 
 const SIDEBAR_PROVIDER_LIMIT = LIST_PAGE_SIZE;
@@ -41,7 +37,7 @@ type Props = {
 type FrameProps = Props & { periodQs: string };
 
 const PROVIDERS_CLIENT_TTL_MS = 60_000;
-const PROVIDERS_STORAGE_KEY = "texoma.nexhealth.providers.v1";
+const PROVIDERS_STORAGE_KEY = "texoma.warehouse.providers.v1";
 const COORDINATORS_STORAGE_KEY = "texoma.tc.coordinators.v1";
 
 type ProviderLink = { id: string; name: string };

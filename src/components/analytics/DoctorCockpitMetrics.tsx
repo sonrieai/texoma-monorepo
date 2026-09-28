@@ -11,13 +11,13 @@ import {
   formatUsd,
   formatUsdCompact,
 } from "@/lib/metrics";
-import type { LiveProviderRow } from "@/lib/nexhealth/live";
-import type { MonthlyProductionSeries } from "@/lib/nexhealth/production";
+import type { LiveProviderRow } from "@/lib/warehouse/live";
+import type { MonthlyProductionSeries } from "@/lib/warehouse/production";
 import {
   buildProductionChartCategories,
   buildProviderProductionCategoryDonutSlices,
   providerProductionCategoryDonutTotalCents,
-} from "@/lib/nexhealth/production-category-donut";
+} from "@/lib/warehouse/production-category-donut";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 const SAME_DAY_NP_TARGET = 0.3;

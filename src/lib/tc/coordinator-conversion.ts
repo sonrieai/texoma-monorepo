@@ -2,13 +2,13 @@ import type { CdtLookup } from "@/lib/cdt/categories";
 import {
   summarizeConversion,
   type ConversionSummary,
-} from "@/lib/nexhealth/conversion";
+} from "@/lib/warehouse/conversion";
 import type {
-  NexAppointment,
-  NexAppointmentType,
-  NexProcedure,
-  NexTreatmentPlan,
-} from "@/lib/nexhealth/client";
+  AppointmentRecord,
+  AppointmentTypeRecord,
+  ProcedureRecord,
+  TreatmentPlanRecord,
+} from "@/lib/warehouse/types";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 import {
   coordinatorPatientIds,
@@ -19,10 +19,10 @@ export function buildCoordinatorConversion(params: {
   fromYmd: string;
   toYmd: string;
   coordinator: TcCoordinator;
-  appointments: NexAppointment[];
-  appointmentTypes: NexAppointmentType[];
-  procedures: NexProcedure[];
-  plans: NexTreatmentPlan[];
+  appointments: AppointmentRecord[];
+  appointmentTypes: AppointmentTypeRecord[];
+  procedures: ProcedureRecord[];
+  plans: TreatmentPlanRecord[];
   cdt?: CdtLookup;
 }): ConversionSummary {
   const coordPlans = filterPlansForCoordinator(params.plans, params.coordinator);

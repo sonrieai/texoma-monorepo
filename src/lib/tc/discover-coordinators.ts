@@ -1,22 +1,22 @@
 /**
- * Discover treatment coordinators from synced NexHealth / Open Dental data.
+ * Discover treatment coordinators from synced Open Dental / Open Dental data.
  * No hardcoded names — roster is built from plan ownership and TC appointments.
  */
 
 import {
   appointmentTypeId,
   providerDisplayName,
-  type NexAppointment,
-  type NexAppointmentType,
-  type NexProvider,
-  type NexTreatmentPlan,
-} from "@/lib/nexhealth/client";
+  type AppointmentRecord,
+  type AppointmentTypeRecord,
+  type ProviderRecord,
+  type TreatmentPlanRecord,
+} from "@/lib/warehouse/types";
 import { coordinatorSlug } from "@/lib/tc/coordinators";
 
 export type TcCoordinator = {
   slug: string;
   name: string;
-  /** NexHealth provider id and/or OD user id seen on plans. */
+  /** Open Dental provider id and/or OD user id seen on plans. */
   attributionIds: number[];
   planCount: number;
   appointmentCount: number;
@@ -90,9 +90,9 @@ function readNestedUser(
   return { id, name: name || null };
 }
 
-/** Extract OD / NexHealth presenter or coordinator reference from a treatment plan raw payload. */
+/** Extract OD / Open Dental presenter or coordinator reference from a treatment plan raw payload. */
 export function extractPlanCoordinatorRef(
-  plan: NexTreatmentPlan,
+  plan: TreatmentPlanRecord,
 ): PlanCoordinatorRef | null {
   const raw = plan as Record<string, unknown>;
   const attributionIds = new Set<number>();
@@ -126,7 +126,7 @@ export function extractPlanCoordinatorRef(
 }
 
 export function resolveTcAppointmentTypeIds(
-  types: NexAppointmentType[],
+  types: AppointmentTypeRecord[],
 ): { ids: number[]; source: "name_match" | "none" } {
   const matched = types
     .filter((t) => TC_APPOINTMENT_NAME_PATTERN.test(t.name?.trim() || ""))
@@ -137,7 +137,7 @@ export function resolveTcAppointmentTypeIds(
 
 function providerName(
   providerId: number,
-  providers: NexProvider[],
+  providers: ProviderRecord[],
 ): string {
   const match = providers.find((p) => p.id === providerId);
   if (match) return providerDisplayName(match);
@@ -179,10 +179,10 @@ function mergeCoordinator(
 }
 
 export function discoverTcCoordinators(params: {
-  plans: NexTreatmentPlan[];
-  appointments: NexAppointment[];
-  appointmentTypes: NexAppointmentType[];
-  providers: NexProvider[];
+  plans: TreatmentPlanRecord[];
+  appointments: AppointmentRecord[];
+  appointmentTypes: AppointmentTypeRecord[];
+  providers: ProviderRecord[];
 }): TcCoordinator[] {
   const map = new Map<string, TcCoordinator>();
   const { ids: tcTypeIds } = resolveTcAppointmentTypeIds(params.appointmentTypes);

@@ -1,9 +1,13 @@
 /**
- * Marketing summary from GoHighLevel opportunities + attribution.
- * Ad spend is not available from GHL CRM APIs — spend/ROI stay null until
- * ads platforms (or a custom spend field) are wired.
+ * Marketing summary from GoHighLevel opportunities + Ad Manager spend.
+ * Funnel/ROI use opportunities; spend comes from Ad Publishing reporting
+ * (Facebook + Google) when `adPublishing.readonly` is granted.
  */
 
+import {
+  loadAdSpendByChannel,
+  mergeSpendIntoChannels,
+} from "@/lib/ghl/ad-spend";
 import { getGhlConfig, isGhlConfigured, type GhlConfig } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
 import { safeRate } from "@/lib/metrics";
@@ -440,9 +444,6 @@ export async function loadMarketingSummary(
     notices.push(
       `Pipelines: ${selected.map((p) => p.name ?? p.id).join(", ")}.`,
     );
-    notices.push(
-      "Ad spend and ROI need ads platforms or a spend field — CRM opportunities do not include channel spend.",
-    );
 
     const startYmd = range?.startYmd;
     const endYmd = range?.endYmd;
@@ -452,6 +453,13 @@ export async function loadMarketingSummary(
     const lookbackDays = startYmd && endYmd
       ? rangeLookbackDays(startYmd, endYmd)
       : LOOKBACK_DAYS;
+    const spendStartYmd =
+      startYmd ??
+      new Date(Date.now() - LOOKBACK_DAYS * 86400000)
+        .toISOString()
+        .slice(0, 10);
+    const spendEndYmd = endYmd ?? new Date().toISOString().slice(0, 10);
+
     const seenOpp = new Set<string>();
     const bySource = new Map<string, AdChannel>();
 
@@ -484,8 +492,28 @@ export async function loadMarketingSummary(
       }
     }
 
+    const adSpend = await loadAdSpendByChannel(
+      config,
+      spendStartYmd,
+      spendEndYmd,
+    );
+    notices.push(...adSpend.notices);
+    if (adSpend.available) {
+      notices.push(
+        `Ad spend from GHL Ad Manager (Facebook + Google) · ${spendStartYmd} → ${spendEndYmd}.`,
+      );
+    } else if (adSpend.notices.length === 0) {
+      notices.push(
+        "Ad spend is $0 — connect Facebook/Google ads in GHL and grant adPublishing.readonly on the API token.",
+      );
+    }
+    mergeSpendIntoChannels(bySource, adSpend, emptyChannel);
+
     const channels = [...bySource.values()].sort(
-      (a, b) => b.leads - a.leads || b.production - a.production,
+      (a, b) =>
+        b.spend - a.spend ||
+        b.leads - a.leads ||
+        b.production - a.production,
     );
 
     const totals = channels.reduce(

@@ -4,24 +4,24 @@
  */
 
 import type {
-  NexAdjustment,
-  NexAppointment,
-  NexCharge,
-  NexClaim,
-  NexGuarantorBalance,
-  NexInsuranceBalance,
-  NexInsurancePlan,
-  NexPatient,
-  NexPayment,
-  NexProcedure,
-  NexTreatmentPlan,
-} from "@/lib/nexhealth/client";
+  AdjustmentRecord,
+  AppointmentRecord,
+  ChargeRecord,
+  ClaimRecord,
+  GuarantorBalanceRecord,
+  InsuranceBalanceRecord,
+  InsurancePlanRecord,
+  PatientRecord,
+  PaymentRecord,
+  ProcedureRecord,
+  TreatmentPlanRecord,
+} from "@/lib/warehouse/types";
 import {
   extractPatientAddress,
-  indexPatientsByNexId,
+  indexPatientsBySourceId,
   resolvePatientAddress,
-} from "@/lib/nexhealth/patient-address";
-import { extractPrimaryInsuranceCarrier } from "@/lib/nexhealth/sc-production";
+} from "@/lib/warehouse/patient-address";
+import { extractPrimaryInsuranceCarrier } from "@/lib/warehouse/sc-production";
 import { extractDeclineReasonLabel } from "@/lib/tc/decline-reasons";
 
 /** Default on. Set SYNC_STRIP_PHI=0 only for local debugging of unsanitized payloads. */
@@ -92,20 +92,20 @@ export function containsPhiKeys(value: unknown): boolean {
   return false;
 }
 
-function nexNumericId(raw: { id?: number }): number | null {
+function sourceNumericId(raw: { id?: number }): number | null {
   return typeof raw.id === "number" ? raw.id : null;
 }
 
 /** Extract allowlisted patient index fields. Never returns names/contact/street. */
-export function stripPhiFromNexPatient(
-  patient: NexPatient,
-  byNexId?: Map<number, NexPatient>,
+export function stripPhiFromPatientRecord(
+  patient: PatientRecord,
+  bySourceId?: Map<number, PatientRecord>,
 ): SlimPatientIndex | null {
-  const id = nexNumericId(patient);
+  const id = sourceNumericId(patient);
   if (id == null) return null;
 
-  const addr = byNexId
-    ? resolvePatientAddress(patient, byNexId)
+  const addr = bySourceId
+    ? resolvePatientAddress(patient, bySourceId)
     : extractPatientAddress(patient);
 
   return {
@@ -118,57 +118,57 @@ export function stripPhiFromNexPatient(
   };
 }
 
-export function slimNexAppointment(raw: NexAppointment): NexAppointment {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexAppointment;
+export function slimAppointmentRecord(raw: AppointmentRecord): AppointmentRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as AppointmentRecord;
 }
 
-export function slimNexProcedure(raw: NexProcedure): NexProcedure {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexProcedure;
+export function slimProcedureRecord(raw: ProcedureRecord): ProcedureRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as ProcedureRecord;
 }
 
-export function slimNexCharge(raw: NexCharge): NexCharge {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexCharge;
+export function slimChargeRecord(raw: ChargeRecord): ChargeRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as ChargeRecord;
 }
 
-export function slimNexPayment(raw: NexPayment): NexPayment {
-  const slim = omitPhiKeys(raw as Record<string, unknown>) as NexPayment;
+export function slimPaymentRecord(raw: PaymentRecord): PaymentRecord {
+  const slim = omitPhiKeys(raw as Record<string, unknown>) as PaymentRecord;
   return { ...slim, notes: null };
 }
 
-export function slimNexAdjustment(raw: NexAdjustment): NexAdjustment {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexAdjustment;
+export function slimAdjustmentRecord(raw: AdjustmentRecord): AdjustmentRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as AdjustmentRecord;
 }
 
-export function slimNexTreatmentPlan(raw: NexTreatmentPlan): NexTreatmentPlan {
+export function slimTreatmentPlanRecord(raw: TreatmentPlanRecord): TreatmentPlanRecord {
   const declineReason = extractDeclineReasonLabel(
     raw as Record<string, unknown>,
   );
-  const slim = omitPhiKeys(raw as Record<string, unknown>) as NexTreatmentPlan;
+  const slim = omitPhiKeys(raw as Record<string, unknown>) as TreatmentPlanRecord;
   if (declineReason) {
     (slim as Record<string, unknown>).decline_reason = declineReason;
   }
   return slim;
 }
 
-export function slimNexClaim(raw: NexClaim): NexClaim {
-  const slim = omitPhiKeys(raw as Record<string, unknown>) as NexClaim;
+export function slimClaimRecord(raw: ClaimRecord): ClaimRecord {
+  const slim = omitPhiKeys(raw as Record<string, unknown>) as ClaimRecord;
   return { ...slim, note: null };
 }
 
-export function slimNexGuarantorBalance(
-  raw: NexGuarantorBalance,
-): NexGuarantorBalance {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexGuarantorBalance;
+export function slimGuarantorBalanceRecord(
+  raw: GuarantorBalanceRecord,
+): GuarantorBalanceRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as GuarantorBalanceRecord;
 }
 
-export function slimNexInsuranceBalance(
-  raw: NexInsuranceBalance,
-): NexInsuranceBalance {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexInsuranceBalance;
+export function slimInsuranceBalanceRecord(
+  raw: InsuranceBalanceRecord,
+): InsuranceBalanceRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as InsuranceBalanceRecord;
 }
 
-export function slimNexInsurancePlan(raw: NexInsurancePlan): NexInsurancePlan {
-  return omitPhiKeys(raw as Record<string, unknown>) as NexInsurancePlan;
+export function slimInsurancePlanRecord(raw: InsurancePlanRecord): InsurancePlanRecord {
+  return omitPhiKeys(raw as Record<string, unknown>) as InsurancePlanRecord;
 }
 
 export function slimWarehouseRaw<T extends Record<string, unknown>>(raw: T): T {
@@ -177,9 +177,9 @@ export function slimWarehouseRaw<T extends Record<string, unknown>>(raw: T): T {
 }
 
 export function indexPatientsForPhiStrip(
-  rows: NexPatient[],
-): Map<number, NexPatient> {
-  return indexPatientsByNexId(rows);
+  rows: PatientRecord[],
+): Map<number, PatientRecord> {
+  return indexPatientsBySourceId(rows);
 }
 
 /** Legacy PHI fields to $unset on existing patient documents. */

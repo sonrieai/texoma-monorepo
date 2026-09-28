@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/Cards";
 import { centsToDollars, formatUsd } from "@/lib/metrics";
-import type { ProcedureMixRow } from "@/lib/nexhealth/production";
+import type { ProcedureMixRow } from "@/lib/warehouse/production";
 
 type Props = {
   rows: ProcedureMixRow[];

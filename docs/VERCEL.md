@@ -4,6 +4,18 @@ This app is a **single Next.js 16 project** — UI pages and API Route Handlers 
 
 Config in repo: [`vercel.json`](../vercel.json).
 
+## When Vercel is appropriate
+
+Vercel can host the UI + auth when **Open Dental MySQL is reachable** from
+Vercel (public replica, VPN/tunnel, or similar). For a typical **office-only**
+MySQL on the dental server, use the LAN install instead:
+[OFFICE_INSTALL.md](./OFFICE_INSTALL.md).
+
+| Host | Clinical MySQL | Login (Mongo) |
+|------|----------------|---------------|
+| Office LAN (`start:lan` :8080) | Same machine / LAN | Atlas |
+| Vercel | Only if MySQL is reachable from the internet/tunnel | Atlas |
+
 ## Vercel project
 
 | Field | Value |
@@ -23,24 +35,21 @@ Config in repo: [`vercel.json`](../vercel.json).
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `MONGODB_URI` | Yes | Atlas connection string (warehouse reads) |
-| `MONGODB_DB` | Yes | e.g. `open-dental-backup` |
-| `NEXHEALTH_API_KEY` | Yes | NexHealth API key (secret) |
-| `NEXHEALTH_SUBDOMAIN` | Yes | Institution subdomain |
-| `NEXHEALTH_LOCATION_ID` | Yes | Location id |
-| `NEXHEALTH_BASE_URL` | Yes | `https://nexhealth.info` |
-| `NEXHEALTH_API_VERSION` | Yes | `v3.0.0` |
-| `SYNC_SECRET` | Recommended | Protects `GET/POST /api/sync/nexhealth` |
-| `CRON_SECRET` | Recommended | Vercel Cron Bearer token (can match `SYNC_SECRET`) |
-| `NEXHEALTH_DEBUG` | **Set `0` in production** | Debug/proxy APIs return 404 in production anyway |
-| `SYNC_STRIP_PHI` | Yes (`1`) | Slim warehouse writes (default on unless `0`) |
+| `OD_MYSQL_HOST` | Yes* | Open Dental MySQL host reachable from Vercel (*or use office LAN instead) |
+| `OD_MYSQL_PORT` | Yes* | Usually `3306` |
+| `OD_MYSQL_USER` | Yes* | SELECT-only user (e.g. `kpi_readonly`) |
+| `OD_MYSQL_PASS` | Yes* | |
+| `OD_MYSQL_DB` | Yes* | e.g. `opendental` |
+| `MONGODB_URI` | Yes | Atlas — **login + GHL settings only** (not clinical KPIs) |
+| `MONGODB_DB` | Yes | e.g. `texoma` |
 | `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Required for Vercel production builds |
-| `PASSWORD_RESET_WEB_BASE_URL` | Recommended | `https://texoma.vercel.app` (password reset email links) |
-| `GHL_API_KEY` | Optional | GoHighLevel (later) |
-| `GHL_LOCATION_ID` | Optional | GoHighLevel (later) |
-| `GHL_BASE_URL` | Optional | GoHighLevel (later) |
+| `PASSWORD_RESET_WEB_BASE_URL` | Recommended | `https://texoma.vercel.app` |
+| `GHL_API_KEY` | Optional | GoHighLevel |
+| `GHL_LOCATION_ID` | Optional | GoHighLevel |
+| `GHL_BASE_URL` | Optional | GoHighLevel |
 
-Without `MONGODB_URI`, Overview and most KPI pages will fail. Without `NEXHEALTH_*`, sync jobs and debug routes fail.
+Without `OD_MYSQL_*` reachable from the host, Overview and KPI pages cannot
+load clinical data. Without `MONGODB_URI`, dashboard login fails.
 
 ## CLI: push env from `.env.local`
 
@@ -71,7 +80,7 @@ npx vercel deploy --prod
 
 ## Verify
 
-1. `GET https://texoma.vercel.app/api/health/nexhealth` — NexHealth auth smoke test
+1. `GET https://texoma.vercel.app/api/health/opendental-mysql` — MySQL smoke test
 2. `GET https://texoma.vercel.app/api/metrics/overview` — overview JSON
 3. Open https://texoma.vercel.app/login or `/overview` in the browser
 
@@ -86,9 +95,11 @@ If deployment fails with **403 Forbidden** / "no permission to create a Producti
 
 - **Frontend:** React pages under `src/app/*`
 - **Backend:** Route Handlers under `src/app/api/*` (serverless functions on Vercel)
-- **Data:** MongoDB Atlas warehouse (synced via `npm run sync:nexhealth` locally, **Vercel Cron daily**, or `GET/POST /api/sync/nexhealth`)
+- **Data:** Open Dental MySQL live on page load. MongoDB Atlas is login + GHL settings only.
 
-## Scheduled sync (24 hr)
+## Open Dental connectivity
 
-Vercel Cron runs **daily at 12:00 UTC** (`vercel.json`). Set `CRON_SECRET` in Production (Vercel sends `Authorization: Bearer …` on cron invocations). Full runbook: [SYNC_SCHEDULE.md](./SYNC_SCHEDULE.md).
-- Open Dental / MySQL stays on the practice network — not deployed to Vercel
+The dashboard queries Open Dental MySQL on page load. Vercel cannot reach an
+office-only MySQL server unless you add a tunnel or a reachable replica.
+Prefer [OFFICE_INSTALL.md](./OFFICE_INSTALL.md) for practice go-live.
+See [SYNC_SCHEDULE.md](./SYNC_SCHEDULE.md).

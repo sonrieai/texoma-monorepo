@@ -128,7 +128,7 @@ OD Production & Income uses **gross** production vs income/collections.
 
 ## Frozen answers (engineering)
 
-**1–4 frozen 2026-08-13** (OD defaults) — implemented in `src/lib/nexhealth/conversion.ts`. Dr can still override. Next PRs: SC/adjusted $ → AOX/denture volume.
+**1–4 frozen 2026-08-13** (OD defaults) — implemented in `src/lib/warehouse/conversion.ts`. Dr can still override. Next PRs: SC/adjusted $ → AOX/denture volume.
 
 | # | Decision | Date |
 |---|----------|------|

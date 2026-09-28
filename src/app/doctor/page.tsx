@@ -6,8 +6,8 @@ import { EmptyState } from "@/components/ui/States";
 import { providerCockpitCategoryCounts } from "@/lib/charts/cockpit-display-categories";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 import { centsToDollars, formatCount, formatPct } from "@/lib/metrics";
-import { loadLiveOverview } from "@/lib/nexhealth/live";
-import type { LiveProviderRow } from "@/lib/nexhealth/live";
+import { loadLiveOverview } from "@/lib/warehouse/live";
+import type { LiveProviderRow } from "@/lib/warehouse/live";
 import {
   parsePeriodParams,
   periodLabel,

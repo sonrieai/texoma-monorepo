@@ -3,9 +3,9 @@
  */
 
 import { centsToDollars } from "@/lib/metrics";
-import type { ArAgingBuckets } from "@/lib/nexhealth/ar";
-import type { MonthlyProductionSeries } from "@/lib/nexhealth/production";
-import type { PaymentMix } from "@/lib/nexhealth/payment-mix";
+import type { ArAgingBuckets } from "@/lib/warehouse/ar";
+import type { MonthlyProductionSeries } from "@/lib/warehouse/production";
+import type { PaymentMix } from "@/lib/warehouse/payment-mix";
 
 export const INSURANCE_SECTIONS = [
   "Cockpit Metrics",

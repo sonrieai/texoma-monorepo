@@ -7,7 +7,7 @@ import {
 } from "@/components/analytics/InsuranceDashboard";
 import { InsuranceSoonerCareSection } from "@/components/analytics/InsuranceSoonerCareSection";
 import { NoticeList } from "@/components/ui/Cards";
-import type { LiveOverview } from "@/lib/nexhealth/live";
+import type { LiveOverview } from "@/lib/warehouse/live";
 
 const SC_CLASSIFICATION_NOTICE =
   "SoonerCare payments are classified from payment text; SC production uses patient carrier or SC chart codes. The two figures can differ.";
@@ -25,7 +25,6 @@ export function InsurancePageContent({
   const scPayments = prod.paymentMix.soonercare;
   const scProduction = prod.scProductionCents;
   const notices = [
-    ...data.notices.slice(0, 1),
     ...data.accountsReceivable.notices,
     ...data.insurance.notices,
   ];

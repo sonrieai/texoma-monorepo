@@ -6,7 +6,7 @@ import {
   TreatmentByTypeSection,
 } from "@/components/analytics/OverviewCharts";
 import { EmptyState } from "@/components/ui/States";
-import { loadLiveOverview } from "@/lib/nexhealth/live";
+import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
   parsePeriodParams,
   periodToRange,

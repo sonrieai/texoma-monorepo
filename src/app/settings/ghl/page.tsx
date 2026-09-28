@@ -14,8 +14,8 @@ export default function GhlSettingsPage() {
       <NoticeList
         notices={[
           "Marketing and TC journey pages fetch GHL opportunities live at page load — they are not synced to MongoDB.",
-          "Use a Private Integration token with Opportunities read access for your sub-account.",
-          "Ad spend and full ROI require ads platform integration — GHL supplies leads and funnel stages only.",
+          "Use a Private Integration token with Opportunities read + Ad Publishing read (adPublishing.readonly) for spend/ROI.",
+          "Connect Facebook and/or Google ads in GHL so Marketing can fill Total ad spend, ROI, and Cost/arch.",
         ]}
       />
       <GhlSettingsPanel />

@@ -1,7 +1,7 @@
 import { ComboStat, SectionHeading } from "@/components/ui/Cards";
 import { EmptyState } from "@/components/ui/States";
 import { centsToDollars, formatPct, formatUsd } from "@/lib/metrics";
-import type { ConversionSummary } from "@/lib/nexhealth/conversion";
+import type { ConversionSummary } from "@/lib/warehouse/conversion";
 
 const NP_SHOW_RATE_TARGET = 0.75;
 const SAME_DAY_START_TARGET = 0.3;

@@ -29,7 +29,7 @@ EXPORT_DIR = ROOT / "exports" / "open-dental"
 FUNNEL_XML_NAME = "texoma-funnel-procedure-codes.xml"
 PROCCAT_JSON = ROOT / "exports" / "open-dental" / "existing-proccat-by-code.json"
 
-# Dashboard category -> default ProcCat when code/base not in NexHealth snapshot.
+# Dashboard category -> default ProcCat when code/base not in Open Dental snapshot.
 CATEGORY_PROCCAT: dict[str, int] = {
     "Extractions": 74,
     "Implants": 79,
@@ -473,7 +473,7 @@ def main() -> None:
     print(f"Template: {template}")
     print(f"Codes in export: {len(merged)}")
     if not funnel_only:
-        print(f"Existing in NexHealth snapshot: {len(proccat_map)}")
+        print(f"Existing in Open Dental snapshot: {len(proccat_map)}")
     print(f"Wrote {len(import_df)} rows to {output}")
 
     xml_source = import_df.rename(columns={"ProcCode": "code", "Descript": "description"})

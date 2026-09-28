@@ -1,17 +1,17 @@
 import type { CdtLookup } from "@/lib/cdt/categories";
 import type {
-  NexAppointment,
-  NexAppointmentType,
-  NexPayment,
-  NexProcedure,
-  NexProvider,
-  NexTreatmentPlan,
-} from "@/lib/nexhealth/client";
-import type { ConversionSummary } from "@/lib/nexhealth/conversion";
+  AppointmentRecord,
+  AppointmentTypeRecord,
+  PaymentRecord,
+  ProcedureRecord,
+  ProviderRecord,
+  TreatmentPlanRecord,
+} from "@/lib/warehouse/types";
+import type { ConversionSummary } from "@/lib/warehouse/conversion";
 import {
   summarizeTcMetrics,
   type TcMetrics,
-} from "@/lib/nexhealth/tc-metrics";
+} from "@/lib/warehouse/tc-metrics";
 import { buildCoordinatorConversion } from "@/lib/tc/coordinator-conversion";
 import {
   discoverTcCoordinators,
@@ -29,12 +29,12 @@ export type TcCoordinatorRow = {
 export function buildTcCoordinatorRows(params: {
   fromYmd: string;
   toYmd: string;
-  appointments: NexAppointment[];
-  appointmentTypes: NexAppointmentType[];
-  plans: NexTreatmentPlan[];
-  procedures: NexProcedure[];
-  payments: NexPayment[];
-  providers: NexProvider[];
+  appointments: AppointmentRecord[];
+  appointmentTypes: AppointmentTypeRecord[];
+  plans: TreatmentPlanRecord[];
+  procedures: ProcedureRecord[];
+  payments: PaymentRecord[];
+  providers: ProviderRecord[];
   cdt?: CdtLookup;
   coordinators?: TcCoordinator[];
 }): TcCoordinatorRow[] {

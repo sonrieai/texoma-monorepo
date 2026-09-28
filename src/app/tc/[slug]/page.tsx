@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { TcPageContent } from "@/components/analytics/TcPageContent";
 import { AppShell } from "@/components/shell/AppShell";
 import { EmptyState } from "@/components/ui/States";
-import { loadLiveOverview } from "@/lib/nexhealth/live";
+import { loadLiveOverview } from "@/lib/warehouse/live";
 import { coordinatorSlug } from "@/lib/tc/coordinators";
 import {
   parsePeriodParams,

@@ -1,22 +1,18 @@
 # HIPAA / BAA / NO-ePHI runbook
 
-Texoma Dashboard stores **no electronic protected health information (ePHI)** in MongoDB Atlas or on Vercel. Identifiers stay in Open Dental and NexHealth. The warehouse and dashboard use internal IDs, clinical/financial facts, and city-level geo only.
+Texoma Dashboard stores **no electronic protected health information (ePHI)** in MongoDB Atlas. Identifiers stay in Open Dental. Dashboard aggregators use internal IDs, clinical/financial facts, and city-level geo only — loaded via SELECT-only MySQL on page load, slimmed in memory.
 
-Staff look up named patients in Open Dental or NexHealth — `/patients` is removed.
+Staff look up named patients in Open Dental — `/patients` is removed.
 
 ## Data flow
 
 ```text
 Open Dental (Covered Entity)
-        │  NexHealth Synchronizer
+        │  SELECT-only page load; patient names slimmed in memory
         ▼
-NexHealth API  (Business Associate — PHI at rest)
-        │  sync job + PHI stripper (SYNC_STRIP_PHI)
-        ▼
-MongoDB Atlas warehouse  (de-identified: IDs, codes, dollars, city/ZIP)
-        │
-        ▼
-Texoma Dashboard on Vercel  (aggregates + login)  — NO ePHI zone
+Texoma Dashboard  (aggregates + login)  — NO ePHI in Mongo
+
+MongoDB Atlas  (dashboard users + encrypted GHL settings only)
 
 GoHighLevel CRM  (separate BAA if CRM holds names/phones)
         │  read opportunities only
@@ -25,51 +21,61 @@ Marketing / TC pages  (channel counts — contact names dropped at parse)
         ✗ never written to Mongo
 ```
 
+**Preferred practice host:** Open Dental Windows Server on the office LAN
+([OFFICE_INSTALL.md](./OFFICE_INSTALL.md)). Do **not** expose office MySQL to
+Vercel/Netlify without a controlled tunnel/replica.
+
 ## BAA checklist (practice = Covered Entity)
 
-Complete **before** syncing real office data:
+Complete **before** connecting real office data:
 
 | Vendor | Why | Status | Link / notes |
 |--------|-----|--------|----------------|
-| NexHealth | Synchronizer + API hold full EHR payloads | Practice signs | NexHealth trust / legal |
-| MongoDB Atlas | Warehouse host (de-identified after this plan; BAA still recommended) | Practice signs | https://www.mongodb.com/products/platform/trust/hipaa |
+| Open Dental | Source EHR holds full patient records | Practice manages | Open Dental security controls |
+| MongoDB Atlas | Login users + encrypted GHL settings only | Practice signs | https://www.mongodb.com/products/platform/trust/hipaa |
 | GoHighLevel | CRM may store lead names/phones for TC | Sign if GHL is used in production | GHL HIPAA / BAA |
-| Vercel | Hosts UI + API; **no patient database** | Document NO-ePHI posture | No BAA required if warehouse is de-identified |
+| Vercel / Netlify | Optional UI host; **no clinical DB** unless MySQL is intentionally reachable | Document NO-ePHI posture | Prefer office LAN for clinical SQL |
 
 ## Subprocessor register
 
 | Subprocessor | Data received | ePHI? |
 |--------------|---------------|-------|
-| NexHealth | Full patient + clinical records via Synchronizer | Yes (BA) |
-| MongoDB Atlas | `patientId`, inactive, insurance carrier name, city/state/ZIP, appointments, procedures, ledger, AR | No names/phones/emails/DOB/street |
-| Vercel | Aggregated KPIs; session cookies for dashboard users | No patient ePHI |
-| GoHighLevel | Opportunities (names exist in CRM; dashboard drops `contact` / opportunity `name` at parse) | Yes in GHL; not stored in warehouse |
+| Open Dental | Full patient + clinical records | Yes (source EHR) |
+| MongoDB Atlas | Dashboard users; encrypted GHL credentials | No clinical ePHI |
+| Vercel / Netlify (if used) | Aggregated KPIs; session cookies for dashboard users | No patient ePHI when MySQL is not on that host |
+| GoHighLevel | Opportunities (names exist in CRM; dashboard drops `contact` / opportunity `name` at parse) | Yes in GHL; not stored in Mongo |
 
-## Allowed warehouse fields
+## In-memory / response policy
 
-**`patients` collection (index only):** `patientId`, `locationId`, `inactive`, `primaryInsuranceCarrier`, `geoCity`, `geoState`, `geoZip`, `syncedAt` (+ warehouse ids/timestamps).
+Aggregators may use internal IDs, dates, codes, amounts, statuses, provider IDs, and city/ZIP. Patient names are stripped via [`src/lib/mongo/phi-policy.ts`](../src/lib/mongo/phi-policy.ts) before KPI use.
 
-**Clinical / financial docs:** IDs, dates, codes, amounts, statuses, provider IDs. No `bio`, contact fields, street address, claim/payment free-text `note`/`notes`.
-
-**Never stored:** `first_name`, `last_name`, `email`, `phone`, SSN, DOB, street address, guarantor names, full NexHealth `raw` patient payloads.
-
-Code: [`src/lib/mongo/phi-policy.ts`](../src/lib/mongo/phi-policy.ts).
+**Never log or persist:** `first_name`, `last_name`, `email`, `phone`, SSN, DOB, street address, guarantor names, full Open Dental `raw` patient payloads.
 
 ## Policies the practice owns
 
 - Privacy and Security policies
 - Breach notification procedure
 - Access control and workforce training
-- Data retention (Atlas backups, sync logs)
+- Data retention (Atlas backups for login/GHL only)
 
-## Production env (Vercel)
+## Production env
+
+### Office LAN (recommended)
 
 | Variable | Required | Notes |
 |----------|----------|-------|
+| `OD_MYSQL_*` | Yes | SELECT-only `kpi_readonly` on localhost |
+| `MONGODB_URI` | Yes | Login + GHL only |
 | `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Dashboard login |
-| `NEXHEALTH_DEBUG` | Set `0` | Debug/proxy APIs disabled in production regardless |
-| `SYNC_STRIP_PHI` | Set `1` (default on unless `0`) | Slim warehouse writes |
-| `SYNC_SECRET` | Yes | `POST /api/sync/nexhealth` |
+| Firewall | Yes | Port 8080 LocalSubnet only — see OFFICE_INSTALL |
+
+### Vercel (only if MySQL is reachable)
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `OD_MYSQL_*` | Yes | Must reach practice DB |
+| `AUTH_SESSION_SECRET` | Yes (≥32 chars) | Dashboard login |
+| `MONGODB_URI` | Yes | Login + GHL only |
 
 ## Incident contacts
 
@@ -79,20 +85,20 @@ Fill in with the practice:
 |------|------|---------|
 | Privacy officer | | |
 | Security / IT | | |
-| NexHealth support | | |
+| Open Dental support | | |
 | MongoDB Atlas admin | | |
 
 ## Go-live checklist
 
-- [ ] BAAs signed (NexHealth, Atlas, GHL if used)
-- [ ] Atlas backup / snapshot taken
-- [ ] `npm run purge:phi` (or full resync) — Compass shows no names/emails
-- [ ] Vercel: `NEXHEALTH_DEBUG=0`, `SYNC_STRIP_PHI=1`, `AUTH_SESSION_SECRET` set
+- [ ] BAAs signed where applicable (Atlas, GHL if used)
+- [ ] SELECT-only MySQL user (`kpi_readonly`); probe shows SELECT-only
+- [ ] Office install: firewall LocalSubnet 8080; service `TexomaKPI` running ([OFFICE_INSTALL.md](./OFFICE_INSTALL.md))
+- [ ] Mongo Atlas holds **login + GHL only** — no clinical warehouse collections
+- [ ] Not using Vercel/Netlify against office-only MySQL
 - [ ] `/patients` returns 404; `/overview`, `/doctor`, `/insurance`, `/geo`, `/marketing` load
-- [ ] SoonerCare production KPI still matches carrier-based logic
-- [ ] `/api/debug/nexhealth` and `/api/nexhealth/*` return 404 in production
+- [ ] Overview totals spot-checked against Open Dental Production / A/R
 - [ ] Breach runbook shared with the practice
 
 ## Local / CI scripts (do not run in production CI)
 
-`scripts/export-nexhealth-json.ts`, `scripts/diagnose-*.ts` may print upstream fields. Dev-only; never commit exports.
+Diagnostic scripts may print aggregate counts. Use only in controlled development environments. Prefer `npm run probe:opendental-mysql` and `npm run validate:opendental` (PHI-safe).

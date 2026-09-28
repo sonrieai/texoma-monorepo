@@ -25,7 +25,7 @@ export default async function ProcedureCodesSettingsPage() {
     return (
       <AppShell
         title="Procedure codes"
-        subtitle="Settings · synced from Open Dental"
+        subtitle="Settings · live from Open Dental"
       >
         <EmptyState
           title="Unable to load procedure codes"
@@ -38,13 +38,12 @@ export default async function ProcedureCodesSettingsPage() {
   return (
     <AppShell
       title="Procedure codes"
-      subtitle="Settings · synced from Open Dental"
+        subtitle="Settings · live from Open Dental"
       badge="Admin"
     >
       <NoticeList
         notices={[
-          "Read-only view — codes and fees sync from Open Dental via NexHealth.",
-          "After OD changes, run a sync from Settings → Data sync.",
+          "Read-only view — codes load live from Open Dental MySQL.",
           "To change codes, fees, or descriptions, edit Open Dental — not this dashboard.",
         ]}
       />

@@ -2,7 +2,7 @@
 name: texoma-stack
 description: >-
   Texoma BI Dashboard stack: Next.js App Router + TypeScript + Tailwind,
-  NexHealth (Open Dental via Synchronizer) and GoHighLevel adapters.
+  Open Dental MySQL live reads and GoHighLevel adapters.
   Use when writing or reviewing routes, metrics, UI pages, or integrations.
 ---
 
@@ -12,7 +12,8 @@ description: >-
 
 - `src/app` — App Router pages + Route Handlers (`api/`)
 - `src/components` — presentational UI (KPI, charts, shell, map)
-- `src/lib/nexhealth` — server-only NexHealth client (auth, list, write-back)
+- `src/lib/opendental` — server-only Open Dental MySQL queries, mappers, live snapshot
+- `src/lib/warehouse` — source-neutral metric and record logic
 - `src/lib/ghl` — GoHighLevel adapter (stub until keys land)
 - `src/lib/metrics` — derived KPIs (integer cents where money); never recompute in the client as source of truth
 - `src/lib/mock` — demo fallback from Canva/HTML mockup
@@ -21,7 +22,7 @@ description: >-
 ## Backend pattern (Route Handlers)
 
 ```
-route (thin) → metrics/mapper → nexhealth|ghl client
+route (thin) → metrics/mapper → opendental snapshot | ghl client
 ```
 
 - Business/derived numbers live in `lib/metrics/` or mappers — not in React components
@@ -36,5 +37,5 @@ route (thin) → metrics/mapper → nexhealth|ghl client
 
 ## External
 
-- NexHealth: `NEXHEALTH_API_KEY`, `NEXHEALTH_SUBDOMAIN`, `NEXHEALTH_LOCATION_ID`, `NEXHEALTH_BASE_URL`
+- Open Dental: `OD_MYSQL_HOST`, `OD_MYSQL_USER`, `OD_MYSQL_PASS`, `OD_MYSQL_DB`
 - GHL (later): `GHL_API_KEY`, `GHL_LOCATION_ID`

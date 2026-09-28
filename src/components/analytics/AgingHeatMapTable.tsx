@@ -4,7 +4,7 @@ import {
   arAgingTotalCents,
 } from "@/lib/metrics/insurance";
 import { centsToDollars, formatPct, formatUsd } from "@/lib/metrics";
-import type { ArAgingBuckets } from "@/lib/nexhealth/ar";
+import type { ArAgingBuckets } from "@/lib/warehouse/ar";
 
 const AGING_HEAT_RGB = "176, 106, 79";
 

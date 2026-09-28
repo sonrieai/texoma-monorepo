@@ -1,4 +1,4 @@
-import { loadEnvLocal } from "../src/lib/mongo/sync";
+import { loadEnvLocal } from "../src/lib/env/load-env-local";
 import { closeMongoClient, getCollection } from "../src/lib/mongo/client";
 
 async function main() {

@@ -143,7 +143,7 @@ export function ComboStat({
 export function NoticeList({ notices }: { notices: string[] }) {
   const visible = notices.filter(
     (n) =>
-      !/\b(nexhealth|mongodb|mongo\b|warehouse|ghl_api|ghl_location|sync:nexhealth|leadconnector|cdt-categories)\b/i.test(
+      !/\b(mongodb|mongo\b|warehouse|ghl_api|ghl_location|leadconnector|cdt-categories)\b/i.test(
         n,
       ),
   );

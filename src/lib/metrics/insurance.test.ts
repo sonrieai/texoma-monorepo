@@ -8,7 +8,7 @@ import {
   insuranceCollectionsTrend,
   insurancePayerMixSlices,
 } from "./insurance";
-import { emptyPaymentMix } from "../nexhealth/payment-mix";
+import { emptyPaymentMix } from "../warehouse/payment-mix";
 
 describe("INSURANCE_SECTIONS", () => {
   it("matches mockup section order", () => {

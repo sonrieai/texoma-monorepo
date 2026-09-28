@@ -1,6 +1,6 @@
-import { loadLiveOverview, type LiveOverview } from "@/lib/nexhealth/live";
+import { loadLiveOverview, type LiveOverview } from "@/lib/warehouse/live";
 
-/** Thin adapter for /api/metrics/overview — warehouse (or live fallback) fields. */
+/** Thin adapter for /api/metrics/overview — live Open Dental fields. */
 export type OverviewMetrics = LiveOverview & {
   month: string;
   lastSyncedAt: string | null;

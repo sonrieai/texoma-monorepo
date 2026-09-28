@@ -7,10 +7,10 @@ import { clipCurrentYearMonths } from "@/lib/charts/production-trend";
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart";
 import { Card, SectionHeading } from "@/components/ui/Cards";
 import { centsToDollars } from "@/lib/metrics";
-import type { LiveProduction } from "@/lib/nexhealth/live";
+import type { LiveProduction } from "@/lib/warehouse/live";
 import {
   buildTreatmentChartCategories,
-} from "@/lib/nexhealth/production-category-donut";
+} from "@/lib/warehouse/production-category-donut";
 import {
   COCKPIT_DISPLAY_CATEGORY_NAMES,
   rollToCockpitDisplayCategories,

@@ -14,9 +14,9 @@ import {
   insurancePayerMixSlices,
 } from "@/lib/metrics/insurance";
 import { centsToDollars, formatPct, formatUsd } from "@/lib/metrics";
-import type { ArSummary } from "@/lib/nexhealth/ar";
-import type { InsuranceMetrics } from "@/lib/nexhealth/insurance-metrics";
-import type { LiveProduction } from "@/lib/nexhealth/live";
+import type { ArSummary } from "@/lib/warehouse/ar";
+import type { InsuranceMetrics } from "@/lib/warehouse/insurance-metrics";
+import type { LiveProduction } from "@/lib/warehouse/live";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 const DAYS_IN_AR_TARGET = 30;
@@ -125,7 +125,7 @@ export function InsuranceCockpitMetrics({
             label="Clean claim rate"
             value="—"
             target="≥95%"
-            note="not in NexHealth claims"
+            note="not in Open Dental claims"
           />
           <ComboStat
             variant="inset"
@@ -230,7 +230,7 @@ export function InsuranceCockpitMetrics({
             label="Elig. verified"
             value="—"
             target="≥95%"
-            note="not in NexHealth API"
+            note="not in Open Dental API"
           />
           <ComboStat
             variant="inset"
@@ -315,7 +315,7 @@ export function InsuranceClaimsPipelineSection({
         </Card>
         <Card
           title="Denial Recovery"
-          subtitle="Canceled claims in NexHealth (not OD denial-reason codes)"
+          subtitle="Canceled claims in Open Dental (not OD denial-reason codes)"
         >
           {insurance.claimsAvailable ? (
             <HBarChart
@@ -336,7 +336,7 @@ export function InsuranceClaimsPipelineSection({
           ) : (
             <EmptyState
               title="Denial metrics unavailable"
-              description="Appeals, recoveries, and top denial reasons are not on NexHealth GET /claims."
+              description="Appeals, recoveries, and top denial reasons are not on Open Dental GET /claims."
             />
           )}
         </Card>

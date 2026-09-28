@@ -1,10 +1,10 @@
-# Open Dental procedure codes (CDT 2026) + NexHealth
+# Open Dental procedure codes (CDT 2026) + Open Dental
 
-The dashboard **does not** store procedure codes. It maps **live** NexHealth `procedure_code` / charge codes to KPI categories using `src/lib/nexhealth/data/cdt-categories.json`, generated from `Dental_Procedure_Code_Chart_CDT2026.xlsx`.
+The dashboard **does not** store procedure codes. It maps **live** Open Dental `procedure_code` / charge codes to KPI categories using `src/lib/cdt/data/cdt-categories.json`, generated from `Dental_Procedure_Code_Chart_CDT2026.xlsx`.
 
 KPI formulas (NP, AOX sold, denture delivery, remakes, etc.) vs current code: [DATA_ACCESS.md](./DATA_ACCESS.md#formulas-tab--code-mapping). Questions for Dr: [FORMULAS_DR_QUESTIONS.md](./FORMULAS_DR_QUESTIONS.md).
 
-**NexHealth MCP cannot add, edit, or delete procedure codes.**  
+**Open Dental MCP cannot add, edit, or delete procedure codes.**
 `list_appointment_descriptors` is read-only — codes sync **from Open Dental** via the Synchronizer.
 
 Your trial/demo Open Dental database uses **T-codes** (e.g. `T1356` Exam, `T3541` Prophy). The cockpit chart expects **D-codes** (e.g. `D0120`, `D1110`).
@@ -23,7 +23,7 @@ This writes:
 
 | Output | Purpose |
 |--------|---------|
-| `src/lib/nexhealth/data/cdt-categories.json` | Dashboard production / volume / category donuts |
+| `src/lib/cdt/data/cdt-categories.json` | Dashboard production / volume / category donuts |
 | `exports/open-dental/cdt-2026-procedure-codes.xml` | Optional OD import (new codes only) |
 | `exports/open-dental/cdt-2026-descriptions.tsv` | Human reference |
 | `exports/open-dental/retire-trial-codes.txt` | Trial T/N codes to remove |
@@ -62,13 +62,10 @@ After D-codes exist, enter or import fees under **Fee Tools** (tab-delimited: `C
 
 ---
 
-## 3. Verify via NexHealth MCP (Cursor)
+## 3. Verify via the read-only MySQL connection
 
-1. Ensure `.cursor/mcp.json` runs `scripts/run-nexhealth-mcp.ps1` with your `.env.local`
-2. In chat, ask the agent to run:
-   - `select_institution` (your subdomain)
-   - `select_location` (your `NEXHEALTH_LOCATION_ID`)
-   - `list_appointment_descriptors`
+1. Run `npm run probe:opendental-mysql`.
+2. Inspect the procedure-code settings page in the dashboard.
 
 After OD sync you should see **D** procedure codes (e.g. `D7140`) instead of **T** codes (`T1356`).
 
@@ -84,7 +81,7 @@ After OD sync you should see **D** procedure codes (e.g. `D7140`) instead of **T
 
 ## Current sync snapshot (Relaxation Dental / demo)
 
-NexHealth still lists trial-style codes including `T1356`, `T3541`, `T5833`, etc.  
+Open Dental still lists trial-style codes including `T1356`, `T3541`, `T5833`, etc.
 That matches Open Dental **before** Procedure Code Tools are run — not a dashboard bug.
 
 After you run OD Tools + Synchronizer, re-run `list_appointment_descriptors` to confirm D-codes appear.

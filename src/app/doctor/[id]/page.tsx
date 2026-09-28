@@ -5,7 +5,7 @@ import {
 } from "@/components/analytics/DoctorCockpitMetrics";
 import { AppShell } from "@/components/shell/AppShell";
 import { EmptyState } from "@/components/ui/States";
-import { loadLiveOverview } from "@/lib/nexhealth/live";
+import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
   parsePeriodParams,
   periodLabel,

@@ -8,7 +8,7 @@ Usage:
   python scripts/sync-cdt-from-xlsx.py "C:/Users/.../Dental_Procedure_Code_Chart_CDT2026.xlsx"
 
 Outputs:
-  src/lib/nexhealth/data/cdt-categories.json
+  src/lib/cdt/data/cdt-categories.json
   exports/open-dental/cdt-2026-procedure-codes.xml   (new codes only on OD import)
   exports/open-dental/cdt-2026-descriptions.tsv      (reference)
   exports/open-dental/retire-trial-codes.txt         (T/N trial codes to remove in OD)
@@ -30,10 +30,10 @@ DEFAULT_CANDIDATES = [
     Path.home() / "Downloads" / "TEXOMA OPEN DENTAL CODES 8-11-26.xlsx",
     Path.home() / "Downloads" / "Dental_Procedure_Code_Chart_CDT2026.xlsx",
 ]
-JSON_OUT = ROOT / "src" / "lib" / "nexhealth" / "data" / "cdt-categories.json"
+JSON_OUT = ROOT / "src" / "lib" / "cdt" / "data" / "cdt-categories.json"
 EXPORT_DIR = ROOT / "exports" / "open-dental"
 
-# Trial / custom codes seen on NexHealth sync (Open Dental demo DB) — retire via OD Tools.
+# Trial / custom codes seen on Open Dental sync (Open Dental demo DB) — retire via OD Tools.
 TRIAL_CODES_TO_RETIRE = """
 T1254 T1255 T1356 T1546 T1632 T1665 T1698 T2345 T3512 T3522 T3532 T3541 T3542 T3543
 T3546 T4528 T4538 T4548 T4558 T5823 T5833 T5843 T5853 T6245 T6255 T6357 T6452 T6462
@@ -300,14 +300,14 @@ def build_od_xlsx(df: pd.DataFrame, out_path: Path) -> None:
                 "Import/Export > Import: use cdt-2026-procedure-codes.xml from exports/open-dental/",
                 "Assign categories in OD if needed (see OD Category column on Procedure Codes sheet)",
                 "Fill Fee column on Fees Import sheet, save sheet as tab-delimited .txt, Fee Tools > Import",
-                "Restart NexHealth Synchronizer; verify D-codes appear in NexHealth",
+                "Restart Open Dental Synchronizer; verify D-codes appear in Open Dental",
             ],
             "Notes": [
                 "Removes trial T-codes like T1356, T3541",
                 "XML adds only codes not already in OD; existing codes are not updated",
                 "Open Dental imports XML, not this xlsx directly — xlsx is for review and fees prep",
                 "Fee import requires codes to exist first; no $ symbol in fee column",
-                "NexHealth MCP list_appointment_descriptors is read-only verification",
+                "Open Dental MCP list_appointment_descriptors is read-only verification",
             ],
         },
     )
@@ -369,15 +369,15 @@ def main() -> None:
     print(f"Wrote {xlsx_out_repo}")
     print(f"Wrote {xlsx_out_downloads}")
     print()
-    print("Next steps (Open Dental - NexHealth MCP cannot change procedure codes):")
+    print("Next steps (Open Dental - Open Dental MCP cannot change procedure codes):")
     print("  1. Lists > Procedure Codes > Tools (lower left)")
     print("     [x] T codes: Remove all temp (T) trial codes")
     print("     [x] D codes: Add missing ADA CDT codes (2026 when OD version supports it)")
     print("  2. Optional: Import/Export > import exports/open-dental/cdt-2026-procedure-codes.xml")
     print("     (only adds codes that do not already exist)")
-    print("  3. Restart NexHealth Synchronizer; verify with MCP list_appointment_descriptors")
+    print("  3. Restart Open Dental Synchronizer; verify with MCP list_appointment_descriptors")
     print("  4. Restart dashboard dev server - cockpit charts use cdt-categories.json")
-    print("  5. npm run sync:nexhealth — push NexHealth ledger into MongoDB warehouse")
+    print("  5. npm run sync:opendental — push Open Dental ledger into MongoDB warehouse")
 
 
 if __name__ == "__main__":

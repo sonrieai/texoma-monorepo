@@ -5,7 +5,7 @@ import {
   providerCockpitCategoryCounts,
   rollToCockpitDisplayCategories,
 } from "./cockpit-display-categories";
-import { emptyProcedureVolume } from "../nexhealth/production";
+import { emptyProcedureVolume } from "../warehouse/production";
 
 describe("normalizeToCockpitDisplayCategory", () => {
   it("keeps primary OD names", () => {

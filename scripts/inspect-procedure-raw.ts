@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadEnvLocal } from "../src/lib/mongo/sync";
+import { loadEnvLocal } from "../src/lib/env/load-env-local";
 import { closeMongoClient, COLLECTIONS, getCollection } from "../src/lib/mongo/client";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");

@@ -11,7 +11,7 @@ import {
   type AdChannel,
   type MarketingScoreItem,
 } from "@/lib/ghl/client";
-import { loadLiveOverview } from "@/lib/nexhealth/live";
+import { loadLiveOverview } from "@/lib/warehouse/live";
 import { rangeFromSearchParams } from "@/lib/ui/period";
 
 export const dynamic = "force-dynamic";
@@ -171,7 +171,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
           note={
             marketing.showRate != null
               ? `Booked → showed · ${lookbackNote}`
-              : "NP consult or practice-wide"
+              : "Booked → showed"
           }
           status={
             (marketing.showRate ?? consultShowRate) >= 0.75
@@ -180,28 +180,6 @@ export default async function MarketingPage({ searchParams }: PageProps) {
                 ? "warn"
                 : "neutral"
           }
-        />
-      </div>
-
-      <SectionHeading title="Practice context" />
-      <div className="mb-4 grid grid-cols-2 items-stretch gap-2.5 md:grid-cols-4">
-        <ComboStat
-          label="NP consult shows"
-          value={String(conv.npConsultShow)}
-        />
-        <ComboStat
-          label="Same-day starts"
-          value={
-            conv.sameDayStartRate != null
-              ? formatPct(conv.sameDayStartRate)
-              : "—"
-          }
-          note={`${conv.sameDayStarts} starts · target ≥30%`}
-        />
-        <ComboStat label="Practice show rate" value={formatPct(data.showRate)} />
-        <ComboStat
-          label="Total appointments"
-          value={String(data.appointments.total)}
         />
       </div>
 
@@ -230,7 +208,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
         <>
           <Card
             title="Channel performance"
-            subtitle={`${marketing.opportunityCount} opportunities · ${lookbackNote} · spend blank until ads sync`}
+            subtitle={`${marketing.opportunityCount} opportunities · ${lookbackNote}${t.spend > 0 ? "" : " · connect GHL Ad Manager for spend"}`}
             className="mb-4 overflow-x-auto"
           >
             <table className="w-full min-w-[880px] border-collapse text-[12.5px]">
@@ -376,13 +354,13 @@ export default async function MarketingPage({ searchParams }: PageProps) {
           <SectionHeading title="Top referral sources" />
           <div className="mb-4 grid gap-3 lg:grid-cols-2">
             <Card
-              title="By new patients"
+              title="By referral source"
               subtitle={`Attribution source · ${lookbackNote}`}
             >
               <table className="w-full border-collapse text-[12.5px]">
                 <thead>
                   <tr>
-                    {["Referral source", "Patients", "Production"].map((h) => (
+                    {["Referral source", "Leads", "Production"].map((h) => (
                       <th
                         key={h}
                         className="border-b border-line px-2 py-1.5 text-center text-[10.5px] font-semibold uppercase tracking-wide text-muted first:text-left"
@@ -413,7 +391,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
               <Scorecard items={marketing.scorecard} />
               <p className="mb-0 mt-3 text-[11px] text-muted">
                 Lead response time needs conversation timestamps (not wired
-                yet). ROI/cost-per-arch need ad spend.
+                yet). Spend/ROI use GHL Ad Publishing when ads are connected.
               </p>
             </Card>
           </div>

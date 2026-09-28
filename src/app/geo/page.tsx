@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/shell/AppShell";
 import { GeoPageContent } from "@/components/geo/GeoPageContent";
 import { EmptyState } from "@/components/ui/States";
-import { loadGeoSummary } from "@/lib/nexhealth/geo";
+import { loadGeoSummary } from "@/lib/warehouse/geo";
 
 export const dynamic = "force-dynamic";
 

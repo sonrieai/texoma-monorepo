@@ -9,12 +9,12 @@ alwaysApply: false
 ## Layers
 
 ```
-route (thin) → metrics/mapper → nexhealth|ghl client
+route (thin) → metrics/mapper → opendental snapshot | ghl client
 ```
 
 - Business logic in `src/lib/metrics/` and mappers — not in Route Handlers
 - Money as integer cents in metrics lib when deriving CPL / ROI / production
-- Never import NexHealth/GHL clients into Client Components
+- Never import Open Dental/GHL clients into Client Components
 
 ## API behavior
 

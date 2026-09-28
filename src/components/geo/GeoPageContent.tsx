@@ -6,7 +6,7 @@ import { GeoHeatMap } from "@/components/geo/GeoHeatMap";
 import { Card, ComboStat, NoticeList, SectionHeading } from "@/components/ui/Cards";
 import { EmptyState } from "@/components/ui/States";
 import { centsToDollars, formatUsd } from "@/lib/metrics";
-import type { GeoSummary } from "@/lib/nexhealth/geo";
+import type { GeoSummary } from "@/lib/warehouse/geo";
 import type { GeoCity } from "@/lib/types/viz";
 
 export function GeoPageContent({ geo }: { geo: GeoSummary }) {

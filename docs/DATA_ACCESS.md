@@ -1,49 +1,49 @@
-# Data access matrix (Texoma / NexHealth + GHL + Mongo warehouse)
+# Data access matrix (Texoma / Open Dental + GHL)
 
-For Beshoy field-mapping discovery. EHR reads/writes go through **NexHealth Synchronizer** (not raw Open Dental API). The **dashboard reads MongoDB** so page views do not burn NexHealth API quota.
+For Beshoy field-mapping discovery. EHR reads use a SELECT-only Open Dental
+MySQL connection on dashboard page load.
 
-**Connection overview + Open Dental Trial analysis:** [OD_NEXHEALTH_CONNECTION.md](./OD_NEXHEALTH_CONNECTION.md). The [OD trial](https://www.opendental.com/site/trial.html) has **no API** and cannot power this pipeline.
+**Connection overview:** [LOCAL_OPENDENTAL.md](./LOCAL_OPENDENTAL.md).
 
 **Procedure codes:** [OD_PROCEDURE_CODES.md](./OD_PROCEDURE_CODES.md). KPI code map from `TEXOMA OPEN DENTAL CODES 8-11-26.xlsx`.
 
-## Cost model (why warehouse exists)
-
-| Path | When NexHealth is called | Who pays |
-|------|--------------------------|----------|
-| **Before** | Every Overview / Doctor / Geo page load | High — per user refresh |
-| **After** | `npm run sync:nexhealth` or `POST /api/sync/nexhealth` only | Low — scheduled batches |
+## Path
 
 ```text
-Open Dental → NexHealth Synchronizer → NexHealth API
-                                           │
-                          cron / npm run sync:nexhealth
-                                           ▼
-                                    MongoDB Atlas (texoma)
-                                           │
-                                           ▼
-                                    Dashboard pages
+Open Dental MySQL (backup or office LAN/VPN)
+        │  SELECT-only on page load
+        ▼
+src/lib/opendental → aggregators
+        │
+        ▼
+Dashboard pages
 ```
+
+MongoDB stores dashboard users and GHL credentials only — not production/AR/geo.
 
 Env:
 
 ```env
-MONGODB_URI=mongodb+srv://...
-MONGODB_DB=texoma
-SYNC_SECRET=...
-SYNC_NEXHEALTH_ENABLED=true
+OD_MYSQL_HOST=127.0.0.1
+OD_MYSQL_USER=texoma_dashboard
+OD_MYSQL_PASS=...
+OD_MYSQL_DB=opendental
 ```
 
-Sign a [MongoDB Atlas BAA](https://www.mongodb.com/products/platform/trust/hipaa) before any PHI-adjacent hosting. After NO-ePHI sync, Atlas stores IDs + city/ZIP only — see [HIPAA_NO_EPHI.md](./HIPAA_NO_EPHI.md).
+Office LAN: [OFFICE_INSTALL.md](./OFFICE_INSTALL.md). Laptop trial:
+[LOCAL_OPENDENTAL.md](./LOCAL_OPENDENTAL.md).
+
+Identifiers stay in Open Dental. Dashboard aggregators use internal IDs, codes, dollars, and city/ZIP — see [HIPAA_NO_EPHI.md](./HIPAA_NO_EPHI.md).
 
 ## Formulas tab → code mapping
 
 Source workbook: `TEXOMA OPEN DENTAL CODES 8-11-26.xlsx` (Formulas + Code Chart + Flat List).
 
-Formulas live in `src/lib`, not React. Path: Open Dental → NexHealth → Mongo warehouse → aggregators → Overview cockpit.
+Formulas live in `src/lib`, not React. Path: Open Dental MySQL → aggregators → Overview cockpit.
 
 **UI:** `src/components/analytics/CockpitMetrics.tsx`, `OverviewCharts.tsx`, Doctor / Insurance pages.  
-**Compute:** `src/lib/nexhealth/conversion.ts`, `production.ts`, `payment-mix.ts`, `ar.ts`, `cdt/categories.ts`.  
-**Warehouse:** `src/lib/mongo/warehouse-overview.ts` (calls shared `summarizeConversion` / production summarizers).
+**Compute:** `src/lib/warehouse/conversion.ts`, `production.ts`, `payment-mix.ts`, `ar.ts`, `cdt/categories.ts`.
+**Live load:** `src/lib/opendental/snapshot.ts` + `src/lib/warehouse/build-overview.ts`.
 
 **Conversion (1–4) frozen 2026-08-13** — OD defaults. SC / adjusted $ / volume still wait on freeze items 5–11. See [FORMULAS_DR_QUESTIONS.md](./FORMULAS_DR_QUESTIONS.md).
 
@@ -104,7 +104,7 @@ Formulas live in `src/lib`, not React. Path: Open Dental → NexHealth → Mongo
 - **Close (tune after Dr):** extractions, implants, collections, total AR, AR>90, treatment-by-type, denture warranty $ (if Code Chart suffixes stay mapped).
 - **Done (PR1 conversion):** NP definition, consult show (N9310 + 66/67/69), same-day U-sold, TP closed = all procs complete.
 - **Must change after freeze:** SC by carrier/codes, adjusted production AdjTypes, AOX sold-only + ×4, denture delivery code, remake list + %, partials warranty.
-- **Data gaps:** sandbox often has unmapped/custom codes → volume tiles stay 0. OD confirm codes 66/67/69 may not exist on NexHealth appointment payloads — see [FIELD_MAP.md](./FIELD_MAP.md).
+- **Data gaps:** sandbox often has unmapped/custom codes → volume tiles stay 0. OD confirm codes 66/67/69 may not exist on Open Dental appointment payloads — see [FIELD_MAP.md](./FIELD_MAP.md).
 
 ### Open Dental recommended defaults
 
@@ -135,51 +135,39 @@ Refresh CDT map after Code Chart edits:
 python scripts/sync-cdt-from-xlsx.py "C:\Users\RohitSahu\Downloads\TEXOMA OPEN DENTAL CODES 8-11-26.xlsx"
 ```
 
-## Mongo collections (`texoma`)
+## Mongo collections (login / GHL only)
 
 | Collection | Contents |
 |------------|----------|
-| `sync_state` | Per-resource `updatedSince` cursors |
-| `meta` | `lastSyncedAt`, location name, last error |
-| `providers`, `appointment_types`, `appointments` | Scheduling |
-| `procedures`, `charges`, `payments`, `adjustments` | Production / collections |
-| `treatment_plans`, `guarantor_balances` | Conversion + AR |
-| `claims`, `insurance_balances`, `insurance_plans` | Insurance coordinator |
-| `patients` | De-identified index: `patientId`, inactive, carrier, city/state/ZIP |
-| `cdt_codes` | Flat List + Code Chart KPI map |
+| `dashboard_users`, `password_resets` | Dashboard login |
+| `integration_settings` | Encrypted GHL credentials |
 
-## Sync commands
+Clinical KPIs are not stored in Mongo.
+
+## Probe
 
 ```powershell
-npm run sync:nexhealth
-# or
-curl -X POST http://localhost:5001/api/sync/nexhealth -H "x-sync-secret: $SYNC_SECRET"
+npm run probe:opendental-mysql
 ```
 
-## Likely accessible via NexHealth (ingest only)
+## Live Open Dental tables
 
-| Data point | Endpoint / note | Dashboard use |
-|------------|-----------------|---------------|
-| Locations | `GET /locations` | Location label |
-| Providers | `GET /providers` | Doctor pages |
-| Appointments | `GET /appointments` (`start`/`end`) | Volume, visit mix |
-| Appointment types | `GET /appointment_types` | NP consult filter |
-| Procedures | `GET /procedures` | Mix / fee fallback |
-| Charges / payments / adjustments | `updated_since` | Production, collections |
-| Treatment plans | `updated_since`, `status` | TP closed $ |
-| Guarantor balances | `updated_since` | Total AR · AR >90d |
-| Claims | `GET /claims` (`updated_since`) | Insurance submitted/paid/canceled, outstanding aging, payer mix |
-| Insurance balances | `GET /insurance_balances` | Insurance-only AR aging · days in AR |
-| Insurance plans | `GET /insurance_plans` | Payer names (Delta, SoonerCare, …) |
-| Patients | `updated_since` | Geo city index (no names) |
+| Table | Dashboard use |
+|-------|----------------|
+| `provider` | Doctor pages |
+| `appointment`, `appointmenttype` | Volume, visit mix, conversion |
+| `procedurelog`, `procedurecode` | Production mix, CDT categories |
+| `paysplit`, `payment`, `adjustment` | Collections / write-offs |
+| `treatplan`, `proctp` | Conversion + TC |
+| `claim`, `insplan`, `patient` aging | Insurance + AR |
 
-## Not from NexHealth — GHL / ads
+## Not from Open Dental — GHL / ads
 
 | Data point | Expected source | Dashboard use |
 |------------|-----------------|---------------|
 | Leads + pipeline stages | GHL opportunities (Call Center + Appointment) | Marketing funnel · TC channel journey |
 | Channel attribution | GHL `utmSessionSource` / opportunity source | Referral table · channel rows |
-| Ad spend by channel | Ads platforms (not GHL CRM) | Cost per lead, ROI, cost/arch — blank until wired |
+| Ad spend by channel | GHL Ad Publishing reporting (`/ad-publishing/facebook|google/reporting`) | Cost per lead, ROI, cost/arch — needs `adPublishing.readonly` + connected ads |
 | TC acceptance $ / decline reasons | Practice ops / GHL custom | Treatment Coordinator extras |
 
 ## Discovery unknowns (short spike)
@@ -188,10 +176,10 @@ KPI formula blockers are listed under **Questions for Dr** above. Remaining engi
 
 1. Live Texoma institution subdomain vs Sonrie sandbox only.
 2. Auth required in Vercel production (`AUTH_SESSION_SECRET`). `/patients` removed — NO-ePHI.
-3. Whether NexHealth appointment payloads expose OD confirm codes 66 / 67 / 69.
+3. Whether Open Dental appointment payloads expose OD confirm codes 66 / 67 / 69.
 
 ## Integration stance
 
-- **Write (EHR):** still via NexHealth when needed (booking, attribution).
-- **Read (dashboard):** Mongo warehouse only after sync.
-- **UI:** empty warehouse shows “run sync” — does **not** fall back to live NexHealth on every page (that would keep API cost).
+- **Write (EHR):** still via Open Dental when needed (booking, attribution).
+- **Read (dashboard):** live Open Dental MySQL on page load.
+- **UI:** empty connection shows a configuration error — set `OD_MYSQL_*`.

@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/Cards";
 import { formatPct } from "@/lib/metrics";
-import type { AppointmentTypeMixRow } from "@/lib/nexhealth/appointment-mix";
+import type { AppointmentTypeMixRow } from "@/lib/warehouse/appointment-mix";
 
 type Props = {
   rows: AppointmentTypeMixRow[];

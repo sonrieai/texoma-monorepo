@@ -11,9 +11,9 @@ import {
   declineReasonTotal,
   mergeDeclineReasons,
 } from "@/lib/tc/decline-reasons";
-import type { ConversionSummary } from "@/lib/nexhealth/conversion";
-import type { LiveOverview } from "@/lib/nexhealth/live";
-import type { TcMetrics } from "@/lib/nexhealth/tc-metrics";
+import type { ConversionSummary } from "@/lib/warehouse/conversion";
+import type { LiveOverview } from "@/lib/warehouse/live";
+import type { TcMetrics } from "@/lib/warehouse/tc-metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
 type TcPageContentProps = {

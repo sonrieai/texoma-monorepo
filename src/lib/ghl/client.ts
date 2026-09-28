@@ -25,3 +25,7 @@ export {
   type ReferralSourceRow,
   type MarketingScoreItem,
 } from "@/lib/ghl/marketing";
+export {
+  loadAdSpendByChannel,
+  type AdSpendByChannel,
+} from "@/lib/ghl/ad-spend";

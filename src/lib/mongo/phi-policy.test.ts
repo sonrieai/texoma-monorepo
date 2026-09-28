@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { NexPatient } from "@/lib/nexhealth/client";
+import type { PatientRecord } from "@/lib/warehouse/types";
 import {
   containsPhiKeys,
   omitPhiKeys,
-  slimNexClaim,
-  slimNexPayment,
-  stripPhiFromNexPatient,
+  slimClaimRecord,
+  slimPaymentRecord,
+  stripPhiFromPatientRecord,
 } from "@/lib/mongo/phi-policy";
 
 const samplePatient = {
@@ -25,7 +25,7 @@ const samplePatient = {
     zip_code: "75090",
     primary_insurance: { carrier_name: "SoonerCare" },
   },
-} as NexPatient;
+} as PatientRecord;
 
 describe("omitPhiKeys", () => {
   it("drops name, contact, bio, and nested patient objects", () => {
@@ -47,9 +47,9 @@ describe("omitPhiKeys", () => {
   });
 });
 
-describe("stripPhiFromNexPatient", () => {
+describe("stripPhiFromPatientRecord", () => {
   it("keeps id, carrier, and city/state/zip — never names or street", () => {
-    const slim = stripPhiFromNexPatient(samplePatient);
+    const slim = stripPhiFromPatientRecord(samplePatient);
     assert.ok(slim);
     assert.equal(slim.patientId, 123);
     assert.equal(slim.primaryInsuranceCarrier, "SoonerCare");
@@ -66,7 +66,7 @@ describe("stripPhiFromNexPatient", () => {
 
 describe("slim ledger entities", () => {
   it("nulls payment notes and claim notes", () => {
-    const payment = slimNexPayment({
+    const payment = slimPaymentRecord({
       id: 1,
       patient_id: 2,
       notes: "Called Jane at 555",
@@ -76,7 +76,7 @@ describe("slim ledger entities", () => {
     assert.equal(payment.description, "Visa");
     assert.equal(payment.patient_id, 2);
 
-    const claim = slimNexClaim({
+    const claim = slimClaimRecord({
       id: 8,
       patient_id: 2,
       note: "SSN on file",

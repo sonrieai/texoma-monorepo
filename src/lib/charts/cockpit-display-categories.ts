@@ -4,7 +4,7 @@ import { emptyCategoryValues } from "@/lib/charts/category-chart";
 import type {
   CategoryProductionRow,
   ProcedureVolume,
-} from "@/lib/nexhealth/production";
+} from "@/lib/warehouse/production";
 
 /** Open Dental cockpit categories (Definitions — non-hidden). Everything else → Other. */
 export const COCKPIT_PRIMARY_CATEGORY_NAMES = [

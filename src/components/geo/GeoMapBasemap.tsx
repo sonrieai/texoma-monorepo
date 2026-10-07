@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Layer } from "leaflet";
-import GoogleMutant from "leaflet.gridlayer.googlemutant";
+import GoogleMutant from "leaflet.gridlayer.googlemutant/src/Leaflet.GoogleMutant.mjs";
 import { TileLayer, useMap } from "react-leaflet";
 import { getGoogleMapsApiKey } from "@/lib/geo/google-maps-api-key";
 import { loadGoogleMapsScript } from "@/lib/geo/load-google-maps-script";
@@ -29,8 +29,9 @@ function GoogleMutantBasemap({ apiKey }: { apiKey: string }) {
     loadGoogleMapsScript(apiKey)
       .then(() => {
         if (cancelled) return;
-        googleLayer = new GoogleMutant({ type: "roadmap", maxZoom: 21 });
-        googleLayer.addTo(map);
+        const layer = new GoogleMutant({ type: "roadmap", maxZoom: 21 });
+        googleLayer = layer;
+        layer.addTo(map);
         map.invalidateSize();
         setGoogleReady(true);
       })

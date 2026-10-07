@@ -103,6 +103,8 @@ export type OdPaySplitRow = {
   ClinicNum: number | null;
   PayType?: number | null;
   PayTypeName?: string | null;
+  PayNote?: string | null;
+  CheckNum?: string | null;
 };
 
 export type OdAdjustmentRow = {
@@ -135,6 +137,9 @@ export type OdProcTpRow = {
   Descript: string | null;
   FeeAmt: number;
   Priority: number | null;
+  LogProcStatus?: number | null;
+  LogProcDate?: Date | string | null;
+  LogDateComplete?: Date | string | null;
 };
 
 export type OdClaimRow = {
@@ -142,13 +147,17 @@ export type OdClaimRow = {
   PatNum: number;
   PlanNum: number;
   ClaimStatus: string | null;
+  ClaimType: string | null;
   DateService: Date | string | null;
   DateSent: Date | string | null;
+  DateSentOrig: Date | string | null;
   DateReceived: Date | string | null;
+  DateResent: Date | string | null;
   ClaimFee: number;
   InsPayEst: number;
   InsPayAmt: number;
   WriteOff: number;
+  CorrectionType: number | null;
   ProvTreat: number;
   ClinicNum: number | null;
   DateTStamp: Date | string | null;

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
+import { MapContainer, CircleMarker, Tooltip } from "react-leaflet";
+import { GeoMapBasemap } from "@/components/geo/GeoMapBasemap";
 import type { GeoCity } from "@/lib/types/viz";
 import "leaflet/dist/leaflet.css";
 
@@ -33,10 +34,7 @@ export function GeoMapInner({
       scrollWheelZoom
       className="h-[360px] w-full rounded-lg border border-line"
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+      <GeoMapBasemap />
       {cities.map((c) => {
         const v = metric === "production" ? (c.production ?? 0) : c.patients;
         const radius = 6 + (v / max) * 18;

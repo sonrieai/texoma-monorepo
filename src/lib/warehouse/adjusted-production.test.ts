@@ -4,6 +4,7 @@ import type { AdjustmentRecord } from "@/lib/warehouse/types";
 import {
   buildAdjustmentTypeMap,
   defaultIncludeInAdjustedProduction,
+  includeAdjustmentTypeInAdjustedProduction,
   isWriteOffAdjustment,
 } from "@/lib/warehouse/adjusted-production";
 
@@ -12,6 +13,17 @@ describe("adjusted production types", () => {
     assert.equal(defaultIncludeInAdjustedProduction("credit"), true);
     assert.equal(defaultIncludeInAdjustedProduction("debit"), false);
     assert.equal(defaultIncludeInAdjustedProduction(null), false);
+  });
+
+  it("classifies OD adj type names for adjusted production", () => {
+    assert.equal(
+      includeAdjustmentTypeInAdjustedProduction("Insurance Write-off", "add"),
+      true,
+    );
+    assert.equal(
+      includeAdjustmentTypeInAdjustedProduction("Senior discount", "subtract"),
+      false,
+    );
   });
 
   it("matches types flagged includeInAdjustedProduction", () => {

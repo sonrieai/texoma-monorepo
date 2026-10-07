@@ -235,18 +235,22 @@ export function LineChart({
             </g>
           );
         })}
-        {xLabels.slice(0, count).map((m, i) => (
-          <text
-            key={`${m}-${i}`}
-            x={xAt(i)}
-            y={height - 8}
-            textAnchor="middle"
-            fontSize={9.5}
-            fill="var(--muted)"
-          >
-            {m}
-          </text>
-        ))}
+        {xLabels.slice(0, count).map((m, i) => {
+          const labelEvery = count > 14 ? Math.ceil(count / 7) : 1;
+          const show = i % labelEvery === 0 || i === count - 1;
+          return (
+            <text
+              key={`${m}-${i}`}
+              x={xAt(i)}
+              y={height - 8}
+              textAnchor="middle"
+              fontSize={9.5}
+              fill="var(--muted)"
+            >
+              {show ? m : ""}
+            </text>
+          );
+        })}
         {hover != null && (
           <>
             <line

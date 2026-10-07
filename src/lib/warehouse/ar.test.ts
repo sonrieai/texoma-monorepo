@@ -54,6 +54,17 @@ describe("summarizeArFromBalances", () => {
     assert.equal(summary.insuranceArCents, 0);
     assert.equal(summary.totalArCents, 2000);
   });
+
+  it("computes arOver90Ratio when total AR uses aging-normalized balance", () => {
+    const summary = summarizeArFromBalances([
+      balance({
+        total_balance: price("2500.00"),
+        total_balance_over_90: price("428.39"),
+      }),
+    ]);
+    assert.equal(summary.arOver90Cents, 42839);
+    assert.ok(summary.arOver90Ratio != null && summary.arOver90Ratio > 0);
+  });
 });
 
 describe("emptyArSummary", () => {

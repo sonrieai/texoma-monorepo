@@ -214,6 +214,7 @@ export function mapOdProcedureToCharge(row: OdProcedureLogRow): ChargeRecord | n
 }
 
 export function mapOdPaySplit(row: OdPaySplitRow): PaymentRecord {
+  const payNote = row.PayNote?.trim() || null;
   return {
     id: row.SplitNum,
     provider_id: row.ProvNum || null,
@@ -225,6 +226,8 @@ export function mapOdPaySplit(row: OdPaySplitRow): PaymentRecord {
     payment_type: row.PayTypeName?.trim() || null,
     payment_type_id: row.PayType ?? null,
     type: row.PayTypeName?.trim() || null,
+    description: payNote,
+    notes: payNote,
     foreign_id: String(row.SplitNum),
     foreign_id_type: "opendental",
   };
@@ -277,14 +280,26 @@ export function mapOdTreatPlan(
   row: OdTreatPlanRow,
   procs: OdProcTpRow[],
 ): TreatmentPlanRecord {
-  const procedures: ProcedureRecord[] = procs.map((p) => ({
-    id: p.ProcNumOrig ?? p.ProcTPNum,
-    patient_id: p.PatNum,
-    code: p.ProcCode?.trim() || null,
-    name: p.Descript?.trim() || p.ProcCode?.trim() || null,
-    status: "TreatmentPlan",
-    fee: money(Number(p.FeeAmt)),
-  }));
+  const procedures: ProcedureRecord[] = procs.map((p) => {
+    const logStatus =
+      p.LogProcStatus != null && p.LogProcStatus !== undefined
+        ? Number(p.LogProcStatus)
+        : null;
+    const status =
+      logStatus != null && logStatus > 0
+        ? mapOdProcStatus(logStatus)
+        : "TreatmentPlan";
+    return {
+      id: p.ProcNumOrig ?? p.ProcTPNum,
+      patient_id: p.PatNum,
+      code: p.ProcCode?.trim() || null,
+      name: p.Descript?.trim() || p.ProcCode?.trim() || null,
+      status,
+      fee: money(Number(p.FeeAmt)),
+      start_date: odDateToYmd(p.LogProcDate) ?? undefined,
+      end_date: odDateToYmd(p.LogDateComplete) ?? odDateToYmd(p.LogProcDate) ?? undefined,
+    };
+  });
 
   return {
     id: row.TreatPlanNum,
@@ -306,15 +321,41 @@ function mapClaimStatus(raw: string | null): string {
   if (s === "S" || s === "SENT") return "sent";
   if (s === "U" || s === "UNSENT") return "draft";
   if (s === "C" || s === "CANCELED" || s === "CANCELLED") return "canceled";
+  if (s === "H" || s === "HOLD") return "hold";
+  if (s === "W" || s === "WAITING") return "waiting";
   return raw.toLowerCase();
 }
 
+function odYmdAfterOdEpoch(ymd: string | null): ymd is string {
+  return Boolean(ymd && ymd > "0001-01-01");
+}
+
+/** Open Dental resubmit / replacement (not timezone same-day noise). */
+export function odClaimNeedsCorrection(row: OdClaimRow): boolean {
+  if ((Number(row.CorrectionType) || 0) > 0) return true;
+  const sent = odDateToYmd(row.DateSent);
+  const orig = odDateToYmd(row.DateSentOrig);
+  if (odYmdAfterOdEpoch(sent) && odYmdAfterOdEpoch(orig) && orig !== sent) {
+    return true;
+  }
+  const resent = odDateToYmd(row.DateResent);
+  if (odYmdAfterOdEpoch(sent) && odYmdAfterOdEpoch(resent) && resent !== sent) {
+    return true;
+  }
+  return false;
+}
+
 export function mapOdClaim(row: OdClaimRow): ClaimRecord {
+  const needsCorrection = odClaimNeedsCorrection(row);
   return {
     id: row.ClaimNum,
     patient_id: row.PatNum,
     provider_id: row.ProvTreat || null,
     status: mapClaimStatus(row.ClaimStatus),
+    claim_type: row.ClaimType?.trim() || null,
+    correction_type: Number(row.CorrectionType) || 0,
+    needs_correction: needsCorrection,
+    was_resent: needsCorrection,
     sent_at: odDateToIso(row.DateSent),
     received_at: odDateToIso(row.DateReceived),
     primary_insurance_plan_id: row.PlanNum || null,
@@ -342,11 +383,27 @@ export function mapOdInsPlan(row: OdInsPlanRow): InsurancePlanRecord {
   };
 }
 
+export function resolveGuarantorTotalBalanceDollars(
+  row: OdGuarantorBalanceRow,
+): number {
+  const agingSum =
+    (Number(row.Bal_0_30) || 0) +
+    (Number(row.Bal_31_60) || 0) +
+    (Number(row.Bal_61_90) || 0) +
+    (Number(row.BalOver90) || 0);
+  const est = Number(row.EstBalance) || 0;
+  const fromCol = Number(row.TotBal ?? est) || 0;
+  if (agingSum > 0 && fromCol <= 0) return agingSum;
+  if (fromCol > 0) return fromCol;
+  if (est > 0) return est;
+  return agingSum;
+}
+
 export function mapOdGuarantorBalance(row: OdGuarantorBalanceRow): GuarantorBalanceRecord {
   return {
     id: row.PatNum,
     guarantor_id: row.PatNum,
-    total_balance: money(Number(row.TotBal ?? row.EstBalance)),
+    total_balance: money(resolveGuarantorTotalBalanceDollars(row)),
     total_balance_under_30: money(Number(row.Bal_0_30)),
     total_balance_31_60: money(Number(row.Bal_31_60)),
     total_balance_61_90: money(Number(row.Bal_61_90)),
@@ -356,16 +413,25 @@ export function mapOdGuarantorBalance(row: OdGuarantorBalanceRow): GuarantorBala
   };
 }
 
-/** Insurance AR proxy from guarantor InsEst aging buckets. */
+/** Insurance AR proxy: split guarantor InsEst across patient aging buckets. */
 export function mapOdInsuranceBalance(row: OdGuarantorBalanceRow): InsuranceBalanceRecord {
+  const b0 = Number(row.Bal_0_30) || 0;
+  const b1 = Number(row.Bal_31_60) || 0;
+  const b2 = Number(row.Bal_61_90) || 0;
+  const b3 = Number(row.BalOver90) || 0;
+  const agingSum = b0 + b1 + b2 + b3;
+  const insEst = Math.max(0, Number(row.InsEst) || 0);
+  const alloc = (part: number) =>
+    insEst > 0 && agingSum > 0 ? insEst * (part / agingSum) : 0;
+
   return {
     id: row.PatNum,
     patient_id: row.PatNum,
     guarantor_id: row.PatNum,
-    estimated_amount_under_30: money(Number(row.Bal_0_30)),
-    estimated_amount_31_60: money(Number(row.Bal_31_60)),
-    estimated_amount_61_90: money(Number(row.Bal_61_90)),
-    estimated_amount_over_90: money(Number(row.BalOver90)),
+    estimated_amount_under_30: money(alloc(b0)),
+    estimated_amount_31_60: money(alloc(b1)),
+    estimated_amount_61_90: money(alloc(b2)),
+    estimated_amount_over_90: money(alloc(b3)),
     updated_at: undefined,
   };
 }

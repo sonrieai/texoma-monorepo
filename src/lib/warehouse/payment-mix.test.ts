@@ -44,6 +44,41 @@ describe("classifyPayment insurance", () => {
       "insurance",
     );
   });
+
+  it("classifies Open Dental PayType DefNums", () => {
+    assert.equal(
+      classifyPayment(
+        {
+          payment_type_id: 72,
+          payment_type: "Ins. Check",
+          payment_amount: { amount: "10.00" },
+        },
+        { insurancePaymentTypeDefNums: new Set([72]) },
+      ),
+      "insurance",
+    );
+  });
+
+  it("classifies untyped patient payments as cash", () => {
+    assert.equal(
+      classifyPayment({
+        payment_type_id: 0,
+        patient_id: 42,
+        payment_amount: { amount: "10.00" },
+      }),
+      "cash",
+    );
+  });
+
+  it("classifies DentaQuest PayType name as soonercare", () => {
+    assert.equal(
+      classifyPayment({
+        payment_type: "DentaQuest",
+        payment_amount: { amount: "10.00" },
+      }),
+      "soonercare",
+    );
+  });
 });
 
 describe("payment-mix financing vendors", () => {

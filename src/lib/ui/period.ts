@@ -1,9 +1,10 @@
-export type PeriodMode = "daily" | "monthly" | "range";
+export type PeriodMode = "daily" | "monthly" | "yearly" | "range";
 
 export type PeriodState = {
   mode: PeriodMode;
   day: string;
   month: string;
+  year: string;
   from: string;
   to: string;
 };
@@ -38,6 +39,22 @@ export function currentMonthKey(now = new Date()): string {
   return todayYmd(now).slice(0, 7);
 }
 
+export function currentYearKey(now = new Date()): string {
+  return String(now.getFullYear());
+}
+
+/** Selected calendar year. The current year stops at today. */
+export function yearRange(
+  year: string,
+  now = new Date(),
+): { start: string; end: string } {
+  const start = `${year}-01-01`;
+  const y = Number(year);
+  if (y === now.getFullYear()) return { start, end: todayYmd(now) };
+  if (y > now.getFullYear()) return { start, end: start };
+  return { start, end: `${year}-12-31` };
+}
+
 export function lastDayOfMonth(yyyyMm: string): string {
   const [y, m] = yyyyMm.split("-").map(Number);
   const last = new Date(y, m, 0).getDate();
@@ -62,13 +79,15 @@ export function rangePreset(
 export function defaultPeriodState(now = new Date()): PeriodState {
   const day = todayYmd(now);
   const month = currentMonthKey(now);
-  const thisYear = rangePreset("thisYear", now);
+  const year = currentYearKey(now);
+  const thisYear = yearRange(year, now);
   return {
-    mode: "range",
+    mode: "yearly",
     day,
     month,
-    from: thisYear.from,
-    to: thisYear.to,
+    year,
+    from: thisYear.start,
+    to: thisYear.end,
   };
 }
 
@@ -89,27 +108,43 @@ export function parsePeriodParams(
 ): PeriodState {
   const defaults = defaultPeriodState();
   const modeRaw = readParam(raw, "period");
-  const mode: PeriodMode =
-    modeRaw === "daily" || modeRaw === "monthly" || modeRaw === "range"
+  let mode: PeriodMode =
+    modeRaw === "daily" ||
+    modeRaw === "monthly" ||
+    modeRaw === "yearly" ||
+    modeRaw === "range"
       ? modeRaw
       : defaults.mode;
   const dayRaw = readParam(raw, "day");
   const monthRaw = readParam(raw, "month");
+  const yearRaw = readParam(raw, "year");
   const fromRaw = readParam(raw, "from");
   const toRaw = readParam(raw, "to");
   const day = dayRaw && YMD.test(dayRaw) ? dayRaw : defaults.day;
   const month = monthRaw && YM.test(monthRaw) ? monthRaw : defaults.month;
+  const year =
+    yearRaw && /^\d{4}$/.test(yearRaw) ? yearRaw : defaults.year;
   let from = fromRaw && YMD.test(fromRaw) ? fromRaw : defaults.from;
   let to = toRaw && YMD.test(toRaw) ? toRaw : defaults.to;
   if (from > to) to = from;
-  return { mode, day, month, from, to };
+  if (
+    mode === "range" &&
+    from.slice(0, 4) === to.slice(0, 4) &&
+    from.endsWith("-01-01") &&
+    (to.endsWith("-12-31") || to === defaults.day)
+  ) {
+    mode = "yearly";
+    return { mode, day, month, year: from.slice(0, 4), from, to };
+  }
+  return { mode, day, month, year, from, to };
 }
 
-export function periodToRange(state: PeriodState): PeriodRange {
+export function periodToRange(state: PeriodState, now = new Date()): PeriodRange {
   if (state.mode === "daily") return { start: state.day, end: state.day };
   if (state.mode === "monthly") {
     return { start: `${state.month}-01`, end: lastDayOfMonth(state.month) };
   }
+  if (state.mode === "yearly") return yearRange(state.year, now);
   return { start: state.from, end: state.to };
 }
 
@@ -124,6 +159,7 @@ export function periodToSearchString(state: PeriodState): string {
   params.set("period", state.mode);
   if (state.mode === "daily") params.set("day", state.day);
   if (state.mode === "monthly") params.set("month", state.month);
+  if (state.mode === "yearly") params.set("year", state.year);
   if (state.mode === "range") {
     params.set("from", state.from);
     params.set("to", state.to);
@@ -140,8 +176,17 @@ export function periodLabel(state: PeriodState): string {
     const [y, m] = state.month.split("-").map(Number);
     return `${MONTH_ABBR[m - 1]} ${y}`;
   }
-  const [fy, fm, fd] = state.from.split("-").map(Number);
-  const [ty, tm, td] = state.to.split("-").map(Number);
+  if (state.mode === "yearly") {
+    const span = yearRange(state.year);
+    return formatRangeLabel(span.start, span.end);
+  }
+  return formatRangeLabel(state.from, state.to);
+}
+
+function formatRangeLabel(from: string, to: string): string {
+  const [fy, fm, fd] = from.split("-").map(Number);
+  const [ty, tm, td] = to.split("-").map(Number);
+  if (from === to) return `${MONTH_ABBR[fm - 1]} ${fd}, ${fy}`;
   if (fy === ty) {
     return `${MONTH_ABBR[fm - 1]} ${fd} – ${MONTH_ABBR[tm - 1]} ${td}, ${ty}`;
   }
@@ -149,9 +194,6 @@ export function periodLabel(state: PeriodState): string {
 }
 
 export function treatmentChartSubtitle(state: PeriodState): string {
-  if (state.mode === "monthly") {
-    return "Last 6 months · hover a segment for detail";
-  }
   return `${periodLabel(state)} · hover a segment for detail`;
 }
 

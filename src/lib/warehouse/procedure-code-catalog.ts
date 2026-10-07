@@ -17,7 +17,8 @@ export const UNCATEGORIZED_PROCEDURE_CATEGORY = "Uncategorized";
 
 import {
   inferCategoryFromDescription,
-  inferIsConsultProcedure,
+  inferIsConsultFromCodeAndDescription,
+  inferWarrantyBucket,
 } from "@/lib/cdt/infer-procedure-category";
 
 function addToCatalog(
@@ -126,11 +127,16 @@ export function catalogEntryToRow(
     procCatId,
     volumeBucket:
       existing?.volumeBucket ?? inferred?.volumeBucket ?? null,
-    warrantyBucket: existing?.warrantyBucket ?? null,
+    warrantyBucket:
+      existing?.warrantyBucket ??
+      inferWarrantyBucket(code, description || existing?.description || ""),
     isAox: existing?.isAox ?? category === "Fixed (All-on-4)",
     isSoldCase: existing?.isSoldCase,
     isConsult:
       existing?.isConsult ??
-      inferIsConsultProcedure(description || existing?.description || ""),
+      inferIsConsultFromCodeAndDescription(
+        code,
+        description || existing?.description || "",
+      ),
   };
 }

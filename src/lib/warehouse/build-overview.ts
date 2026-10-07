@@ -15,7 +15,9 @@ import {
   isConsultAppointment,
   mapConversionAttendance,
   summarizeConversion,
+  perProviderDeferredNpClose,
   perProviderSameDayNp,
+  perProviderScNpSeen,
 } from "@/lib/warehouse/conversion";
 import { resolveNpConsultTypeIds } from "@/lib/warehouse/kpi-reference";
 import { emptyTcMetrics, summarizeTcMetrics } from "@/lib/warehouse/tc-metrics";
@@ -109,6 +111,7 @@ function emptyLiveProduction(
     paymentMix: production.paymentMix,
     financingVendorMix: production.financingVendorMix,
     monthlyProduction: [],
+    periodTrend: [],
     treatmentByMonth: [],
     dentureWarranty: production.dentureWarranty,
     partialWarranty: production.partialWarranty,
@@ -129,6 +132,8 @@ function emptyProviderRow(sourceId: number, name: string): LiveProviderRow {
     upcomingCount: 0,
     npConsultShow: 0,
     sameDayNp: 0,
+    scNpSeen: 0,
+    npClosedDeferred: 0,
     appointmentTypes: [],
     production: emptyProviderProduction(),
   };
@@ -213,6 +218,9 @@ export function buildOverviewFromSnapshot(
       primaryInsuranceCarrier: d.primaryInsuranceCarrier,
     })),
     cdt,
+    claims: snapshot.claims,
+    insurancePaymentTypeDefNums: snapshot.insurancePaymentTypeDefNums,
+    paymentTypeClassification: snapshot.paymentTypeClassification,
   });
 
   const conversion = summarizeConversion({
@@ -366,17 +374,26 @@ export function buildOverviewFromSnapshot(
     if (prod) row.production = prod;
   }
 
-  const sameDayByProvider = perProviderSameDayNp({
+  const providerNpParams = {
     fromYmd,
     toYmd,
     appointments: apptRawsAll,
     procedures: snapshot.procedures,
+    appointmentTypes: typeRaws,
     appointmentTypeDocs: snapshot.appointmentTypeDocs,
     cdt,
-  });
-  for (const [pid, count] of sameDayByProvider) {
+  };
+  for (const [pid, count] of perProviderSameDayNp(providerNpParams)) {
     const row = byProvider.get(pid);
     if (row) row.sameDayNp = count;
+  }
+  for (const [pid, count] of perProviderScNpSeen(providerNpParams)) {
+    const row = byProvider.get(pid);
+    if (row) row.scNpSeen = count;
+  }
+  for (const [pid, count] of perProviderDeferredNpClose(providerNpParams)) {
+    const row = byProvider.get(pid);
+    if (row) row.npClosedDeferred = count;
   }
 
   const denom = show + noShow;
@@ -426,6 +443,7 @@ export function buildOverviewFromSnapshot(
       paymentMix: production.paymentMix,
       financingVendorMix: production.financingVendorMix,
       monthlyProduction: production.monthlyProduction,
+      periodTrend: production.periodTrend,
       treatmentByMonth: production.treatmentByMonth,
       dentureWarranty: production.dentureWarranty,
       partialWarranty: production.partialWarranty,

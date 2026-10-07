@@ -5,29 +5,28 @@ import {
   parsePeriodParams,
   periodToRange,
   periodToSearchString,
-  rangePreset,
+  todayYmd,
 } from "./period";
 
 describe("defaultPeriodState", () => {
-  it("defaults to this-year date range", () => {
+  it("defaults to the current year through today", () => {
     const now = new Date(2026, 7, 19);
     const state = defaultPeriodState(now);
-    const thisYear = rangePreset("thisYear", now);
-    assert.equal(state.mode, "range");
-    assert.equal(state.from, thisYear.from);
-    assert.equal(state.to, thisYear.to);
-    assert.equal(state.from, "2026-01-01");
-    assert.equal(state.to, "2026-08-19");
+    assert.equal(state.mode, "yearly");
+    assert.equal(state.year, "2026");
+    assert.deepEqual(periodToRange(state, now), {
+      start: "2026-01-01",
+      end: "2026-08-19",
+    });
   });
 });
 
 describe("parsePeriodParams", () => {
-  it("uses this-year range when no query params are present", () => {
+  it("uses the current year when no query params are present", () => {
     const parsed = parsePeriodParams({});
     const expected = defaultPeriodState();
-    assert.equal(parsed.mode, "range");
-    assert.equal(parsed.from, expected.from);
-    assert.equal(parsed.to, expected.to);
+    assert.equal(parsed.mode, "yearly");
+    assert.equal(parsed.year, expected.year);
   });
 
   it("keeps an explicit monthly period", () => {
@@ -39,22 +38,45 @@ describe("parsePeriodParams", () => {
       end: "2026-03-31",
     });
   });
+
+  it("treats a this-year date range as yearly", () => {
+    const today = todayYmd();
+    const parsed = parsePeriodParams({
+      period: "range",
+      from: `${today.slice(0, 4)}-01-01`,
+      to: today,
+    });
+    assert.equal(parsed.mode, "yearly");
+    assert.equal(parsed.year, today.slice(0, 4));
+  });
+
+  it("keeps a custom date range", () => {
+    const parsed = parsePeriodParams({
+      period: "range",
+      from: "2026-04-01",
+      to: "2026-06-30",
+    });
+    assert.equal(parsed.mode, "range");
+    assert.deepEqual(periodToRange(parsed), {
+      start: "2026-04-01",
+      end: "2026-06-30",
+    });
+  });
 });
 
 describe("periodToSearchString", () => {
-  it("serializes this-year range for Apply", () => {
-    const now = new Date(2026, 7, 19);
-    const thisYear = rangePreset("thisYear", now);
+  it("serializes a yearly period", () => {
     const qs = periodToSearchString({
-      mode: "range",
+      mode: "yearly",
       day: "2026-08-19",
       month: "2026-08",
-      from: thisYear.from,
-      to: thisYear.to,
+      year: "2026",
+      from: "2026-01-01",
+      to: "2026-08-19",
     });
     const params = new URLSearchParams(qs);
-    assert.equal(params.get("period"), "range");
-    assert.equal(params.get("from"), "2026-01-01");
-    assert.equal(params.get("to"), "2026-08-19");
+    assert.equal(params.get("period"), "yearly");
+    assert.equal(params.get("year"), "2026");
+    assert.equal(params.get("from"), null);
   });
 });

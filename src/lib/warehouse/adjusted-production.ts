@@ -19,6 +19,23 @@ export function defaultIncludeInAdjustedProduction(
   return (action ?? "").trim().toLowerCase() === "credit";
 }
 
+const WRITE_OFF_ADJ_NAME =
+  /\b(write.?off|contractual|insurance|ins\s*wo|wo\b|production\s*adjustment)\b/i;
+const EXCLUDE_FROM_ADJUSTED_NAME =
+  /\b(discount|refund|senior|employee|marketing| courtesy)\b/i;
+
+/** OD AdjTypes that reduce gross production (P&I adjusted production). */
+export function includeAdjustmentTypeInAdjustedProduction(
+  name: string,
+  action: string | null | undefined,
+): boolean {
+  const label = name.trim();
+  if (!label) return defaultIncludeInAdjustedProduction(action);
+  if (EXCLUDE_FROM_ADJUSTED_NAME.test(label)) return false;
+  if (WRITE_OFF_ADJ_NAME.test(label)) return true;
+  return (action ?? "").trim().toLowerCase() === "subtract";
+}
+
 function readAdjustmentTypeId(raw: AdjustmentRecord): number | null {
   const id = raw.adjustment_type_id;
   return typeof id === "number" && Number.isFinite(id) ? id : null;

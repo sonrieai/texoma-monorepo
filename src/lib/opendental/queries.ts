@@ -5,6 +5,7 @@
 
 import type { RowDataPacket } from "mysql2";
 import { queryOpenDental } from "@/lib/opendental/mysql";
+import { odHasColumn, odPickColumn } from "@/lib/opendental/schema-columns";
 import {
   OD_DEF_CAT_ADJ_TYPES,
   OD_DEF_CAT_PAYMENT_TYPES,
@@ -175,7 +176,7 @@ export async function listOdPaySplits(
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT ps.SplitNum, ps.PayNum, ps.PatNum, ps.ProvNum, ps.SplitAmt,
             ps.DatePay, ps.ProcNum, ps.UnearnedType, ps.ClinicNum,
-            p.PayType, d.ItemName AS PayTypeName
+            p.PayType, p.PayNote, p.CheckNum, d.ItemName AS PayTypeName
      FROM paysplit ps
      INNER JOIN payment p ON p.PayNum = ps.PayNum
      LEFT JOIN definition d ON d.DefNum = p.PayType
@@ -211,14 +212,19 @@ export async function listOdAdjustments(
 export async function listOdTreatPlans(
   updatedSince?: string | null,
 ): Promise<OdTreatPlanRow[]> {
+  const filterCol =
+    (await odPickColumn("treatplan", "DateTStamp", "DateTP")) ?? "DateTP";
+  const stampSelect = (await odHasColumn("treatplan", "DateTStamp"))
+    ? "DateTStamp"
+    : `${filterCol} AS DateTStamp`;
   const params: unknown[] = [];
   let where = "WHERE 1=1";
   if (updatedSince) {
-    where += " AND DateTStamp >= ?";
+    where += ` AND ${filterCol} >= ?`;
     params.push(updatedSince.replace("T", " ").replace("Z", "").slice(0, 19));
   }
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT TreatPlanNum, PatNum, DateTP, Heading, TPStatus, DateTStamp
+    `SELECT TreatPlanNum, PatNum, DateTP, Heading, TPStatus, ${stampSelect}
      FROM treatplan
      ${where}
      ORDER BY TreatPlanNum`,
@@ -238,11 +244,14 @@ export async function listOdProcTps(
     const chunk = treatPlanNums.slice(i, i + PROC_TP_CHUNK_SIZE);
     const placeholders = chunk.map(() => "?").join(",");
     const rows = await queryOpenDental<RowDataPacket>(
-      `SELECT ProcTPNum, TreatPlanNum, PatNum, ProcNumOrig, ProcCode, Descript,
-              FeeAmt, Priority
-       FROM proctp
-       WHERE TreatPlanNum IN (${placeholders})
-       ORDER BY TreatPlanNum, ProcTPNum`,
+      `SELECT pt.ProcTPNum, pt.TreatPlanNum, pt.PatNum, pt.ProcNumOrig, pt.ProcCode,
+              pt.Descript, pt.FeeAmt, pt.Priority,
+              pl.ProcStatus AS LogProcStatus, pl.ProcDate AS LogProcDate,
+              pl.DateComplete AS LogDateComplete
+       FROM proctp pt
+       LEFT JOIN procedurelog pl ON pl.ProcNum = pt.ProcNumOrig AND pt.ProcNumOrig > 0
+       WHERE pt.TreatPlanNum IN (${placeholders})
+       ORDER BY pt.TreatPlanNum, pt.ProcTPNum`,
       chunk,
     );
     out.push(...asRows<OdProcTpRow>(rows));
@@ -254,18 +263,27 @@ export async function listOdClaims(
   window: OdDateWindow,
   clinicNums?: number[],
 ): Promise<OdClaimRow[]> {
-  const params: unknown[] = [window.startYmd, window.endYmd];
+  const params: unknown[] = [
+    window.startYmd,
+    window.endYmd,
+    window.startYmd,
+    window.endYmd,
+  ];
   let clinicClause = "";
   if (clinicNums && clinicNums.length > 0) {
     clinicClause = ` AND ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
     params.push(...clinicNums);
   }
+  const stampSelect = (await odHasColumn("claim", "DateTStamp"))
+    ? "DateTStamp"
+    : "NULL AS DateTStamp";
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT ClaimNum, PatNum, PlanNum, ClaimStatus, DateService, DateSent,
-            DateReceived, ClaimFee, InsPayEst, InsPayAmt, WriteOff, ProvTreat,
-            ClinicNum, DateTStamp
+    `SELECT ClaimNum, PatNum, PlanNum, ClaimStatus, ClaimType, DateService,
+            DateSent, DateSentOrig, DateReceived, DateResent, ClaimFee, InsPayEst,
+            InsPayAmt, WriteOff, CorrectionType, ProvTreat, ClinicNum, ${stampSelect}
      FROM claim
-     WHERE DateService >= ? AND DateService <= ?${clinicClause}
+     WHERE ((DateService >= ? AND DateService <= ?)
+        OR (DateSent >= ? AND DateSent <= ?))${clinicClause}
      ORDER BY ClaimNum`,
     params,
   );
@@ -297,8 +315,11 @@ export async function listOdPrimaryPatPlans(): Promise<OdPatPlanJoinRow[]> {
 
 /** Guarantors only — aging fields from patient table (no names). */
 export async function listOdGuarantorBalances(): Promise<OdGuarantorBalanceRow[]> {
+  const totalBalCol =
+    (await odPickColumn("patient", "TotBal", "BalTotal")) ?? "EstBalance";
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT PatNum, Bal_0_30, Bal_31_60, Bal_61_90, BalOver90, InsEst, TotBal, EstBalance
+    `SELECT PatNum, Bal_0_30, Bal_31_60, Bal_61_90, BalOver90, InsEst,
+            ${totalBalCol} AS TotBal, EstBalance
      FROM patient
      WHERE PatNum = Guarantor
      ORDER BY PatNum`,

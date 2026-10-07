@@ -92,13 +92,20 @@ function productionDollarsForMonth(
 
 /** Align last-6-month collections with matching monthly production (dollars). */
 export function insuranceCollectionsTrend(
-  monthlyCollections: { label: string; monthKey: string; cents: number }[],
+  monthlyCollections: {
+    label: string;
+    monthKey: string;
+    cents: number;
+    productionCents?: number;
+  }[],
   monthlyProduction: MonthlyProductionSeries[],
 ): InsuranceCollectionsTrend {
   return {
     xLabels: monthlyCollections.map((m) => m.label),
     production: monthlyCollections.map((m) =>
-      productionDollarsForMonth(monthlyProduction, m.monthKey),
+      m.productionCents != null
+        ? centsToDollars(m.productionCents)
+        : productionDollarsForMonth(monthlyProduction, m.monthKey),
     ),
     collected: monthlyCollections.map((m) => centsToDollars(m.cents)),
   };

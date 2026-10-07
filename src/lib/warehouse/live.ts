@@ -7,7 +7,9 @@ import type { AppointmentRecord } from "@/lib/warehouse/types";
 import type {
   CategoryProductionRow,
   DentureWarrantyMix,
+  MonthlyCollectionPoint,
   MonthlyProductionSeries,
+  PeriodTrendPoint,
   ProcedureMixRow,
   ProcedureVolume,
   ProviderProduction,
@@ -31,6 +33,10 @@ export type LiveProviderRow = {
   npConsultShow: number;
   /** Consult show + same-day sold / first Tx Complete for this provider. */
   sameDayNp: number;
+  /** SoonerCare NP consult shows (appointment text / type). */
+  scNpSeen: number;
+  /** Consult shows that closed on a later day (not same-day). */
+  npClosedDeferred: number;
   /** Visit mix for this provider only (PHI-safe counts). */
   appointmentTypes: AppointmentTypeMixRow[];
   /** Ledger / procedure production for this provider. */
@@ -66,10 +72,11 @@ export type LiveProduction = {
   paymentMix: PaymentMix;
   financingVendorMix: FinancingVendorMix;
   monthlyProduction: MonthlyProductionSeries[];
+  periodTrend: PeriodTrendPoint[];
   treatmentByMonth: TreatmentByMonthRow[];
   dentureWarranty: DentureWarrantyMix;
   partialWarranty: DentureWarrantyMix;
-  monthlyCollections: { label: string; monthKey: string; cents: number }[];
+  monthlyCollections: MonthlyCollectionPoint[];
 };
 
 export type LiveOverview = {

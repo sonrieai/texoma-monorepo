@@ -194,7 +194,9 @@ export type ClaimStatus =
   | "sent"
   | "received"
   | "paid"
-  | "canceled";
+  | "canceled"
+  | "hold"
+  | "waiting";
 
 export type ClaimTotals = {
   amount_billed_to_insurance?: MoneyAmount | null;
@@ -217,6 +219,12 @@ export type ClaimRecord = {
   primary_insurance_plan_id?: number | null;
   secondary_insurance_plan_id?: number | null;
   date_of_service?: string | null;
+  /** Open Dental ClaimType: P, S, PreAuth, Other */
+  claim_type?: string | null;
+  correction_type?: number | null;
+  /** Resubmit / replacement claim (Open Dental DateSentOrig or DateResent). */
+  needs_correction?: boolean | null;
+  was_resent?: boolean | null;
   totals?: ClaimTotals | null;
   updated_at?: string;
   deleted_at?: string | null;

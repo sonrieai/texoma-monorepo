@@ -21,19 +21,21 @@ function LoginFormInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"password" | "guest" | null>(null);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function signIn(body: { email: string; password: string } | { guest: true }) {
     setError(null);
-    setLoading(true);
+    setLoading("guest" in body ? "guest" : "password");
 
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        "guest" in body ? "/api/auth/guest" : "/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "guest" in body ? "{}" : JSON.stringify(body),
+        },
+      );
       const data = (await response.json()) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {
@@ -46,8 +48,13 @@ function LoginFormInner() {
     } catch {
       setError("Unable to sign in. Try again.");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
+  }
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await signIn({ email, password });
   }
 
   return (
@@ -105,16 +112,26 @@ function LoginFormInner() {
 
       <button
         type="submit"
-        disabled={loading}
-        aria-busy={loading}
-        aria-label={loading ? "Signing in" : undefined}
+        disabled={loading !== null}
+        aria-busy={loading === "password"}
+        aria-label={loading === "password" ? "Signing in" : undefined}
         className="flex w-full items-center justify-center rounded-lg bg-accent2 px-3 py-2.5 text-[13px] font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? (
+        {loading === "password" ? (
           <InlineSpinner className="border-white/30 border-t-white" />
         ) : (
           "Sign in"
         )}
+      </button>
+
+      <button
+        type="button"
+        disabled={loading !== null}
+        aria-busy={loading === "guest"}
+        onClick={() => void signIn({ guest: true })}
+        className="flex w-full items-center justify-center rounded-lg border border-line bg-background px-3 py-2.5 text-[13px] font-semibold text-foreground transition hover:bg-card disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loading === "guest" ? <InlineSpinner /> : "Login as guest"}
       </button>
 
       <div className="text-center">

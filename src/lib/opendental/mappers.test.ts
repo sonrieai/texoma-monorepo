@@ -6,8 +6,11 @@ import { describe, it } from "node:test";
 import {
   mapOdAppointment,
   mapOdClaim,
+  odClaimNeedsCorrection,
+  mapOdGuarantorBalance,
   mapOdPatient,
   mapOdPaySplit,
+  mapOdTreatPlan,
   mapOdProcedure,
   mapOdProcedureToCharge,
   mapOdProcStatus,
@@ -104,6 +107,49 @@ describe("opendental mappers", () => {
     );
   });
 
+  it("maps treat plan lines from linked procedurelog status", () => {
+    const plan = mapOdTreatPlan(
+      {
+        TreatPlanNum: 1,
+        PatNum: 2,
+        DateTP: "2026-03-01",
+        Heading: "Full arch",
+        TPStatus: 0,
+        DateTStamp: null,
+      },
+      [
+        {
+          ProcTPNum: 10,
+          TreatPlanNum: 1,
+          PatNum: 2,
+          ProcNumOrig: 900,
+          ProcCode: "D6010",
+          Descript: "implant",
+          FeeAmt: 500,
+          Priority: 0,
+          LogProcStatus: OdProcStatus.Complete,
+          LogProcDate: "2026-03-15",
+          LogDateComplete: "2026-03-15",
+        },
+      ],
+    );
+    assert.equal(plan.procedures?.[0]?.status, "Complete");
+  });
+
+  it("normalizes guarantor total from aging when EstBalance is negative", () => {
+    const row = mapOdGuarantorBalance({
+      PatNum: 1,
+      Bal_0_30: 100,
+      Bal_31_60: 50,
+      Bal_61_90: 25,
+      BalOver90: 75,
+      InsEst: 0,
+      TotBal: -1000,
+      EstBalance: -1000,
+    });
+    assert.equal(row.total_balance?.amount, "250.00");
+  });
+
   it("maps paysplits and claims", () => {
     const pay = mapOdPaySplit({
       SplitNum: 88,
@@ -139,6 +185,56 @@ describe("opendental mappers", () => {
     });
     assert.equal(claim.status, "received");
     assert.equal(claim.totals?.insurance_payment?.amount, "75.00");
+    assert.equal(claim.needs_correction, false);
+  });
+
+  it("flags correction from DateSentOrig or CorrectionType", () => {
+    assert.equal(
+      odClaimNeedsCorrection({
+        ClaimNum: 1,
+        PatNum: 1,
+        PlanNum: 1,
+        ClaimStatus: "R",
+        ClaimType: "P",
+        DateService: "2026-01-01",
+        DateSent: "2026-02-01",
+        DateSentOrig: "2026-01-15",
+        DateReceived: "2026-02-10",
+        DateResent: "0001-01-01",
+        ClaimFee: 0,
+        InsPayEst: 0,
+        InsPayAmt: 0,
+        WriteOff: 0,
+        CorrectionType: 0,
+        ProvTreat: 1,
+        ClinicNum: 0,
+        DateTStamp: null,
+      }),
+      true,
+    );
+    assert.equal(
+      odClaimNeedsCorrection({
+        ClaimNum: 2,
+        PatNum: 1,
+        PlanNum: 1,
+        ClaimStatus: "R",
+        ClaimType: "P",
+        DateService: "2026-01-01",
+        DateSent: "2026-02-01",
+        DateSentOrig: "2026-02-01",
+        DateReceived: "2026-02-10",
+        DateResent: "0001-01-01",
+        ClaimFee: 0,
+        InsPayEst: 0,
+        InsPayAmt: 0,
+        WriteOff: 0,
+        CorrectionType: 1,
+        ProvTreat: 1,
+        ClinicNum: 0,
+        DateTStamp: null,
+      }),
+      true,
+    );
   });
 
   it("maps patient geo + carrier without requiring PHI in warehouse", () => {

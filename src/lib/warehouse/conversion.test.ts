@@ -5,6 +5,9 @@ import type { AppointmentRecord, AppointmentTypeRecord, ProcedureRecord, Treatme
 import {
   isTreatmentPlanClosed,
   mapConversionAttendance,
+  perProviderDeferredNpClose,
+  perProviderSameDayNp,
+  perProviderScNpSeen,
   summarizeConversion,
 } from "./conversion";
 
@@ -296,5 +299,97 @@ describe("summarizeConversion", () => {
       isTreatmentPlanClosed({ id: 2, status: "completed", procedures: [] }),
       true,
     );
+  });
+});
+
+describe("perProviderNp metrics", () => {
+  const providerParams = {
+    fromYmd: "2026-08-01",
+    toYmd: "2026-08-31",
+    appointmentTypes: [consultType],
+    appointmentTypeDocs: [consultTypeDoc],
+  };
+
+  it("attributes SoonerCare consult shows to scheduling provider", () => {
+    const sc = perProviderScNpSeen({
+      ...providerParams,
+      appointments: [
+        appt({
+          id: 1,
+          patient_id: 10,
+          provider_id: 5,
+          start_time: "2026-08-10T14:00:00+0000",
+          apt_status: "Complete",
+          notes: "SoonerCare referral",
+        }),
+        appt({
+          id: 2,
+          patient_id: 11,
+          provider_id: 6,
+          start_time: "2026-08-11T14:00:00+0000",
+          apt_status: "Complete",
+        }),
+      ],
+      procedures: [],
+    });
+    assert.equal(sc.get(5), 1);
+    assert.equal(sc.get(6), undefined);
+  });
+
+  it("splits same-day vs deferred NP closes by consult provider", () => {
+    const cdt = createCdtLookupFromDocs([
+      {
+        code: "N9310",
+        category: "Hygiene",
+        description: "NP Consult",
+        isConsult: true,
+      },
+      {
+        code: "D6010",
+        category: "Implants",
+        description: "Implant",
+        isSoldCase: true,
+      },
+    ]);
+    const base = {
+      ...providerParams,
+      cdt,
+      appointments: [
+        appt({
+          id: 1,
+          patient_id: 20,
+          provider_id: 7,
+          start_time: "2026-08-10T14:00:00+0000",
+          apt_status: "Complete",
+        }),
+        appt({
+          id: 2,
+          patient_id: 21,
+          provider_id: 7,
+          start_time: "2026-08-12T14:00:00+0000",
+          apt_status: "Complete",
+        }),
+      ],
+      procedures: [
+        {
+          id: 100,
+          patient_id: 20,
+          provider_id: 7,
+          code: "D6010",
+          status: "completed",
+          start_date: "2026-08-10",
+        },
+        {
+          id: 101,
+          patient_id: 21,
+          provider_id: 7,
+          code: "D6010",
+          status: "completed",
+          start_date: "2026-08-18",
+        },
+      ],
+    };
+    assert.equal(perProviderSameDayNp(base).get(7), 1);
+    assert.equal(perProviderDeferredNpClose(base).get(7), 1);
   });
 });

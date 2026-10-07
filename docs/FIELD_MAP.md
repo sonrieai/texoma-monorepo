@@ -66,7 +66,7 @@ Open Dental native IDs map 1:1 into warehouse `sourceId` / `raw.id`.
 | Provider | `ProvNum` → `provider` | `mapOdProvider` |
 | Appointment type | `AppointmentTypeNum` | `appointmenttype` |
 | Apt status | `AptStatus` (2 Complete, 5 Broken) | `apt_status` Complete/Broken |
-| Confirm / cancel / no-show | `Confirmed` DefNum **66/67/69** | `def_num`, `confirmation_id` |
+| Confirm / cancel / no-show | `Confirmed` DefNum (site: **21** Confirmed, **246** Check Out; legacy **66/67/69** if configured) | Primary attendance: **AptStatus** Complete=show, Broken=no-show (`mapConversionAttendance`) |
 | Procedure | `procedurelog.ProcNum` + `procedurecode.ProcCode` | Complete → also charge |
 | Production $ | `ProcFee` on Complete procs | Charge `fee.amount` |
 | Collections | `paysplit.SplitAmt` | Payment rows keyed by `SplitNum` |
@@ -79,3 +79,37 @@ Open Dental native IDs map 1:1 into warehouse `sourceId` / `raw.id`.
 | ProcCat | `procedurecode.ProcCat` / `definition` cat 11 | CDT catalog sync |
 
 See [LOCAL_OPENDENTAL.md](./LOCAL_OPENDENTAL.md).
+
+## Texoma production MySQL (verified)
+
+Baseline numbers: [OVERVIEW_KPI_BASELINE.md](./OVERVIEW_KPI_BASELINE.md).
+
+### NP consult (inferred from OD, no Mongo chart)
+
+| Signal | Open Dental source | Inference |
+|--------|-------------------|-----------|
+| Consult procedures | `procedurecode.ProcCode` / `Descript` | `N9310*`, `D9310`, `D0150`, `D0140`; descriptions with `consult` / `consultation` |
+| NP consult appt types | `appointmenttype.AppointmentTypeName` | Names matching new patient / consult / soonercare exam / finance consult heuristics |
+| Consult show rate | `appointment` in range + type filter | Complete ÷ (Complete + Broken) for consult types |
+
+Key appointment types (examples): **5** New Patient Exam, **30** New Patient Implant Consult, **31** Soonercare Exam, **45** Finance Consult, **47** DentaQuest Exam, **52** Dual Ins Exam.
+
+### Payment types (category 10)
+
+Insurance-like PayType DefNums include **72** Ins. Check, **373** Insurance Credit Card Payment. Medicaid/plan-specific types (DentaQuest, SoonerCare, Liberty) classify as **SoonerCare** bucket in payment mix, not commercial insurance.
+
+### Guarantor AR
+
+| Column | Use |
+|--------|-----|
+| `Bal_0_30` … `BalOver90` | Aging buckets; over-90 numerator |
+| `EstBalance` | May be negative while aging is positive — total AR may use aging sum |
+| `BalTotal` | Used when column exists (`odPickColumn`) |
+
+### Treatment plan closed
+
+`proctp.ProcNumOrig` joined to `procedurelog.ProcStatus` — plan “closed” when all planned lines are **Complete** in the ledger.
+
+### Warranty production
+
+Inferred from `procedurecode.ProcCode` suffixes / description (6-mo, 1-yr, 3-yr, 5-yr patterns) at snapshot time.

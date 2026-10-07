@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import {
@@ -10,7 +11,7 @@ import {
 type TopbarProps = {
   title: string;
   subtitle?: string;
-  badge?: string;
+  badge?: ReactNode;
   onMenuClick?: () => void;
 };
 
@@ -39,17 +40,13 @@ export function Topbar({ title, subtitle, badge, onMenuClick }: TopbarProps) {
           ) : null}
         </div>
         {badge ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10.5px] font-semibold text-accent2 sm:hidden">
-            {badge}
-          </span>
+          <div className="shrink-0 sm:hidden">{badge}</div>
         ) : null}
       </div>
 
       <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none sm:justify-end">
         {badge ? (
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-full border border-badge-border bg-badge-bg px-2 py-0.5 text-[10.5px] font-semibold text-accent2 sm:inline-flex">
-            {badge}
-          </span>
+          <div className="hidden shrink-0 sm:block">{badge}</div>
         ) : null}
 
         <div className="min-w-0 flex-1 sm:flex-none">

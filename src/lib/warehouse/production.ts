@@ -15,19 +15,25 @@ import {
   emptyFinancingVendorMix,
   emptyPaymentMix,
   paymentCollectionCents,
+  supplementInsurancePaymentMixFromClaims,
   type FinancingVendorMix,
+  type PaymentClassificationOptions,
   type PaymentMix,
 } from "@/lib/warehouse/payment-mix";
 import {
   moneyToCents,
   type AdjustmentRecord,
   type ChargeRecord,
+  type ClaimRecord,
   type PatientRecord,
   type PaymentRecord,
   type ProcedureRecord,
 } from "@/lib/warehouse/types";
 import { inYmdRange } from "@/lib/warehouse/conversion";
-import { inferCategoryFromDescription } from "@/lib/cdt/infer-procedure-category";
+import {
+  inferCategoryFromDescription,
+  inferWarrantyBucket,
+} from "@/lib/cdt/infer-procedure-category";
 import {
   buildSoonerCarePatientSet,
   isScProductionCharge,
@@ -88,6 +94,20 @@ export type MonthlyProductionSeries = {
   months: number[];
 };
 
+/** Production inside the selected daily, monthly, or yearly window. */
+export type PeriodTrendPoint = {
+  label: string;
+  dollars: number;
+};
+
+export type MonthlyCollectionPoint = {
+  label: string;
+  monthKey: string;
+  cents: number;
+  /** Production in the same bucket, limited to the selected window. */
+  productionCents: number;
+};
+
 export type TreatmentByMonthRow = {
   label: string;
   monthKey: string;
@@ -126,8 +146,10 @@ export type ProviderProduction = ProductionTotals & {
   procedureMix: ProcedureMixRow[];
   procedureVolume: ProcedureVolume;
   productionByCategory: CategoryProductionRow[];
-  /** 3-year monthly production for this provider (Production Trend chart). */
+  /** 3-year monthly production for this provider (year-over-year chart). */
   monthlyProduction: MonthlyProductionSeries[];
+  /** Trend limited to the selected daily, monthly, or yearly window. */
+  periodTrend: PeriodTrendPoint[];
 };
 
 export type ProductionSummary = ProductionTotals & {
@@ -142,10 +164,11 @@ export type ProductionSummary = ProductionTotals & {
   paymentMix: PaymentMix;
   financingVendorMix: FinancingVendorMix;
   monthlyProduction: MonthlyProductionSeries[];
+  periodTrend: PeriodTrendPoint[];
   treatmentByMonth: TreatmentByMonthRow[];
   dentureWarranty: DentureWarrantyMix;
   partialWarranty: DentureWarrantyMix;
-  monthlyCollections: { label: string; monthKey: string; cents: number }[];
+  monthlyCollections: MonthlyCollectionPoint[];
   byProvider: Map<number, ProviderProduction>;
   notices: string[];
 };
@@ -222,12 +245,19 @@ function bumpWarrantyProduction(
   dentureWarranty: DentureWarrantyMix,
   partialWarranty: DentureWarrantyMix,
 ): void {
-  const bucket = cdt.lookupWarrantyBucket(code);
-  if (!bucket) return;
   const description = resolveProcedureDescription(code, chargeName, cdt);
   if (isScChartDescription(description)) return;
 
-  const category = cdt.lookupCategory(code);
+  const bucket =
+    cdt.lookupWarrantyBucket(code) ??
+    inferWarrantyBucket(code, description);
+  if (!bucket) return;
+
+  let category = cdt.lookupCategory(code);
+  if (!category && description.trim()) {
+    category =
+      inferCategoryFromDescription(description)?.category ?? null;
+  }
   const target =
     category === "Partial Dentures"
       ? partialWarranty
@@ -331,8 +361,77 @@ function buildMonthlyProductionSeries(
   }));
 }
 
+function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const next = new Date(y, m - 1, d + days);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+}
+
+function enumerateMonths(fromYmd: string, toYmd: string): string[] {
+  const out: string[] = [];
+  let year = Number(fromYmd.slice(0, 4));
+  let month = Number(fromYmd.slice(5, 7));
+  const endYear = Number(toYmd.slice(0, 4));
+  const endMonth = Number(toYmd.slice(5, 7));
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    out.push(`${year}-${String(month).padStart(2, "0")}`);
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+    if (out.length > 36) break;
+  }
+  return out;
+}
+
+function dayLabel(ymd: string): string {
+  const month = monthLabelFromKey(ymd.slice(0, 7));
+  return `${month} ${Number(ymd.slice(8, 10))}`;
+}
+
+export function buildPeriodTrendPoints(
+  chargeDates: { ymd: string; cents: number }[],
+  fromYmd: string,
+  toYmd: string,
+): PeriodTrendPoint[] {
+  const byDay = new Map<string, number>();
+  for (const row of chargeDates) {
+    if (row.ymd < fromYmd || row.ymd > toYmd) continue;
+    byDay.set(row.ymd, (byDay.get(row.ymd) ?? 0) + row.cents);
+  }
+
+  if (fromYmd.slice(0, 7) === toYmd.slice(0, 7)) {
+    const points: PeriodTrendPoint[] = [];
+    let cursor = fromYmd;
+    while (cursor <= toYmd && points.length < 31) {
+      points.push({
+        label: fromYmd === toYmd ? dayLabel(cursor) : String(Number(cursor.slice(8, 10))),
+        dollars: (byDay.get(cursor) ?? 0) / 100,
+      });
+      cursor = addDaysYmd(cursor, 1);
+    }
+    return points;
+  }
+
+  const byMonth = new Map<string, number>();
+  for (const [ymd, cents] of byDay) {
+    const key = ymd.slice(0, 7);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + cents);
+  }
+  const multiYear = fromYmd.slice(0, 4) !== toYmd.slice(0, 4);
+  return enumerateMonths(fromYmd, toYmd).map((key) => ({
+    label: multiYear
+      ? `${monthLabelFromKey(key)} ${key.slice(2, 4)}`
+      : monthLabelFromKey(key),
+    dollars: (byMonth.get(key) ?? 0) / 100,
+  }));
+}
+
 function buildTreatmentByMonth(
   entries: { monthKey: string; category: string; cents: number }[],
+  fromYmd: string,
+  toYmd: string,
 ): TreatmentByMonthRow[] {
   const byMonth = new Map<string, TreatmentByMonthRow>();
   for (const e of entries) {
@@ -349,14 +448,58 @@ function buildTreatmentByMonth(
       (row.categories[e.category] ?? 0) + e.cents / 100;
   }
 
-  return [...byMonth.values()]
-    .sort((a, b) => a.monthKey.localeCompare(b.monthKey))
-    .slice(-6);
+  if (fromYmd === toYmd) {
+    const monthKey = fromYmd.slice(0, 7);
+    const row = byMonth.get(monthKey) ?? {
+      monthKey,
+      label: dayLabel(fromYmd),
+      categories: {},
+    };
+    return [{ ...row, label: dayLabel(fromYmd) }];
+  }
+
+  return enumerateMonths(fromYmd, toYmd).map(
+    (monthKey) =>
+      byMonth.get(monthKey) ?? {
+        monthKey,
+        label: monthLabelFromKey(monthKey),
+        categories: {},
+      },
+  );
 }
 
 function buildMonthlyCollections(
   payments: PaymentRecord[],
-): { label: string; monthKey: string; cents: number }[] {
+  chargeDates: { ymd: string; cents: number }[],
+  fromYmd: string,
+  toYmd: string,
+): MonthlyCollectionPoint[] {
+  const productionByMonth = new Map<string, number>();
+  let productionTotal = 0;
+  for (const row of chargeDates) {
+    if (row.ymd < fromYmd || row.ymd > toYmd) continue;
+    productionTotal += row.cents;
+    const key = row.ymd.slice(0, 7);
+    productionByMonth.set(key, (productionByMonth.get(key) ?? 0) + row.cents);
+  }
+
+  if (fromYmd === toYmd) {
+    let cents = 0;
+    for (const p of payments) {
+      const raw = moneyToCents(p.payment_amount);
+      if (raw <= 0) continue;
+      cents += raw;
+    }
+    return [
+      {
+        label: dayLabel(fromYmd),
+        monthKey: fromYmd.slice(0, 7),
+        cents,
+        productionCents: productionTotal,
+      },
+    ];
+  }
+
   const byMonth = new Map<string, number>();
   for (const p of payments) {
     const key = monthKeyFromDate(p.paid_at);
@@ -365,14 +508,12 @@ function buildMonthlyCollections(
     if (cents <= 0) continue;
     byMonth.set(key, (byMonth.get(key) ?? 0) + cents);
   }
-  return [...byMonth.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([monthKey, cents]) => ({
-      monthKey,
-      label: monthLabelFromKey(monthKey),
-      cents,
-    }));
+  return enumerateMonths(fromYmd, toYmd).map((monthKey) => ({
+    monthKey,
+    label: monthLabelFromKey(monthKey),
+    cents: byMonth.get(monthKey) ?? 0,
+    productionCents: productionByMonth.get(monthKey) ?? 0,
+  }));
 }
 
 function ensureProvider(
@@ -485,6 +626,14 @@ export function summarizeProductionFromLedger(params: {
   adjustmentsAvailable?: boolean;
   cdt?: CdtLookup;
   adjustmentTypes?: AdjustmentTypeRecord[];
+  claims?: ClaimRecord[];
+  insurancePaymentTypeDefNums?: number[];
+  paymentTypeClassification?: {
+    insurance: number[];
+    soonercare: number[];
+    financed: number[];
+    cash: number[];
+  };
 }): ProductionSummary {
   const notices = [...(params.notices ?? [])];
   const { fromYmd, toYmd } = params;
@@ -745,11 +894,38 @@ export function summarizeProductionFromLedger(params: {
     );
   }
 
-  const paymentMix = paymentsAvailable
-    ? aggregatePaymentMix(payments)
+  const payTypes = params.paymentTypeClassification;
+  const paymentClassifyOptions: PaymentClassificationOptions | undefined =
+    payTypes || params.insurancePaymentTypeDefNums?.length
+      ? {
+          insurancePaymentTypeDefNums: new Set(
+            payTypes?.insurance ?? params.insurancePaymentTypeDefNums ?? [],
+          ),
+          soonercarePaymentTypeDefNums: new Set(payTypes?.soonercare ?? []),
+          financedPaymentTypeDefNums: new Set(payTypes?.financed ?? []),
+          cashPaymentTypeDefNums: new Set(payTypes?.cash ?? []),
+        }
+      : undefined;
+
+  let paymentMix = paymentsAvailable
+    ? aggregatePaymentMix(payments, paymentClassifyOptions)
     : emptyPaymentMix();
+  if (paymentsAvailable && params.claims && params.claims.length > 0) {
+    const supplemented = supplementInsurancePaymentMixFromClaims(
+      paymentMix,
+      params.claims,
+      fromYmd,
+      toYmd,
+    );
+    paymentMix = supplemented.mix;
+    if (supplemented.supplementedCents > 0) {
+      notices.push(
+        "Payment mix insurance includes claim receipts (InsPayAmt) not classified on paysplits.",
+      );
+    }
+  }
   const financingVendorMix = paymentsAvailable
-    ? aggregateFinancingVendorMix(payments)
+    ? aggregateFinancingVendorMix(payments, paymentClassifyOptions)
     : emptyFinancingVendorMix();
   if (paymentMix.unknownCents > 0 && paymentMix.totalCents > 0) {
     notices.push(
@@ -766,10 +942,23 @@ export function summarizeProductionFromLedger(params: {
     chargesAvailable,
     proceduresAvailable,
   );
+  const periodChargeDates = collectTrendChargeDates(
+    params.procedures,
+    params.charges,
+    fromYmd,
+    toYmd,
+    chargesAvailable,
+    proceduresAvailable,
+  );
   const monthlyProduction = buildMonthlyProductionSeries(trendChargeDates);
-  const treatmentByMonth = buildTreatmentByMonth(treatmentEntries);
+  const periodTrend = buildPeriodTrendPoints(periodChargeDates, fromYmd, toYmd);
+  const treatmentByMonth = buildTreatmentByMonth(
+    treatmentEntries,
+    fromYmd,
+    toYmd,
+  );
   const monthlyCollections = paymentsAvailable
-    ? buildMonthlyCollections(payments)
+    ? buildMonthlyCollections(payments, periodChargeDates, fromYmd, toYmd)
     : [];
 
   const dentureWarrantyTotal =
@@ -829,6 +1018,19 @@ export function summarizeProductionFromLedger(params: {
         pid,
       ),
     );
+    prov.periodTrend = buildPeriodTrendPoints(
+      collectTrendChargeDates(
+        params.procedures,
+        params.charges,
+        fromYmd,
+        toYmd,
+        chargesAvailable,
+        proceduresAvailable,
+        pid,
+      ),
+      fromYmd,
+      toYmd,
+    );
     finalize(prov);
   }
 
@@ -859,6 +1061,7 @@ export function summarizeProductionFromLedger(params: {
     paymentMix,
     financingVendorMix,
     monthlyProduction,
+    periodTrend,
     treatmentByMonth,
     dentureWarranty,
     partialWarranty,
@@ -879,5 +1082,6 @@ export function emptyProviderProduction(): ProviderProduction {
     procedureVolume: emptyProcedureVolume(),
     productionByCategory: [],
     monthlyProduction: [],
+    periodTrend: [],
   };
 }

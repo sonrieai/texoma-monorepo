@@ -385,27 +385,75 @@ export function summarizeConversion(params: {
   };
 }
 
-/** Same-day NP starts grouped by source provider id. */
-export function perProviderSameDayNp(params: {
+const SOONERCARE_APPT_PATTERN =
+  /\b(sooner\s*care|soonercare|medicaid|sooner)\b/i;
+
+export type ProviderNpConsultParams = {
   fromYmd: string;
   toYmd: string;
   appointments: AppointmentRecord[];
   procedures: ProcedureRecord[];
+  appointmentTypes?: AppointmentTypeRecord[];
   appointmentTypeDocs?: NpConsultTypeDoc[];
   cdt?: CdtLookup;
-}): Map<number, number> {
+};
+
+function appointmentSoonercareHaystack(
+  appt: AppointmentRecord,
+  typeCatalog: Map<number, AppointmentTypeRecord>,
+): string {
+  const typeId = appointmentTypeId(appt);
+  const typeName =
+    typeId != null ? (typeCatalog.get(typeId)?.name ?? "") : "";
+  const parts = [typeName];
+  for (const [, value] of Object.entries(appt)) {
+    if (typeof value === "string") parts.push(value);
+  }
+  return parts.join(" ").toLowerCase();
+}
+
+function isSoonercareConsultAppointment(
+  appt: AppointmentRecord,
+  typeCatalog: Map<number, AppointmentTypeRecord>,
+): boolean {
+  return SOONERCARE_APPT_PATTERN.test(
+    appointmentSoonercareHaystack(appt, typeCatalog),
+  );
+}
+
+function resolveProviderConsultContext(params: ProviderNpConsultParams): {
+  cdt: CdtLookup;
+  consultTypeSet: Set<number>;
+  consultProcedureDays: Set<string>;
+  typeCatalog: Map<number, AppointmentTypeRecord>;
+  hasConsultFilter: boolean;
+} {
   const cdt = params.cdt ?? emptyCdtLookup;
   const consultProcedureDays = buildConsultProcedureDays(params.procedures, cdt);
   const { ids: npConsultTypeIds } = resolveNpConsultTypeIds({
     appointmentTypeDocs: params.appointmentTypeDocs ?? [],
   });
   const consultTypeSet = new Set(npConsultTypeIds);
+  const typeCatalog = new Map<number, AppointmentTypeRecord>();
+  for (const t of params.appointmentTypes ?? []) {
+    typeCatalog.set(t.id, t);
+  }
   const hasConsultFilter =
     consultTypeSet.size > 0 || consultProcedureDays.size > 0;
-  if (!hasConsultFilter) return new Map();
+  return {
+    cdt,
+    consultTypeSet,
+    consultProcedureDays,
+    typeCatalog,
+    hasConsultFilter,
+  };
+}
 
+function buildCompleteProcsByDay(
+  procedures: ProcedureRecord[],
+): Map<string, ProcedureRecord[]> {
   const completeProcsByDay = new Map<string, ProcedureRecord[]>();
-  for (const proc of params.procedures) {
+  for (const proc of procedures) {
     if (!isProcedureComplete(proc.status)) continue;
     const patientId = procedurePatientId(proc);
     const ymd = procedureYmd(proc);
@@ -415,13 +463,30 @@ export function perProviderSameDayNp(params: {
     if (list) list.push(proc);
     else completeProcsByDay.set(key, [proc]);
   }
+  return completeProcsByDay;
+}
 
+function dayHasNpClose(dayProcs: ProcedureRecord[], cdt: CdtLookup): boolean {
+  const sold = dayProcs.some((p) => cdt.isAoxSoldCode(p.code));
+  const firstTx = dayProcs.some(
+    (p) => !cdt.isConsultCode(p.code) && !cdt.isAoxSoldCode(p.code),
+  );
+  return sold || firstTx;
+}
+
+function buildConsultShowByProvider(
+  params: ProviderNpConsultParams,
+  ctx: ReturnType<typeof resolveProviderConsultContext>,
+): Map<number, Set<string>> {
+  const { cdt, consultTypeSet, consultProcedureDays } = ctx;
   const consultShowByProvider = new Map<number, Set<string>>();
   const consultApptKeysInRange = new Set<string>();
 
   for (const appt of params.appointments) {
     if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
-    if (!isConsultAppointment(appt, consultTypeSet, consultProcedureDays)) continue;
+    if (!isConsultAppointment(appt, consultTypeSet, consultProcedureDays)) {
+      continue;
+    }
     if (typeof appt.patient_id === "number" && appt.start_time) {
       consultApptKeysInRange.add(
         patientDayKey(appt.patient_id, appt.start_time.slice(0, 10)),
@@ -462,16 +527,116 @@ export function perProviderSameDayNp(params: {
     set.add(key);
   }
 
+  return consultShowByProvider;
+}
+
+function parsePatientDayKey(key: string): { patientId: number; ymd: string } | null {
+  const sep = key.indexOf(":");
+  if (sep <= 0) return null;
+  const patientId = Number(key.slice(0, sep));
+  const ymd = key.slice(sep + 1);
+  if (!Number.isFinite(patientId) || !ymd) return null;
+  return { patientId, ymd };
+}
+
+function hasDeferredNpClose(
+  patientId: number,
+  consultYmd: string,
+  fromYmd: string,
+  toYmd: string,
+  completeProcsByDay: Map<string, ProcedureRecord[]>,
+  cdt: CdtLookup,
+): boolean {
+  for (const [key, dayProcs] of completeProcsByDay) {
+    const parsed = parsePatientDayKey(key);
+    if (!parsed || parsed.patientId !== patientId) continue;
+    if (parsed.ymd <= consultYmd) continue;
+    if (!inYmdRange(parsed.ymd, fromYmd, toYmd)) continue;
+    if (dayHasNpClose(dayProcs, cdt)) return true;
+  }
+  return false;
+}
+
+/** SoonerCare NP consult shows attributed to scheduling provider. */
+export function perProviderScNpSeen(
+  params: ProviderNpConsultParams,
+): Map<number, number> {
+  const ctx = resolveProviderConsultContext(params);
+  if (!ctx.hasConsultFilter) return new Map();
+
+  const counts = new Map<number, number>();
+  for (const appt of params.appointments) {
+    if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
+    if (
+      !isConsultAppointment(
+        appt,
+        ctx.consultTypeSet,
+        ctx.consultProcedureDays,
+      )
+    ) {
+      continue;
+    }
+    if (mapConversionAttendance(appt) !== "show") continue;
+    if (!isSoonercareConsultAppointment(appt, ctx.typeCatalog)) continue;
+    const pid = appt.provider_id;
+    if (pid == null) continue;
+    counts.set(pid, (counts.get(pid) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** Same-day NP starts grouped by source provider id. */
+export function perProviderSameDayNp(
+  params: ProviderNpConsultParams,
+): Map<number, number> {
+  const ctx = resolveProviderConsultContext(params);
+  if (!ctx.hasConsultFilter) return new Map();
+
+  const completeProcsByDay = buildCompleteProcsByDay(params.procedures);
+  const consultShowByProvider = buildConsultShowByProvider(params, ctx);
+
   const counts = new Map<number, number>();
   for (const [pid, keys] of consultShowByProvider) {
     let total = 0;
     for (const key of keys) {
       const dayProcs = completeProcsByDay.get(key) ?? [];
-      const sold = dayProcs.some((p) => cdt.isAoxSoldCode(p.code));
-      const firstTx = dayProcs.some(
-        (p) => !cdt.isConsultCode(p.code) && !cdt.isAoxSoldCode(p.code),
-      );
-      if (sold || firstTx) total += 1;
+      if (dayHasNpClose(dayProcs, ctx.cdt)) total += 1;
+    }
+    if (total > 0) counts.set(pid, total);
+  }
+  return counts;
+}
+
+/** NP consult shows that closed on a later day (sold or first tx), by consult provider. */
+export function perProviderDeferredNpClose(
+  params: ProviderNpConsultParams,
+): Map<number, number> {
+  const ctx = resolveProviderConsultContext(params);
+  if (!ctx.hasConsultFilter) return new Map();
+
+  const completeProcsByDay = buildCompleteProcsByDay(params.procedures);
+  const consultShowByProvider = buildConsultShowByProvider(params, ctx);
+
+  const counts = new Map<number, number>();
+  for (const [pid, keys] of consultShowByProvider) {
+    let total = 0;
+    for (const key of keys) {
+      const parsed = parsePatientDayKey(key);
+      if (!parsed) continue;
+      const dayProcs = completeProcsByDay.get(key) ?? [];
+      if (dayHasNpClose(dayProcs, ctx.cdt)) continue;
+      if (
+        hasDeferredNpClose(
+          parsed.patientId,
+          parsed.ymd,
+          params.fromYmd,
+          params.toYmd,
+          completeProcsByDay,
+          ctx.cdt,
+        )
+      ) {
+        total += 1;
+      }
     }
     if (total > 0) counts.set(pid, total);
   }

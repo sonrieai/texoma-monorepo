@@ -47,6 +47,20 @@ export type InsuranceMetrics = {
   writeOffCents: number;
   collectionRatio: number | null;
   denialRate: number | null;
+  cleanClaimRate: number | null;
+  claimsOnHoldOrWaiting: number;
+  claimsCorrected: number;
+  preAuthsSubmitted: number;
+  preAuthsApproved: number;
+  preAuthsPending: number;
+  preAuthApprovalRate: number | null;
+  preAuthAvgTurnaroundDays: number | null;
+  avgDaysToPayment: number | null;
+  soonercareAvgDaysToPayment: number | null;
+  soonercarePreAuthApprovalRate: number | null;
+  soonercarePreAuthsSubmitted: number;
+  soonercarePreAuthsApproved: number;
+  soonercarePreAuthsPending: number;
   outstanding: OutstandingClaimAging;
   outstandingClaimCount: number;
   outstandingTotalCents: number;
@@ -91,6 +105,20 @@ export function emptyInsuranceMetrics(notices: string[] = []): InsuranceMetrics 
     writeOffCents: 0,
     collectionRatio: null,
     denialRate: null,
+    cleanClaimRate: null,
+    claimsOnHoldOrWaiting: 0,
+    claimsCorrected: 0,
+    preAuthsSubmitted: 0,
+    preAuthsApproved: 0,
+    preAuthsPending: 0,
+    preAuthApprovalRate: null,
+    preAuthAvgTurnaroundDays: null,
+    avgDaysToPayment: null,
+    soonercareAvgDaysToPayment: null,
+    soonercarePreAuthApprovalRate: null,
+    soonercarePreAuthsSubmitted: 0,
+    soonercarePreAuthsApproved: 0,
+    soonercarePreAuthsPending: 0,
     outstanding: emptyOutstanding(),
     outstandingClaimCount: 0,
     outstandingTotalCents: 0,
@@ -121,6 +149,44 @@ function isPaidStatus(status: string): boolean {
 
 function isOutstandingStatus(status: string): boolean {
   return status === "sent";
+}
+
+export function isPreAuthClaim(claim: ClaimRecord): boolean {
+  return String(claim.claim_type ?? "").trim() === "PreAuth";
+}
+
+export function isBillingClaim(claim: ClaimRecord): boolean {
+  return !isPreAuthClaim(claim);
+}
+
+function isClaimIssueStatus(status: string): boolean {
+  return status === "canceled" || status === "hold" || status === "waiting";
+}
+
+function claimNeedsCorrection(claim: ClaimRecord): boolean {
+  if (claim.needs_correction === true) return true;
+  return (Number(claim.correction_type) || 0) > 0;
+}
+
+function claimReceivedYmd(claim: ClaimRecord): string | null {
+  const recv = claim.received_at?.slice(0, 10);
+  if (recv && recv > "0001-01-01") return recv;
+  return null;
+}
+
+function paymentLagDays(claim: ClaimRecord): number | null {
+  const sentYmd = claimSentYmd(claim);
+  const recvYmd = claimReceivedYmd(claim);
+  if (!sentYmd || !recvYmd) return null;
+  const sent = new Date(`${sentYmd}T12:00:00Z`);
+  const recv = new Date(`${recvYmd}T12:00:00Z`);
+  if (Number.isNaN(sent.getTime()) || Number.isNaN(recv.getTime())) return null;
+  return Math.max(0, Math.round((recv.getTime() - sent.getTime()) / 86_400_000));
+}
+
+function meanDays(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 }
 
 function inYmdRange(ymd: string | null, fromYmd: string, toYmd: string): boolean {
@@ -160,21 +226,64 @@ function outstandingBucket(days: number): keyof OutstandingClaimAging {
   return "d90Cents";
 }
 
+function agingBucketTotal(aging: ArAgingBuckets): number {
+  return (
+    aging.under30Cents +
+    aging.days31to60Cents +
+    aging.days61to90Cents +
+    aging.over90Cents
+  );
+}
+
+function balanceBucketCents(
+  row: InsuranceBalanceRecord,
+  billedKey: keyof InsuranceBalanceRecord,
+  estimatedKey: keyof InsuranceBalanceRecord,
+): number {
+  const billed = moneyToCents(row[billedKey] as Parameters<typeof moneyToCents>[0]);
+  if (billed > 0) return billed;
+  return moneyToCents(row[estimatedKey] as Parameters<typeof moneyToCents>[0]);
+}
+
+/** Map sent-claim outstanding buckets to AR aging chart buckets. */
+export function outstandingClaimAgingToArBuckets(
+  outstanding: OutstandingClaimAging,
+): ArAgingBuckets {
+  return {
+    under30Cents: outstanding.d0Cents,
+    days31to60Cents: outstanding.d30Cents,
+    days61to90Cents: outstanding.d60Cents,
+    over90Cents: outstanding.d90Cents,
+  };
+}
+
 export function summarizeInsuranceBalances(
   rows: InsuranceBalanceRecord[],
 ): { aging: ArAgingBuckets; insuranceArCents: number } {
   const aging = emptyAging();
   for (const row of rows) {
-    aging.under30Cents += moneyToCents(row.billed_amount_under_30);
-    aging.days31to60Cents += moneyToCents(row.billed_amount_31_60);
-    aging.days61to90Cents += moneyToCents(row.billed_amount_61_90);
-    aging.over90Cents += moneyToCents(row.billed_amount_over_90);
+    aging.under30Cents += balanceBucketCents(
+      row,
+      "billed_amount_under_30",
+      "estimated_amount_under_30",
+    );
+    aging.days31to60Cents += balanceBucketCents(
+      row,
+      "billed_amount_31_60",
+      "estimated_amount_31_60",
+    );
+    aging.days61to90Cents += balanceBucketCents(
+      row,
+      "billed_amount_61_90",
+      "estimated_amount_61_90",
+    );
+    aging.over90Cents += balanceBucketCents(
+      row,
+      "billed_amount_over_90",
+      "estimated_amount_over_90",
+    );
   }
-  const insuranceArCents =
-    aging.under30Cents +
-    aging.days31to60Cents +
-    aging.days61to90Cents +
-    aging.over90Cents;
+  const insuranceArCents = agingBucketTotal(aging);
   return { aging, insuranceArCents };
 }
 
@@ -218,6 +327,17 @@ export function summarizeInsuranceMetrics(input: {
   let claimsSubmitted = 0;
   let claimsPaid = 0;
   let claimsCanceled = 0;
+  let claimsOnHoldOrWaiting = 0;
+  let claimsCorrected = 0;
+  let preAuthsSubmitted = 0;
+  let preAuthsApproved = 0;
+  let preAuthsPending = 0;
+  let soonercarePreAuthsSubmitted = 0;
+  let soonercarePreAuthsApproved = 0;
+  let soonercarePreAuthsPending = 0;
+  const paymentLagDaysList: number[] = [];
+  const scPaymentLagDaysList: number[] = [];
+  const preAuthTurnaroundDays: number[] = [];
   let billedCents = 0;
   let allowedCents = 0;
   let collectedCents = 0;
@@ -236,9 +356,40 @@ export function summarizeInsuranceMetrics(input: {
   for (const claim of inPeriod) {
     const status = normalizeStatus(claim.status);
     if (status === "draft") continue;
+
+    const planId = claim.primary_insurance_plan_id;
+    const planLabel =
+      typeof planId === "number" ? planName.get(planId) ?? null : null;
+    const soonercare = isSoonerCarePlan(planLabel);
+
+    if (isPreAuthClaim(claim)) {
+      preAuthsSubmitted += 1;
+      if (soonercare) soonercarePreAuthsSubmitted += 1;
+      if (status === "received" || status === "paid") {
+        preAuthsApproved += 1;
+        if (soonercare) soonercarePreAuthsApproved += 1;
+        const lag = paymentLagDays(claim);
+        if (lag != null) preAuthTurnaroundDays.push(lag);
+      } else if (status === "sent" || status === "hold" || status === "waiting") {
+        preAuthsPending += 1;
+        if (soonercare) soonercarePreAuthsPending += 1;
+      }
+      continue;
+    }
+
     claimsSubmitted += 1;
     if (isPaidStatus(status)) claimsPaid += 1;
     if (status === "canceled") claimsCanceled += 1;
+    if (status === "hold" || status === "waiting") claimsOnHoldOrWaiting += 1;
+    if (claimNeedsCorrection(claim)) claimsCorrected += 1;
+
+    if (isPaidStatus(status)) {
+      const lag = paymentLagDays(claim);
+      if (lag != null) {
+        paymentLagDaysList.push(lag);
+        if (soonercare) scPaymentLagDaysList.push(lag);
+      }
+    }
 
     const totals = claim.totals;
     const billed = moneyToCents(totals?.amount_billed_to_insurance);
@@ -249,23 +400,22 @@ export function summarizeInsuranceMetrics(input: {
     collectedCents += collected;
     writeOffCents += creditCents(totals?.write_off);
 
-    const planId = claim.primary_insurance_plan_id;
-    const label =
-      (typeof planId === "number" ? planName.get(planId) : null) ?? "Other";
+    const label = planLabel ?? "Other";
     if (collected > 0) {
       payerCents.set(label, (payerCents.get(label) ?? 0) + collected);
     }
 
-    if (isSoonerCarePlan(label === "Other" ? null : label)) {
+    if (soonercare) {
       soonercareClaimsSubmitted += 1;
       if (isPaidStatus(status)) soonercareClaimsPaid += 1;
-      if (status === "canceled") soonercareClaimsCanceled += 1;
+      if (isClaimIssueStatus(status)) soonercareClaimsCanceled += 1;
       soonercareBilledCents += billed;
       soonercareCollectedCents += collected;
     }
   }
 
   for (const claim of claims) {
+    if (!isBillingClaim(claim)) continue;
     const status = normalizeStatus(claim.status);
     if (!isOutstandingStatus(status)) continue;
     const billed = moneyToCents(claim.totals?.amount_billed_to_insurance);
@@ -282,12 +432,19 @@ export function summarizeInsuranceMetrics(input: {
     }
   }
 
-  const { aging, insuranceArCents } = summarizeInsuranceBalances(input.balances);
+  let { aging, insuranceArCents } = summarizeInsuranceBalances(input.balances);
   const outstandingTotalCents =
     outstanding.d0Cents +
     outstanding.d30Cents +
     outstanding.d60Cents +
     outstanding.d90Cents;
+
+  if (outstandingTotalCents > 0) {
+    aging = outstandingClaimAgingToArBuckets(outstanding);
+    insuranceArCents = outstandingTotalCents;
+  } else if (insuranceArCents <= 0) {
+    insuranceArCents = agingBucketTotal(aging);
+  }
 
   const claimsAvailable = claims.length > 0;
   const balancesAvailable = input.balances.length > 0;
@@ -321,7 +478,37 @@ export function summarizeInsuranceMetrics(input: {
     writeOffCents,
     collectionRatio: allowedCents > 0 ? collectedCents / allowedCents : null,
     denialRate:
-      claimsSubmitted > 0 ? claimsCanceled / claimsSubmitted : null,
+      claimsSubmitted > 0
+        ? (claimsOnHoldOrWaiting + claimsCanceled) / claimsSubmitted
+        : null,
+    cleanClaimRate:
+      claimsSubmitted > 0
+        ? Math.max(
+            0,
+            (claimsSubmitted -
+              claimsOnHoldOrWaiting -
+              claimsCanceled -
+              claimsCorrected) /
+              claimsSubmitted,
+          )
+        : null,
+    claimsOnHoldOrWaiting,
+    claimsCorrected,
+    preAuthsSubmitted,
+    preAuthsApproved,
+    preAuthsPending,
+    preAuthApprovalRate:
+      preAuthsSubmitted > 0 ? preAuthsApproved / preAuthsSubmitted : null,
+    preAuthAvgTurnaroundDays: meanDays(preAuthTurnaroundDays),
+    avgDaysToPayment: meanDays(paymentLagDaysList),
+    soonercareAvgDaysToPayment: meanDays(scPaymentLagDaysList),
+    soonercarePreAuthApprovalRate:
+      soonercarePreAuthsSubmitted > 0
+        ? soonercarePreAuthsApproved / soonercarePreAuthsSubmitted
+        : null,
+    soonercarePreAuthsSubmitted,
+    soonercarePreAuthsApproved,
+    soonercarePreAuthsPending,
     outstanding,
     outstandingClaimCount,
     outstandingTotalCents,

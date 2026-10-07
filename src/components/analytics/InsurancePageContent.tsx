@@ -50,7 +50,10 @@ export function InsurancePageContent({
         accountsReceivable={data.accountsReceivable}
         insurance={data.insurance}
       />
-      <InsuranceCollectionsTrendSection production={prod} />
+      <InsuranceCollectionsTrendSection
+        production={prod}
+        periodLabel={periodLabel}
+      />
       <InsuranceSoonerCareSection
         production={prod}
         insurance={data.insurance}

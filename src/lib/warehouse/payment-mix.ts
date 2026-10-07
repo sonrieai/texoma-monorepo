@@ -1,5 +1,6 @@
-import type { PaymentRecord } from "@/lib/warehouse/types";
+import type { ClaimRecord, PaymentRecord } from "@/lib/warehouse/types";
 import { moneyToCents } from "@/lib/warehouse/types";
+import { inYmdRange } from "@/lib/warehouse/conversion";
 
 export type PaymentMixBucket = "cash" | "insurance" | "financed" | "soonercare";
 
@@ -28,13 +29,13 @@ export const FINANCING_VENDOR_LABELS: Record<FinancingVendorKey, string> = {
 };
 
 const FINANCED_PATTERN =
-  /\b(care\s*credit|carecredit|cherry|sunbit|proceed|lending|financ|payment plan)\b/i;
+  /\b(care\s*credit|carecredit|cherry|sunbit|proceed|lending|financ|payment plan|hfd|varidi|lending point)\b/i;
 const SOONERCARE_PATTERN =
-  /\b(sooner\s*care|soonercare|medicaid|sooner)\b/i;
+  /\b(sooner\s*care|soonercare|medicaid|sooner|dentaquest|liberty dental|choctaw|icare)\b/i;
 const INSURANCE_PATTERN =
   /\b(insurance|ins\b|eob|claim|delta|aetna|cigna|uhc|united|bcbs|metlife|guardian|humana)\b/i;
 const CASH_PATTERN =
-  /\b(cash|check|credit card|debit|visa|mastercard|amex|discover|patient pay|self pay)\b/i;
+  /\b(cash|check|credit card|debit|visa|mastercard|amex|discover|patient pay|self pay|message-to-pay)\b/i;
 
 const VENDOR_PATTERNS: { key: FinancingVendorKey; pattern: RegExp }[] = [
   { key: "careCredit", pattern: /\b(care\s*credit|carecredit)\b/i },
@@ -66,9 +67,45 @@ export function isInsurancePayment(p: PaymentRecord): boolean {
   return positiveId(p.insurance_plan_id);
 }
 
-export function classifyPayment(p: PaymentRecord): PaymentMixBucket | "unknown" {
+export type PaymentClassificationOptions = {
+  insurancePaymentTypeDefNums?: ReadonlySet<number>;
+  soonercarePaymentTypeDefNums?: ReadonlySet<number>;
+  financedPaymentTypeDefNums?: ReadonlySet<number>;
+  cashPaymentTypeDefNums?: ReadonlySet<number>;
+};
+
+function bucketFromPayTypeId(
+  typeId: number,
+  options?: PaymentClassificationOptions,
+): PaymentMixBucket | null {
+  if (options?.insurancePaymentTypeDefNums?.has(typeId)) return "insurance";
+  if (options?.soonercarePaymentTypeDefNums?.has(typeId)) return "soonercare";
+  if (options?.financedPaymentTypeDefNums?.has(typeId)) return "financed";
+  if (options?.cashPaymentTypeDefNums?.has(typeId)) return "cash";
+  return null;
+}
+
+export function classifyPayment(
+  p: PaymentRecord,
+  options?: PaymentClassificationOptions,
+): PaymentMixBucket | "unknown" {
   if (isInsurancePayment(p)) {
     return "insurance";
+  }
+
+  const typeId = p.payment_type_id;
+  if (typeof typeId === "number" && typeId > 0) {
+    const fromDef = bucketFromPayTypeId(typeId, options);
+    if (fromDef) return fromDef;
+  }
+
+  if (
+    (typeId === 0 || typeId == null) &&
+    !p.payment_type?.trim() &&
+    p.patient_id != null &&
+    p.patient_id > 0
+  ) {
+    return "cash";
   }
 
   const hay = paymentHaystack(p);
@@ -82,8 +119,9 @@ export function classifyPayment(p: PaymentRecord): PaymentMixBucket | "unknown" 
 
 export function classifyFinancingVendor(
   p: PaymentRecord,
+  options?: PaymentClassificationOptions,
 ): FinancingVendorKey | null {
-  if (classifyPayment(p) !== "financed") return null;
+  if (classifyPayment(p, options) !== "financed") return null;
   const hay = paymentHaystack(p);
   for (const vendor of VENDOR_PATTERNS) {
     if (vendor.pattern.test(hay)) return vendor.key;
@@ -119,13 +157,44 @@ export function paymentCollectionCents(p: PaymentRecord): number {
   return cents > 0 ? cents : 0;
 }
 
-export function aggregatePaymentMix(payments: PaymentRecord[]): PaymentMix {
+/** When paysplits lack insurance PayTypes, align mix with claim receipts in range. */
+export function supplementInsurancePaymentMixFromClaims(
+  mix: PaymentMix,
+  claims: ClaimRecord[],
+  fromYmd: string,
+  toYmd: string,
+): { mix: PaymentMix; supplementedCents: number } {
+  let claimInsCents = 0;
+  for (const claim of claims) {
+    if (claim.status !== "received") continue;
+    const received = claim.received_at ?? claim.updated_at;
+    if (!inYmdRange(received, fromYmd, toYmd)) continue;
+    claimInsCents += moneyToCents(claim.totals?.insurance_payment);
+  }
+  if (claimInsCents <= mix.insurance) {
+    return { mix, supplementedCents: 0 };
+  }
+  const delta = claimInsCents - mix.insurance;
+  return {
+    mix: {
+      ...mix,
+      insurance: claimInsCents,
+      totalCents: mix.totalCents + delta,
+    },
+    supplementedCents: delta,
+  };
+}
+
+export function aggregatePaymentMix(
+  payments: PaymentRecord[],
+  options?: PaymentClassificationOptions,
+): PaymentMix {
   const mix = emptyPaymentMix();
   for (const p of payments) {
     const cents = paymentCollectionCents(p);
     if (cents <= 0) continue;
     mix.totalCents += cents;
-    const bucket = classifyPayment(p);
+    const bucket = classifyPayment(p, options);
     if (bucket === "unknown") mix.unknownCents += cents;
     else mix[bucket] += cents;
   }
@@ -134,10 +203,11 @@ export function aggregatePaymentMix(payments: PaymentRecord[]): PaymentMix {
 
 export function aggregateFinancingVendorMix(
   payments: PaymentRecord[],
+  options?: PaymentClassificationOptions,
 ): FinancingVendorMix {
   const mix = emptyFinancingVendorMix();
   for (const p of payments) {
-    const vendor = classifyFinancingVendor(p);
+    const vendor = classifyFinancingVendor(p, options);
     if (!vendor) continue;
     const cents = paymentCollectionCents(p);
     if (cents <= 0) continue;

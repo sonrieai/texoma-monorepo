@@ -103,7 +103,7 @@ Formulas live in `src/lib`, not React. Path: Open Dental MySQL → aggregators �
 
 - **Close (tune after Dr):** extractions, implants, collections, total AR, AR>90, treatment-by-type, denture warranty $ (if Code Chart suffixes stay mapped).
 - **Done (PR1 conversion):** NP definition, consult show (N9310 + 66/67/69), same-day U-sold, TP closed = all procs complete.
-- **Must change after freeze:** SC by carrier/codes, adjusted production AdjTypes, AOX sold-only + ×4, denture delivery code, remake list + %, partials warranty.
+- **Must change after freeze:** remake list + %, partials warranty (partially done: SC production uses carrier + SC descriptions; adjusted production uses OD AdjType names; AOX volume = sold U-codes only; denture volume = D5110–D5140, excludes N4120 markers; payment mix maps all Texoma PayTypes).
 - **Data gaps:** sandbox often has unmapped/custom codes → volume tiles stay 0. OD confirm codes 66/67/69 may not exist on Open Dental appointment payloads — see [FIELD_MAP.md](./FIELD_MAP.md).
 
 ### Open Dental recommended defaults

@@ -140,6 +140,41 @@ export function MonthCalendar({
   );
 }
 
+export function YearPicker({
+  selected,
+  onSelect,
+}: {
+  selected: string;
+  onSelect: (year: string) => void;
+}) {
+  const current = new Date().getFullYear();
+  const years = Array.from({ length: 6 }, (_, i) => current - 5 + i);
+  return (
+    <div className="w-[min(212px,calc(100vw-2.5rem))] select-none">
+      <div className="grid grid-cols-2 gap-1.5">
+        {years.map((year) => {
+          const key = String(year);
+          const sel = key === selected;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onSelect(key)}
+              className={`inline-flex min-h-11 items-center justify-center rounded-md text-[13px] ${
+                sel
+                  ? "bg-accent2 font-bold text-white"
+                  : "bg-background text-foreground hover:bg-line"
+              }`}
+            >
+              {year}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function RangePicker({
   from,
   to,

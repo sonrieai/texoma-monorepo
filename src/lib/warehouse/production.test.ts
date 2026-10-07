@@ -108,6 +108,72 @@ describe("summarizeProductionFromLedger monthlyProduction", () => {
   });
 });
 
+describe("summarizeProductionFromLedger periodTrend", () => {
+  it("keeps only the selected month, one point per day", () => {
+    const year = new Date().getFullYear();
+    const summary = summarizeProductionFromLedger({
+      fromYmd: `${year}-08-01`,
+      toYmd: `${year}-08-03`,
+      procedures: [],
+      charges: [
+        charge({
+          id: 1,
+          charged_at: `${year - 1}-05-15T10:00:00Z`,
+          fee: { amount: "9000.00" },
+        }),
+        charge({
+          id: 2,
+          charged_at: `${year}-08-02T10:00:00Z`,
+          fee: { amount: "3000.00" },
+        }),
+        charge({
+          id: 3,
+          charged_at: `${year}-09-01T10:00:00Z`,
+          fee: { amount: "4000.00" },
+        }),
+      ],
+      payments: [],
+      adjustments: [],
+    });
+
+    assert.deepEqual(
+      summary.periodTrend.map((point) => point.label),
+      ["1", "2", "3"],
+    );
+    assert.equal(summary.periodTrend[1]?.dollars, 3000);
+    assert.equal(summary.periodTrend[0]?.dollars, 0);
+    assert.equal(summary.treatmentByMonth.length, 1);
+    assert.equal(summary.treatmentByMonth[0]?.label, "Aug");
+  });
+
+  it("uses one point for a single day", () => {
+    const summary = summarizeProductionFromLedger({
+      fromYmd: "2026-10-06",
+      toYmd: "2026-10-06",
+      procedures: [],
+      charges: [
+        charge({
+          id: 1,
+          charged_at: "2026-10-06T15:00:00Z",
+          fee: { amount: "125.00" },
+        }),
+        charge({
+          id: 2,
+          charged_at: "2026-10-05T15:00:00Z",
+          fee: { amount: "999.00" },
+        }),
+      ],
+      payments: [],
+      adjustments: [],
+    });
+
+    assert.equal(summary.periodTrend.length, 1);
+    assert.equal(summary.periodTrend[0]?.label, "Oct 6");
+    assert.equal(summary.periodTrend[0]?.dollars, 125);
+    assert.equal(summary.treatmentByMonth[0]?.label, "Oct 6");
+  });
+});
+
 describe("summarizeProductionFromLedger collections", () => {
   it("excludes negative payment reversals from collection ratio (matches payment-mix)", () => {
     const summary = summarizeProductionFromLedger({

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireDashboardSession } from "@/lib/auth/require-dashboard-session";
+import { requireStaffSession } from "@/lib/auth/require-dashboard-session";
 import {
   getGhlConfig,
   isGhlConfiguredFromEnv,
@@ -83,7 +83,7 @@ async function buildStatusPayload() {
 
 /** GET /api/settings/ghl — masked GHL integration status (logged-in admins). */
 export async function GET() {
-  const session = await requireDashboardSession();
+  const session = await requireStaffSession();
   if (!session) return unauthorized();
   return NextResponse.json(await buildStatusPayload());
 }
@@ -98,7 +98,7 @@ type SaveBody = {
 
 /** POST /api/settings/ghl — test and save GHL credentials to MongoDB. */
 export async function POST(request: Request) {
-  const session = await requireDashboardSession();
+  const session = await requireStaffSession();
   if (!session) return unauthorized();
 
   if (!isMongoConfigured()) {
@@ -196,7 +196,7 @@ export async function POST(request: Request) {
 
 /** DELETE /api/settings/ghl — remove Mongo credentials (env fallback remains). */
 export async function DELETE() {
-  const session = await requireDashboardSession();
+  const session = await requireStaffSession();
   if (!session) return unauthorized();
 
   if (!isMongoConfigured()) {
@@ -212,7 +212,7 @@ export async function DELETE() {
 
 /** POST test using saved credentials without re-saving. */
 export async function PATCH() {
-  const session = await requireDashboardSession();
+  const session = await requireStaffSession();
   if (!session) return unauthorized();
 
   try {

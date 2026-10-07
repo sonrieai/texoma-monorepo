@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthEnabled } from "@/lib/auth/config";
+import { isGuestEmail } from "@/lib/auth/guest";
 import {
   getSessionCookieName,
   verifySessionToken,
@@ -31,6 +32,18 @@ export async function proxy(request: NextRequest) {
   }
 
   if (session) {
+    const guestBlocked =
+      isGuestEmail(session.email) &&
+      (pathname.startsWith("/settings") || pathname.startsWith("/api/settings"));
+    if (guestBlocked) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: "Guests cannot change settings" },
+          { status: 403 },
+        );
+      }
+      return NextResponse.redirect(new URL("/overview", request.url));
+    }
     return NextResponse.next();
   }
 

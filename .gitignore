@@ -61,6 +61,7 @@ venv/
 
 # Cursor — local MCP config has machine-specific paths; rules/skills are OK to commit
 .cursor/mcp.json
+.cursor/mysql-mcp.env
 .cursor/**/__pycache__/
 .cursor/**/*.pyc
 

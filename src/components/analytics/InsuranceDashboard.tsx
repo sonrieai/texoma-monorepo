@@ -23,6 +23,9 @@ const DAYS_IN_AR_TARGET = 30;
 const DAYS_IN_AR_WARN = 45;
 const DENIAL_RATE_TARGET = 0.05;
 const DENIAL_RATE_WARN = 0.08;
+const CLEAN_CLAIM_TARGET = 0.95;
+const CLEAN_CLAIM_WARN = 0.9;
+const PREAUTH_APPROVAL_TARGET = 0.8;
 
 function InsuranceComboStack({
   title,
@@ -123,9 +126,18 @@ export function InsuranceCockpitMetrics({
           <ComboStat
             variant="inset"
             label="Clean claim rate"
-            value="—"
+            value={
+              insurance.cleanClaimRate != null
+                ? formatPct(insurance.cleanClaimRate)
+                : "—"
+            }
             target="≥95%"
-            note="not in Open Dental claims"
+            note="no hold/wait/correction · date sent"
+            status={ratioStatus(
+              insurance.cleanClaimRate,
+              CLEAN_CLAIM_TARGET,
+              CLEAN_CLAIM_WARN,
+            )}
           />
           <ComboStat
             variant="inset"
@@ -136,7 +148,7 @@ export function InsuranceCockpitMetrics({
                 : "—"
             }
             target="≤5%"
-            note="canceled ÷ submitted"
+            note="hold/wait/canceled ÷ submitted"
             status={ratioStatus(
               insurance.denialRate,
               DENIAL_RATE_TARGET,
@@ -235,20 +247,37 @@ export function InsuranceCockpitMetrics({
           <ComboStat
             variant="inset"
             label="Pre-auths submitted"
-            value="—"
-            note={periodLabel}
+            value={
+              insurance.claimsAvailable
+                ? String(insurance.preAuthsSubmitted)
+                : "—"
+            }
+            note={`PreAuth · date sent · ${periodLabel}`}
           />
           <ComboStat
             variant="inset"
             label="Pre-auth approval"
-            value="—"
+            value={
+              insurance.preAuthApprovalRate != null
+                ? formatPct(insurance.preAuthApprovalRate)
+                : "—"
+            }
             target="≥80%"
+            status={ratioStatus(
+              insurance.preAuthApprovalRate,
+              PREAUTH_APPROVAL_TARGET,
+              0.65,
+            )}
           />
           <ComboStat
             variant="inset"
             label="Avg turnaround"
-            value="—"
-            note="submit → decision"
+            value={
+              insurance.preAuthAvgTurnaroundDays != null
+                ? `${insurance.preAuthAvgTurnaroundDays}d`
+                : "—"
+            }
+            note="sent → received (PreAuth)"
           />
         </InsuranceComboStack>
 
@@ -392,9 +421,10 @@ export function InsuranceArAgingSection({
   accountsReceivable: ArSummary;
   insurance: InsuranceMetrics;
 }) {
-  const aging = insurance.balancesAvailable
-    ? insurance.aging
-    : accountsReceivable.aging;
+  const aging =
+    arAgingTotalCents(insurance.aging) > 0
+      ? insurance.aging
+      : accountsReceivable.aging;
   const totalCents = arAgingTotalCents(aging);
   const slices = [
     { label: "0–30 days", value: centsToDollars(aging.under30Cents) },
@@ -403,11 +433,16 @@ export function InsuranceArAgingSection({
     { label: "90+ days", value: centsToDollars(aging.over90Cents) },
   ].filter((s) => s.value > 0);
   const hasAging =
-    (insurance.balancesAvailable || accountsReceivable.available) &&
+    (insurance.outstandingTotalCents > 0 ||
+      insurance.balancesAvailable ||
+      accountsReceivable.available) &&
     totalCents > 0;
-  const sourceNote = insurance.balancesAvailable
-    ? "insurance billed balances"
-    : "guarantor totals";
+  const sourceNote =
+    insurance.outstandingTotalCents > 0
+      ? "outstanding sent claims (date sent)"
+      : insurance.balancesAvailable
+        ? "guarantor insurance estimates"
+        : "guarantor totals";
 
   return (
     <>
@@ -449,8 +484,10 @@ export function InsuranceArAgingSection({
 
 export function InsuranceCollectionsTrendSection({
   production,
+  periodLabel,
 }: {
   production: LiveProduction;
+  periodLabel: string;
 }) {
   const trend = insuranceCollectionsTrend(
     production.monthlyCollections,
@@ -464,7 +501,7 @@ export function InsuranceCollectionsTrendSection({
       <div className="mb-4">
         <Card
           title="Net Production vs Collected"
-          subtitle="Hover for month detail and the collection gap · last 6 months · payments + production"
+          subtitle={`${periodLabel} · hover for detail`}
         >
           {hasTrend ? (
             <LineChart

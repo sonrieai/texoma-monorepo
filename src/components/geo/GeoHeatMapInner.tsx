@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import "leaflet.heat";
 import {
+  CircleMarker,
   MapContainer,
-  TileLayer,
+  Tooltip,
   useMap,
 } from "react-leaflet";
+import { GeoMapBasemap } from "@/components/geo/GeoMapBasemap";
 import type { GeoCity } from "@/lib/types/viz";
+import { formatUsd } from "@/lib/metrics";
 import { LoadingBox } from "@/components/ui/States";
 import "leaflet/dist/leaflet.css";
 
@@ -96,12 +99,83 @@ function MapResizeFix() {
   return null;
 }
 
+function FitMarkerBounds({
+  points,
+  boundsKey,
+}: {
+  points: [number, number][];
+  boundsKey: string;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 11);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(points), { padding: [48, 48], maxZoom: 11 });
+  }, [map, points, boundsKey]);
+
+  return null;
+}
+
+function CityMarkers({
+  cities,
+  metric,
+}: {
+  cities: (GeoCity & { lat: number; lon: number })[];
+  metric: "patients" | "production";
+}) {
+  if (cities.length === 0) return null;
+
+  const values = cities.map((c) =>
+    metric === "production" ? (c.production ?? 0) : c.patients,
+  );
+  const max = Math.max(...values, 1);
+
+  return (
+    <>
+      {cities.map((c) => {
+        const v = metric === "production" ? (c.production ?? 0) : c.patients;
+        const radius = 8 + (v / max) * 14;
+        return (
+          <CircleMarker
+            key={c.city}
+            center={[c.lat, c.lon]}
+            radius={radius}
+            pathOptions={{
+              color: "#0f3140",
+              fillColor: "#b06a4f",
+              fillOpacity: 0.75,
+              weight: 2,
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -10]} sticky>
+              <span className="text-[12px]">
+                <b>{c.city}</b>
+                <br />
+                {c.patients} patients
+                {c.production != null && c.production > 0
+                  ? ` · ${formatUsd(c.production)}`
+                  : ""}
+              </span>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
 export function GeoHeatMap({
   cities,
+  markerCities,
   metric,
   onMetricChange,
 }: {
   cities: (GeoCity & { lat: number; lon: number })[];
+  markerCities: (GeoCity & { lat: number; lon: number })[];
   metric: "patients" | "production";
   onMetricChange: (metric: "patients" | "production") => void;
 }) {
@@ -120,6 +194,16 @@ export function GeoHeatMap({
   const heatPoints = useMemo(
     () => buildHeatPoints(cities, metric),
     [cities, metric],
+  );
+
+  const markerPoints = useMemo<[number, number][]>(
+    () => markerCities.map((c) => [c.lat, c.lon]),
+    [markerCities],
+  );
+
+  const boundsKey = useMemo(
+    () => markerCities.map((c) => c.city).join("|"),
+    [markerCities],
   );
 
   if (!ready) {
@@ -151,11 +235,10 @@ export function GeoHeatMap({
         scrollWheelZoom
         className="h-[420px] w-full rounded-lg border border-line"
       >
-        <TileLayer
-          attribution='&copy; OpenStreetMap &copy; CARTO'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        />
+        <GeoMapBasemap />
         <HeatLayer points={heatPoints} />
+        <CityMarkers cities={markerCities} metric={metric} />
+        <FitMarkerBounds points={markerPoints} boundsKey={boundsKey} />
         <MapResizeFix />
       </MapContainer>
     </div>

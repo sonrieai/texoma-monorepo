@@ -8,7 +8,7 @@
     "start": "next start -p 5003",
     "start:lan": "next start -H 0.0.0.0 -p 8080",
     "lint": "eslint",
-    "test": "tsx --require ./scripts/register-server-only-stub.cjs --test src/lib/warehouse/conversion.test.ts src/lib/warehouse/payment-mix.test.ts src/lib/warehouse/patient-address.test.ts src/lib/warehouse/production.test.ts src/lib/warehouse/sc-production.test.ts src/lib/warehouse/production-category-donut.test.ts src/lib/warehouse/procedure-categories.test.ts src/lib/charts/cockpit-display-categories.test.ts src/lib/warehouse/procedure-code-catalog.test.ts src/lib/warehouse/procedure-code-fees.test.ts src/lib/warehouse/ar.test.ts src/lib/metrics/insurance.test.ts src/lib/warehouse/insurance-metrics.test.ts src/lib/mongo/phi-policy.test.ts src/lib/mongo/integration-settings.test.ts src/lib/tc/decline-reasons.test.ts src/lib/ui/period.test.ts src/lib/warehouse/procedure-volume.test.ts src/lib/warehouse/adjusted-production.test.ts src/lib/warehouse/tc-metrics-funnel.test.ts src/lib/ghl/ad-spend.test.ts src/lib/opendental/mappers.test.ts",
+    "test": "tsx --require ./scripts/register-server-only-stub.cjs --test src/lib/warehouse/conversion.test.ts src/lib/warehouse/payment-mix.test.ts src/lib/warehouse/patient-address.test.ts src/lib/warehouse/production.test.ts src/lib/warehouse/sc-production.test.ts src/lib/warehouse/production-category-donut.test.ts src/lib/warehouse/procedure-categories.test.ts src/lib/charts/cockpit-display-categories.test.ts src/lib/warehouse/procedure-code-catalog.test.ts src/lib/warehouse/procedure-code-fees.test.ts src/lib/warehouse/ar.test.ts src/lib/metrics/insurance.test.ts src/lib/warehouse/insurance-metrics.test.ts src/lib/mongo/phi-policy.test.ts src/lib/mongo/integration-settings.test.ts src/lib/tc/decline-reasons.test.ts src/lib/ui/period.test.ts src/lib/warehouse/procedure-volume.test.ts src/lib/warehouse/adjusted-production.test.ts src/lib/warehouse/tc-metrics-funnel.test.ts src/lib/ghl/ad-spend.test.ts src/lib/opendental/mappers.test.ts src/lib/cdt/infer-procedure-category.test.ts src/lib/opendental/infer-np-consult-appointment-type.test.ts src/lib/opendental/payment-type-classifier.test.ts",
     "test:auth": "tsx --env-file=.env.local --require ./scripts/register-server-only-stub.cjs --test src/lib/auth/password.test.ts src/lib/auth/reset-token.test.ts src/lib/auth/auth-flow.integration.test.ts src/lib/auth/auth-api.integration.test.ts",
     "probe:opendental": "tsx scripts/probe-opendental-api.ts",
     "probe:opendental-mysql": "tsx --env-file=.env.local --require ./scripts/register-server-only-stub.cjs scripts/probe-opendental-mysql.ts",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "leaflet": "^1.9.4",
+    "leaflet.gridlayer.googlemutant": "^0.16.0",
     "leaflet.heat": "^0.2.0",
     "mongodb": "^7.5.0",
     "mysql2": "^3.23.3",

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { DonutChart, HBarChart } from "@/components/charts/DonutChart";
 import { LineChart } from "@/components/charts/LineChart";
-import { clipCurrentYearMonths } from "@/lib/charts/production-trend";
 import { StackedColumnChart } from "@/components/charts/StackedColumnChart";
 import { Card, SectionHeading } from "@/components/ui/Cards";
 import { centsToDollars } from "@/lib/metrics";
@@ -19,7 +18,7 @@ import { emptyCategoryValues } from "@/lib/charts/category-chart";
 import type { ChartCategoryDef } from "@/lib/charts/category-chart";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
-function lastSixMonthCategoryRows(
+function categoryRows(
   treatmentByMonth: LiveProduction["treatmentByMonth"],
   chartCategories: ChartCategoryDef[],
 ) {
@@ -101,13 +100,13 @@ export function TreatmentByTypeSection({
     production.procedureCategories,
     production.treatmentByMonth,
   );
-  const rows = lastSixMonthCategoryRows(production.treatmentByMonth, chartCategories);
+  const rows = categoryRows(production.treatmentByMonth, chartCategories);
 
   return (
     <>
       <SectionHeading title="Treatment by Type" />
-      <div className="mb-4">
-        <Card>
+      <div className="mb-4 min-w-0">
+        <Card className="min-w-0 overflow-hidden">
           <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="m-0 text-[13px] font-bold leading-snug">
@@ -202,44 +201,34 @@ export function PaymentAndDentureSection({
 
 export function ProductionTrendSection({
   production,
+  periodLabel,
 }: {
   production: LiveProduction;
+  periodLabel: string;
 }) {
-  const year = new Date().getFullYear();
-  const series =
-    production.monthlyProduction.length > 0
-      ? production.monthlyProduction.map((s, i) => ({
-          label: s.label,
-          values: clipCurrentYearMonths(s.year, s.months),
-          color: CHANNEL_COLORS[[3, 2, 0][i] ?? i],
-        }))
-      : [
-          {
-            label: String(year - 2),
-            values: Array<number>(12).fill(0),
-            color: CHANNEL_COLORS[3],
-          },
-          {
-            label: String(year - 1),
-            values: Array<number>(12).fill(0),
-            color: CHANNEL_COLORS[2],
-          },
-          {
-            label: String(year),
-            values: clipCurrentYearMonths(year, Array<number>(12).fill(0)),
-            color: CHANNEL_COLORS[0],
-          },
-        ];
+  const points = production.periodTrend;
+  const series = [
+    {
+      label: "Production",
+      values: points.map((point) => point.dollars),
+      color: CHANNEL_COLORS[0],
+    },
+  ];
 
   return (
     <>
       <SectionHeading title="Production Trend" />
-      <div className="mb-4">
+      <div className="mb-4 min-w-0">
         <Card
-          title="Monthly Production by Year"
-          subtitle="Whole office · this year vs. the two prior · hover for detail"
+          title="Production"
+          subtitle={`${periodLabel} · hover for detail`}
+          className="min-w-0 overflow-hidden"
         >
-          <LineChart series={series} money />
+          <LineChart
+            series={series}
+            xLabels={points.map((point) => point.label)}
+            money
+          />
         </Card>
       </div>
     </>

@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { DonutChart } from "@/components/charts/DonutChart";
 import { ProductionCategoryDonut } from "@/components/charts/ProductionCategoryDonut";
 import { LineChart } from "@/components/charts/LineChart";
-import { clipCurrentYearMonths } from "@/lib/charts/production-trend";
 import { Card, ComboDuo, ComboStat, SectionHeading } from "@/components/ui/Cards";
 import {
   centsToDollars,
@@ -12,7 +11,6 @@ import {
   formatUsdCompact,
 } from "@/lib/metrics";
 import type { LiveProviderRow } from "@/lib/warehouse/live";
-import type { MonthlyProductionSeries } from "@/lib/warehouse/production";
 import {
   buildProductionChartCategories,
   buildProviderProductionCategoryDonutSlices,
@@ -21,6 +19,20 @@ import {
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 const SAME_DAY_NP_TARGET = 0.3;
+
+const FIXED_PRODUCTION_CATEGORY = "Fixed (All-on-4)";
+const REMOVABLE_PRODUCTION_CATEGORIES = ["Dentures", "Partial Dentures"] as const;
+
+function sumCategoryProductionCents(
+  rows: LiveProviderRow["production"]["productionByCategory"],
+  categories: readonly string[],
+): number {
+  const names = new Set<string>(categories);
+  return rows.reduce(
+    (sum, row) => sum + (names.has(row.category) ? row.productionCents : 0),
+    0,
+  );
+}
 
 const RESTORATIVE_CATEGORIES = new Set([
   "Restorative Dentistry",
@@ -70,6 +82,14 @@ export function DoctorCockpitMetrics({
   const avgPerPatient =
     npSeen > 0 ? centsToDollars(prod.grossProductionCents) / npSeen : null;
   const remakeRate = vol.dentures > 0 ? vol.remakes / vol.dentures : null;
+  const fixedProductionCents = sumCategoryProductionCents(
+    prod.productionByCategory,
+    [FIXED_PRODUCTION_CATEGORY],
+  );
+  const removableProductionCents = sumCategoryProductionCents(
+    prod.productionByCategory,
+    REMOVABLE_PRODUCTION_CATEGORIES,
+  );
 
   const donutSlices = buildProviderProductionCategoryDonutSlices(prod);
   const chartCategories = buildProductionChartCategories();
@@ -110,8 +130,8 @@ export function DoctorCockpitMetrics({
             <ComboStat
               variant="inset"
               label="SC NP's seen"
-              value="—"
-              note="SoonerCare NPs"
+              value={String(provider.scNpSeen)}
+              note="SoonerCare consult shows"
             />
             <ComboStat
               variant="inset"
@@ -131,7 +151,7 @@ export function DoctorCockpitMetrics({
             <ComboStat
               variant="inset"
               label="NPs closed"
-              value="—"
+              value={String(provider.npClosedDeferred)}
               note="non-same day"
             />
           </DoctorComboStack>
@@ -221,8 +241,20 @@ export function DoctorCockpitMetrics({
             />
             <ComboDuo
               items={[
-                { label: "F/ Production", value: "—" },
-                { label: "FR/ Production", value: "—" },
+                {
+                  label: "F/ Production",
+                  value:
+                    productionAvailable
+                      ? formatUsd(centsToDollars(fixedProductionCents))
+                      : "—",
+                },
+                {
+                  label: "FR/ Production",
+                  value:
+                    productionAvailable
+                      ? formatUsd(centsToDollars(removableProductionCents))
+                      : "—",
+                },
               ]}
             />
           </DoctorComboStack>
@@ -256,46 +288,35 @@ export function DoctorCockpitMetrics({
 
 export function DoctorProductionTrendSection({
   providerName,
-  monthlyProduction,
+  periodTrend,
+  periodLabel,
 }: {
   providerName: string;
-  monthlyProduction: MonthlyProductionSeries[];
+  periodTrend: { label: string; dollars: number }[];
+  periodLabel: string;
 }) {
-  const year = new Date().getFullYear();
-  const series =
-    monthlyProduction.length > 0
-      ? monthlyProduction.map((s, i) => ({
-          label: s.label,
-          values: clipCurrentYearMonths(s.year, s.months),
-          color: CHANNEL_COLORS[[3, 2, 0][i] ?? i],
-        }))
-      : [
-          {
-            label: String(year - 2),
-            values: Array<number>(12).fill(0),
-            color: CHANNEL_COLORS[3],
-          },
-          {
-            label: String(year - 1),
-            values: Array<number>(12).fill(0),
-            color: CHANNEL_COLORS[2],
-          },
-          {
-            label: String(year),
-            values: clipCurrentYearMonths(year, Array<number>(12).fill(0)),
-            color: CHANNEL_COLORS[0],
-          },
-        ];
+  const series = [
+    {
+      label: "Production",
+      values: periodTrend.map((point) => point.dollars),
+      color: CHANNEL_COLORS[0],
+    },
+  ];
 
   return (
     <>
       <SectionHeading title="Production Trend" />
-      <div className="mb-4">
+      <div className="mb-4 min-w-0">
         <Card
-          title="Monthly Production by Year"
-          subtitle={`${providerName} · this year vs. the two prior · hover for detail`}
+          title="Production"
+          subtitle={`${providerName} · ${periodLabel} · hover for detail`}
+          className="min-w-0 overflow-hidden"
         >
-          <LineChart series={series} money />
+          <LineChart
+            series={series}
+            xLabels={periodTrend.map((point) => point.label)}
+            money
+          />
         </Card>
       </div>
     </>

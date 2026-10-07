@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces } from "next/font/google";
+import { GlobalNavigationProgress } from "@/components/shell/GlobalNavigationProgress";
 import "./globals.css";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-fraunces",
-  weight: ["500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -31,7 +31,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={fraunces.variable}>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <GlobalNavigationProgress />
+        {children}
+      </body>
     </html>
   );
 }

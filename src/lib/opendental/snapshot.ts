@@ -12,13 +12,15 @@ import {
 } from "@/lib/cdt/categories";
 import { catalogEntryToRow } from "@/lib/warehouse/procedure-code-catalog";
 import {
-  defaultIncludeInAdjustedProduction,
+  includeAdjustmentTypeInAdjustedProduction,
   type AdjustmentTypeRecord as WriteOffType,
 } from "@/lib/warehouse/adjusted-production";
 import {
   inferNpConsultAppointmentTypeIds,
   type NpConsultTypeDoc,
 } from "@/lib/warehouse/kpi-reference";
+import { inferNpConsultAppointmentTypeFromName } from "@/lib/opendental/infer-np-consult-appointment-type";
+import { buildPaymentTypeDefMaps } from "@/lib/opendental/payment-type-classifier";
 import { productionTrendRange } from "@/lib/warehouse/production";
 import type {
   AdjustmentRecord,
@@ -72,6 +74,7 @@ import {
   listOdInsPlans,
   listOdPatients,
   listOdPaySplits,
+  listOdPaymentTypeDefinitions,
   listOdPrimaryPatPlans,
   listOdProcCatDefinitions,
   listOdProcTps,
@@ -112,6 +115,13 @@ export type OpenDentalSnapshot = {
   insurancePlans: InsurancePlanRecord[];
   patients: SlimPatientIndex[];
   cdtRows: CdtCodeRow[];
+  insurancePaymentTypeDefNums: number[];
+  paymentTypeClassification: {
+    insurance: number[];
+    soonercare: number[];
+    financed: number[];
+    cash: number[];
+  };
   procedureCategories: Array<{
     procCatId: number;
     name: string;
@@ -179,6 +189,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     primaryPlans,
     procedureCodeRows,
     procCatRows,
+    paymentTypeDefs,
   ] = await Promise.all([
     listOdProviders(),
     listOdAppointmentTypes(),
@@ -195,7 +206,17 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     listOdPrimaryPatPlans(),
     listOdProcedureCodes(),
     listOdProcCatDefinitions(),
+    listOdPaymentTypeDefinitions(),
   ]);
+
+  const paymentTypeMaps = buildPaymentTypeDefMaps(paymentTypeDefs);
+  const paymentTypeClassification = {
+    insurance: [...paymentTypeMaps.insurance],
+    soonercare: [...paymentTypeMaps.soonercare],
+    financed: [...paymentTypeMaps.financed],
+    cash: [...paymentTypeMaps.cash],
+  };
+  const insurancePayTypeIds = paymentTypeClassification.insurance;
 
   const procTps = await listOdProcTps(treatPlanRows.map((row) => row.TreatPlanNum));
   const procsByPlan = new Map<number, typeof procTps>();
@@ -244,7 +265,9 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
   const appointmentTypeDocs: NpConsultTypeDoc[] = appointmentTypes.map(
     (type) => ({
       sourceId: type.id,
-      isNpConsult: inferredConsultTypes.has(type.id),
+      isNpConsult:
+        inferredConsultTypes.has(type.id) ||
+        inferNpConsultAppointmentTypeFromName(type.name),
     }),
   );
 
@@ -278,9 +301,10 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
       .map((row) => ({
         id: row.id,
         name: row.name?.trim() || `Type ${row.id}`,
-        includeInAdjustedProduction:
-          row.action === "subtract" ||
-          defaultIncludeInAdjustedProduction(row.action),
+        includeInAdjustedProduction: includeAdjustmentTypeInAdjustedProduction(
+          row.name?.trim() || `Type ${row.id}`,
+          row.action,
+        ),
       })),
     treatmentPlans: treatPlanRows.map((row) =>
       mapOdTreatPlan(row, procsByPlan.get(row.TreatPlanNum) ?? []),
@@ -291,9 +315,35 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     insurancePlans: insPlanRows.map(mapOdInsPlan),
     patients,
     cdtRows,
+    insurancePaymentTypeDefNums: insurancePayTypeIds,
+    paymentTypeClassification,
     procedureCategories,
   };
 }
 
-/** One snapshot per server request (Overview, Doctor, TC, Insurance, Geo). */
-export const loadOpenDentalSnapshot = cache(fetchOpenDentalSnapshot);
+/** Reuse snapshot across navigations (dev/prod) without stale data for too long. */
+const SNAPSHOT_TTL_MS = 3 * 60 * 1000;
+let snapshotModuleCache: {
+  snapshot: OpenDentalSnapshot;
+  loadedAtMs: number;
+} | null = null;
+
+export function invalidateOpenDentalSnapshotCache(): void {
+  snapshotModuleCache = null;
+}
+
+async function loadOpenDentalSnapshotCached(): Promise<OpenDentalSnapshot> {
+  const now = Date.now();
+  if (
+    snapshotModuleCache &&
+    now - snapshotModuleCache.loadedAtMs < SNAPSHOT_TTL_MS
+  ) {
+    return snapshotModuleCache.snapshot;
+  }
+  const snapshot = await fetchOpenDentalSnapshot();
+  snapshotModuleCache = { snapshot, loadedAtMs: now };
+  return snapshot;
+}
+
+/** One snapshot per server request; also TTL-cached across requests. */
+export const loadOpenDentalSnapshot = cache(loadOpenDentalSnapshotCached);

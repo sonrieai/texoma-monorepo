@@ -1,5 +1,7 @@
+import { inYmdRange } from "@/lib/warehouse/conversion";
 import { moneyToCents, type ChargeRecord } from "@/lib/warehouse/types";
 import { cityLabel } from "@/lib/warehouse/patient-address";
+import type { PeriodRange } from "@/lib/ui/period";
 
 /** Texoma region county count (prototype reference map). */
 export const TEXOMA_REGION_COUNTY_COUNT = 10;
@@ -40,12 +42,19 @@ export function buildPatientCityIndex(
 export function aggregateProductionCentsByCity(
   patients: PatientCityRow[],
   charges: ChargeRecord[],
+  range?: PeriodRange,
 ): Map<string, number> {
   const patientCity = buildPatientCityIndex(patients);
   const byCity = new Map<string, number>();
 
   for (const charge of charges) {
     if (charge.deleted_at) continue;
+    if (
+      range &&
+      !inYmdRange(charge.charged_at, range.start, range.end)
+    ) {
+      continue;
+    }
     const patientId = charge.patient_id;
     if (patientId == null) continue;
     const city = patientCity.get(patientId);

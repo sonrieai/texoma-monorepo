@@ -30,6 +30,19 @@ describe("summarizeInsuranceBalances", () => {
     assert.equal(insuranceArCents, 10500);
     assert.equal(daysInArFromAging(aging), 35);
   });
+
+  it("falls back to estimated buckets when billed amounts are empty", () => {
+    const rows: InsuranceBalanceRecord[] = [
+      {
+        estimated_amount_under_30: price("100.00"),
+        estimated_amount_over_90: price("50.00"),
+      },
+    ];
+    const { aging, insuranceArCents } = summarizeInsuranceBalances(rows);
+    assert.equal(insuranceArCents, 15000);
+    assert.equal(aging.under30Cents, 10000);
+    assert.equal(aging.over90Cents, 5000);
+  });
 });
 
 describe("summarizeInsuranceMetrics", () => {
@@ -86,11 +99,57 @@ describe("summarizeInsuranceMetrics", () => {
     assert.equal(summary.collectedCents, 17000);
     assert.equal(summary.payerMix[0]?.label, "Delta Dental");
     assert.equal(summary.outstanding.d30Cents, 5000);
+    assert.equal(summary.aging.days31to60Cents, 5000);
+    assert.equal(summary.insuranceArCents, 5000);
     assert.equal(summary.outstandingClaimCount, 1);
     assert.equal(summary.soonercareArCents, 5000);
     assert.equal(summary.soonercareClaimsSubmitted, 1);
     assert.equal(summary.soonercareOutstandingCount, 1);
     assert.equal(summary.denialRate, 1 / 3);
+    assert.equal(summary.cleanClaimRate, 2 / 3);
+  });
+
+  it("maps Open Dental hold/waiting and PreAuth claim types", () => {
+    const summary = summarizeInsuranceMetrics({
+      fromYmd: "2026-06-01",
+      toYmd: "2026-06-30",
+      claims: [
+        {
+          status: "sent",
+          claim_type: "P",
+          sent_at: "2026-06-10T00:00:00Z",
+          totals: { amount_billed_to_insurance: price("100.00") },
+        },
+        {
+          status: "hold",
+          claim_type: "P",
+          sent_at: "2026-06-11T00:00:00Z",
+          totals: { amount_billed_to_insurance: price("50.00") },
+        },
+        {
+          status: "received",
+          claim_type: "PreAuth",
+          sent_at: "2026-06-05T00:00:00Z",
+          received_at: "2026-06-12T00:00:00Z",
+        },
+        {
+          status: "sent",
+          claim_type: "PreAuth",
+          sent_at: "2026-06-08T00:00:00Z",
+        },
+      ],
+      balances: [],
+      plans: [],
+      now: new Date("2026-06-30T00:00:00Z"),
+    });
+    assert.equal(summary.claimsSubmitted, 2);
+    assert.equal(summary.denialRate, 0.5);
+    assert.equal(summary.cleanClaimRate, 0.5);
+    assert.equal(summary.avgDaysToPayment, null);
+    assert.equal(summary.preAuthsSubmitted, 2);
+    assert.equal(summary.preAuthsApproved, 1);
+    assert.equal(summary.preAuthApprovalRate, 0.5);
+    assert.equal(summary.preAuthAvgTurnaroundDays, 7);
   });
 
   it("counts Date Sent and treats paid as paid, matching OD outstanding unpaid sent", () => {

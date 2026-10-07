@@ -47,8 +47,14 @@ export function InsuranceSoonerCareSection({
     0,
     insurance.soonercareClaimsSubmitted - insurance.soonercareClaimsCanceled,
   );
+  const scClaimApprovalRate =
+    insurance.soonercareClaimsSubmitted > 0
+      ? accepted / insurance.soonercareClaimsSubmitted
+      : null;
   const hasScFunnel =
     insurance.claimsAvailable && insurance.soonercareClaimsSubmitted > 0;
+  const hasScPreAuth =
+    insurance.claimsAvailable && insurance.soonercarePreAuthsSubmitted > 0;
 
   return (
     <>
@@ -79,9 +85,13 @@ export function InsuranceSoonerCareSection({
             <ComboStat
               variant="inset"
               label="SC approval rate"
-              value="—"
+              value={
+                scClaimApprovalRate != null
+                  ? formatPct(scClaimApprovalRate)
+                  : "—"
+              }
               target="≥85%"
-              note="not in Open Dental claims"
+              note="not hold/wait/canceled · date sent"
             />
             <ComboStat
               variant="inset"
@@ -102,7 +112,11 @@ export function InsuranceSoonerCareSection({
         >
           <div className="flex justify-center">
             <GaugeChart
-              value={null}
+              value={
+                scClaimApprovalRate != null
+                  ? Math.round(scClaimApprovalRate * 1000) / 10
+                  : null
+              }
               good={SC_APPROVAL_TARGET}
               warn={75}
               target={SC_APPROVAL_TARGET}
@@ -157,7 +171,10 @@ export function InsuranceSoonerCareSection({
             { label: "Avg reimbursement / claim", value: avgPerClaim },
             {
               label: "Pre-auth approval rate",
-              value: "—",
+              value:
+                insurance.soonercarePreAuthApprovalRate != null
+                  ? formatPct(insurance.soonercarePreAuthApprovalRate)
+                  : "—",
             },
             {
               label: "Claims denied",
@@ -171,17 +188,56 @@ export function InsuranceSoonerCareSection({
                 ? String(insurance.soonercareOutstandingCount)
                 : "—",
             },
-            { label: "Days to payment", value: "—" },
+            {
+              label: "Days to payment",
+              value:
+                insurance.soonercareAvgDaysToPayment != null
+                  ? `${insurance.soonercareAvgDaysToPayment}d`
+                  : "—",
+            },
           ]}
         />
         <Card
           title="SC Pre-Authorizations"
           subtitle="Major/surgical cases needing prior approval"
         >
-          <EmptyState
-            title="SC pre-authorizations unavailable"
-            description="Open Dental GET /claims has no pre-auth type or decision fields."
-          />
+          {hasScPreAuth ? (
+            <div className="mt-1 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <ComboStat
+                variant="inset"
+                label="Submitted"
+                value={String(insurance.soonercarePreAuthsSubmitted)}
+                note={`PreAuth · ${periodLabel}`}
+              />
+              <ComboStat
+                variant="inset"
+                label="Approved"
+                value={String(insurance.soonercarePreAuthsApproved)}
+                note="received in Open Dental"
+              />
+              <ComboStat
+                variant="inset"
+                label="Pending"
+                value={String(insurance.soonercarePreAuthsPending)}
+                note="sent / hold / waiting"
+              />
+              <ComboStat
+                variant="inset"
+                label="Approval rate"
+                value={
+                  insurance.soonercarePreAuthApprovalRate != null
+                    ? formatPct(insurance.soonercarePreAuthApprovalRate)
+                    : "—"
+                }
+                target="≥80%"
+              />
+            </div>
+          ) : (
+            <EmptyState
+              title="No SC pre-authorizations in range"
+              description="Medicaid PreAuth claims (ClaimType PreAuth) with date sent in this period will appear here."
+            />
+          )}
         </Card>
       </div>
     </>

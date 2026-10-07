@@ -4,6 +4,7 @@ import { FunnelChart } from "@/components/charts/FunnelChart";
 import { HBarChart } from "@/components/charts/DonutChart";
 import { Card, ComboStat, SectionHeading } from "@/components/ui/Cards";
 import { EmptyState } from "@/components/ui/States";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatPct, formatUsd } from "@/lib/metrics";
 import {
   isGhlConfigured,
@@ -99,7 +100,11 @@ export default async function MarketingPage({ searchParams }: PageProps) {
 
   if (error || !data) {
     return (
-      <AppShell title="Marketing" subtitle="Marketing" badge="Error">
+      <AppShell
+        title="Marketing"
+        subtitle="Spend, ROI, and attribution"
+        badge={<StatusBadge variant="error">Unable to load</StatusBadge>}
+      >
         <EmptyState
           title="Unable to load marketing context"
           description={error ?? ""}
@@ -118,7 +123,13 @@ export default async function MarketingPage({ searchParams }: PageProps) {
     <AppShell
       title="Marketing"
       subtitle="Spend, ROI, and attribution"
-      badge={ghlReady ? "Live" : "Pending"}
+      badge={
+        ghlReady ? (
+          <StatusBadge variant="live">CRM connected</StatusBadge>
+        ) : (
+          <StatusBadge variant="offline">CRM not connected</StatusBadge>
+        )
+      }
     >
       <SectionHeading title="Cockpit" />
       <div className="mb-4 grid grid-cols-2 items-stretch gap-2.5 md:grid-cols-4">

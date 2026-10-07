@@ -1,18 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GeoCityProductionBars } from "@/components/geo/GeoCityProductionBars";
 import { GeoHeatMap } from "@/components/geo/GeoHeatMap";
 import { Card, ComboStat, NoticeList, SectionHeading } from "@/components/ui/Cards";
+import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/States";
 import { centsToDollars, formatUsd } from "@/lib/metrics";
 import type { GeoSummary } from "@/lib/warehouse/geo";
 import type { GeoCity } from "@/lib/types/viz";
+import { GEO_CITY_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
+
+function withCoords(
+  cities: GeoCity[],
+): (GeoCity & { lat: number; lon: number })[] {
+  return cities.filter(
+    (c): c is GeoCity & { lat: number; lon: number } =>
+      c.lat != null && c.lon != null,
+  );
+}
 
 export function GeoPageContent({ geo }: { geo: GeoSummary }) {
   const [metric, setMetric] = useState<"patients" | "production">("production");
+  const [page, setPage] = useState(1);
 
   const rows = geo.cities;
+
+  useEffect(() => {
+    setPage(1);
+  }, [rows.length]);
   const top = rows[0];
   const mapCities = useMemo(
     () =>
@@ -22,6 +38,12 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
       ),
     [geo.mapCities],
   );
+
+  const pageRows = useMemo(
+    () => slicePage(rows, page, GEO_CITY_PAGE_SIZE),
+    [rows, page],
+  );
+  const pageMapCities = useMemo(() => withCoords(pageRows), [pageRows]);
 
   const trackedPatients = rows.reduce((sum, r) => sum + r.patients, 0);
   const trackedProduction = centsToDollars(geo.totalProductionCents);
@@ -60,7 +82,7 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
       <SectionHeading title="Texoma Patient Heat Map" tag="interactive" />
       <Card
         title="Where Patients & Production Come From"
-        subtitle={`Heat density of ${metric} on a live map · scroll to zoom, drag to pan.`}
+        subtitle={`Heat shows all mapped cities · pins highlight the table page (${GEO_CITY_PAGE_SIZE} cities) · scroll to zoom.`}
         className="mb-4"
       >
         {mapCities.length === 0 ? (
@@ -71,6 +93,9 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
         ) : (
           <GeoHeatMap
             cities={mapCities}
+            markerCities={
+              pageMapCities.length > 0 ? pageMapCities : mapCities.slice(0, GEO_CITY_PAGE_SIZE)
+            }
             metric={metric}
             onMetricChange={setMetric}
           />
@@ -97,10 +122,20 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r) => (
+                    {pageRows.map((r) => (
                       <tr key={r.city} className="hover:bg-background/80">
                         <td className="border-b border-line px-3 py-2 font-semibold">
-                          {r.city}
+                          <span className="inline-flex items-center gap-1.5">
+                            {r.city}
+                            {r.lat != null && r.lon != null ? (
+                              <span
+                                className="rounded bg-accent/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent"
+                                title="Shown on map"
+                              >
+                                Map
+                              </span>
+                            ) : null}
+                          </span>
                         </td>
                         <td className="border-b border-line px-3 py-2 text-muted">
                           {r.county ?? "—"}
@@ -120,10 +155,21 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
               </div>
             </Card>
 
-            <Card title="Production by City">
-              <GeoCityProductionBars cities={rows} />
+            <Card title="Production by City (this page)">
+              <GeoCityProductionBars cities={pageRows} />
             </Card>
           </div>
+          {rows.length > GEO_CITY_PAGE_SIZE ? (
+            <div className="mt-3 flex justify-center">
+              <Pagination
+                page={page}
+                total={rows.length}
+                pageSize={GEO_CITY_PAGE_SIZE}
+                onChange={setPage}
+                label="cities"
+              />
+            </div>
+          ) : null}
         </>
       ) : null}
     </>

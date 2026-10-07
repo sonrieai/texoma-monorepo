@@ -52,6 +52,10 @@ export function ProcedureCodesPanel({
       ) : null}
 
       <SectionHeading title="Procedure codes" tag={`${codes.length} total`} />
+      <p className="mb-3 text-[12px] text-muted">
+        Volume, warranty, and consult flags are inferred from Open Dental code
+        and description text (read-only).
+      </p>
       <Card className="overflow-hidden">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <input

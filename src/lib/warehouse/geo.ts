@@ -18,6 +18,7 @@ import {
   type PatientAddress,
 } from "@/lib/warehouse/patient-address";
 import type { GeoCity } from "@/lib/types/viz";
+import type { PeriodRange } from "@/lib/ui/period";
 
 export type GeoSummary = {
   available: boolean;
@@ -59,14 +60,9 @@ function addressFromIndex(p: PatientGeoIndex): PatientAddress {
   };
 }
 
-export async function loadPatientGeoIndex(): Promise<PatientGeoIndex[]> {
-  if (!isOpenDentalMysqlConfigured()) {
-    throw new Error(
-      "Open Dental MySQL is not configured. Set OD_MYSQL_HOST, OD_MYSQL_USER, OD_MYSQL_DB, and OD_MYSQL_PASS.",
-    );
-  }
-
-  const snapshot = await loadOpenDentalSnapshot();
+function patientGeoIndexFromSnapshot(
+  snapshot: Awaited<ReturnType<typeof loadOpenDentalSnapshot>>,
+): PatientGeoIndex[] {
   return snapshot.patients.map((d) => ({
     patientId: d.patientId,
     inactive: d.inactive,
@@ -76,12 +72,28 @@ export async function loadPatientGeoIndex(): Promise<PatientGeoIndex[]> {
   }));
 }
 
-export async function loadGeoSummary(): Promise<GeoSummary> {
+export async function loadPatientGeoIndex(): Promise<PatientGeoIndex[]> {
+  if (!isOpenDentalMysqlConfigured()) {
+    throw new Error(
+      "Open Dental MySQL is not configured. Set OD_MYSQL_HOST, OD_MYSQL_USER, OD_MYSQL_DB, and OD_MYSQL_PASS.",
+    );
+  }
+
+  const snapshot = await loadOpenDentalSnapshot();
+  return patientGeoIndexFromSnapshot(snapshot);
+}
+
+export async function loadGeoSummary(
+  range?: PeriodRange,
+): Promise<GeoSummary> {
   const notices: string[] = [];
   let patients: PatientGeoIndex[] = [];
+  let snapshot: Awaited<ReturnType<typeof loadOpenDentalSnapshot>> | null =
+    null;
 
   try {
-    patients = (await loadPatientGeoIndex()).filter((p) => !p.inactive);
+    snapshot = await loadOpenDentalSnapshot();
+    patients = patientGeoIndexFromSnapshot(snapshot).filter((p) => !p.inactive);
   } catch (e) {
     return {
       available: false,
@@ -126,14 +138,12 @@ export async function loadGeoSummary(): Promise<GeoSummary> {
   }
 
   let productionByCity = new Map<string, number>();
-  try {
-    const snapshot = await loadOpenDentalSnapshot();
+  if (snapshot) {
     productionByCity = aggregateProductionCentsByCity(
       withAddress,
       snapshot.charges,
+      range,
     );
-  } catch {
-    notices.push("Charges unavailable — production by city shows $0.");
   }
 
   const byCity = new Map<string, CityAgg>();

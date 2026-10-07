@@ -16,6 +16,7 @@ const GeoHeatMapInner = dynamic(
 
 export function GeoHeatMap(props: {
   cities: (GeoCity & { lat: number; lon: number })[];
+  markerCities: (GeoCity & { lat: number; lon: number })[];
   metric: "patients" | "production";
   onMetricChange: (metric: "patients" | "production") => void;
 }) {

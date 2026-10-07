@@ -82,12 +82,16 @@ export function EmptyState({
 /** Shared route-level loading shell for App Router `loading.tsx`. */
 export function PageLoading({
   title,
+  subtitle,
+  label = "Loading…",
 }: {
   title: string;
+  subtitle?: string;
+  label?: string;
 }) {
   return (
-    <AppShell title={title}>
-      <Spinner />
+    <AppShell title={title} subtitle={subtitle}>
+      <Spinner label={label} />
     </AppShell>
   );
 }

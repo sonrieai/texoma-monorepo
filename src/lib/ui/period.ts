@@ -61,6 +61,65 @@ export function lastDayOfMonth(yyyyMm: string): string {
   return `${yyyyMm}-${String(last).padStart(2, "0")}`;
 }
 
+export const RANGE_PRESETS = [
+  { id: "today", label: "Today" },
+  { id: "last7", label: "Last 7 days" },
+  { id: "last30", label: "Last 30 days" },
+  { id: "last90", label: "Last 90 days" },
+  { id: "last12", label: "Last 12 months" },
+] as const;
+
+export type RangePresetId = (typeof RANGE_PRESETS)[number]["id"];
+
+export function addDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return todayYmd(date);
+}
+
+export function addMonthsYmd(ymd: string, months: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y, m - 1 + months, 1);
+  const last = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  date.setDate(Math.min(d, last));
+  return todayYmd(date);
+}
+
+export function isValidYmd(value: string): boolean {
+  if (!YMD.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return (
+    date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+  );
+}
+
+/** Inclusive ranges ending today. Last 12 months is the same calendar day one year ago. */
+export function resolveRangePreset(
+  id: RangePresetId,
+  now = new Date(),
+): { from: string; to: string } {
+  const to = todayYmd(now);
+  if (id === "today") return { from: to, to };
+  if (id === "last7") return { from: addDaysYmd(to, -6), to };
+  if (id === "last30") return { from: addDaysYmd(to, -29), to };
+  if (id === "last90") return { from: addDaysYmd(to, -89), to };
+  return { from: addMonthsYmd(to, -12), to };
+}
+
+export function matchRangePreset(
+  from: string,
+  to: string,
+  now = new Date(),
+): RangePresetId | "custom" {
+  for (const preset of RANGE_PRESETS) {
+    const range = resolveRangePreset(preset.id, now);
+    if (range.from === from && range.to === to) return preset.id;
+  }
+  return "custom";
+}
+
 export function rangePreset(
   key: "thisYear" | "past3" | "past6" | "lastYear",
   now = new Date(),

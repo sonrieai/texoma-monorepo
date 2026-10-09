@@ -75,7 +75,7 @@ export function NewPatientConversion({
               ? formatPct(conversion.sameDayStartRate)
               : "—"
           }
-          note={`${conversion.sameDayStarts} · consult + sold/Tx same day · target ≥${Math.round(SAME_DAY_START_TARGET * 100)}%`}
+          note={`${conversion.sameDayStarts} · show + more than $250 collected same day · target ≥${Math.round(SAME_DAY_START_TARGET * 100)}%`}
           status={
             conversion.sameDayStartRate == null
               ? "neutral"

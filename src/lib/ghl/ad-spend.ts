@@ -67,10 +67,20 @@ function sumSpendFromPayload(
     const row = asRecord(node);
     if (!row) return;
 
+    const totals = asRecord(row.totals);
+    if (totals && depth === 0) {
+      const fromTotals = dollarsFromMetric(totals, metricKeys);
+      if (fromTotals > 0) {
+        total += fromTotals;
+        return;
+      }
+    }
+
     const direct = dollarsFromMetric(row, metricKeys);
-    if (direct > 0) total += direct;
+    if (direct > 0 && !totals) total += direct;
 
     for (const nestedKey of [
+      "grouped",
       "data",
       "results",
       "rows",
@@ -100,7 +110,6 @@ async function fetchPlatformSpend(
       : ["cost_micros", "spend", "cost", "amountSpent"];
 
   const types: ReportingType[] = ["INTEGRATION", "AD_MANAGER"];
-  const errors: string[] = [];
 
   for (const type of types) {
     const params = new URLSearchParams({
@@ -109,9 +118,8 @@ async function fetchPlatformSpend(
       startDate: startYmd,
       endDate: endYmd,
       type,
+      groupBy: "month",
     });
-    if (platform === "facebook") params.set("groupBy", "month");
-    else params.set("groupBy", "month");
 
     try {
       const payload = await ghlFetch<unknown>(
@@ -120,39 +128,17 @@ async function fetchPlatformSpend(
         config,
       );
       const spend = sumSpendFromPayload(payload, metricKeys);
-      if (spend > 0) {
-        return { spend };
-      }
-      // Empty success — try next type (AD_MANAGER vs INTEGRATION).
-      errors.push(`${type}: no spend rows`);
+      if (spend > 0) return { spend };
     } catch (e) {
-      if (e instanceof GhlApiError) {
-        if (e.status === 401 || e.status === 403) {
-          return {
-            spend: 0,
-            notice: `${platform === "facebook" ? "Facebook" : "Google"} ads reporting needs scope adPublishing.readonly on the GHL token.`,
-          };
-        }
-        if (e.status === 404 || e.status === 422) {
-          errors.push(`${type}: not connected (${e.status})`);
-          continue;
-        }
-        errors.push(`${type}: ${e.message}`);
-        continue;
+      if (e instanceof GhlApiError && (e.status === 401 || e.status === 403)) {
+        return {
+          spend: 0,
+          notice: `${platform === "facebook" ? "Facebook" : "Google"} ads reporting needs scope adPublishing.readonly on the GHL token.`,
+        };
       }
-      errors.push(
-        e instanceof Error ? e.message : `${platform} reporting failed`,
-      );
     }
   }
 
-  if (errors.length > 0) {
-    const label = platform === "facebook" ? "Facebook" : "Google";
-    return {
-      spend: 0,
-      notice: `${label} ad spend unavailable (${errors[0]}). Connect ads in GHL Ad Manager or Integration.`,
-    };
-  }
   return { spend: 0 };
 }
 

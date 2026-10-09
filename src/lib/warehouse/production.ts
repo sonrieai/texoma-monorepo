@@ -80,10 +80,23 @@ export type DentureWarrantyMix = {
   y1Cents: number;
   y3Cents: number;
   y5Cents: number;
+  m6Count: number;
+  y1Count: number;
+  y3Count: number;
+  y5Count: number;
 };
 
 export function emptyDentureWarrantyMix(): DentureWarrantyMix {
-  return { m6Cents: 0, y1Cents: 0, y3Cents: 0, y5Cents: 0 };
+  return {
+    m6Cents: 0,
+    y1Cents: 0,
+    y3Cents: 0,
+    y5Cents: 0,
+    m6Count: 0,
+    y1Count: 0,
+    y3Count: 0,
+    y5Count: 0,
+  };
 }
 
 export type MonthlyProductionSeries = {
@@ -264,10 +277,19 @@ function bumpWarrantyProduction(
         : null;
   if (!target) return;
 
-  if (bucket === "m6") target.m6Cents += cents;
-  else if (bucket === "y1") target.y1Cents += cents;
-  else if (bucket === "y3") target.y3Cents += cents;
-  else target.y5Cents += cents;
+  if (bucket === "m6") {
+    target.m6Cents += cents;
+    target.m6Count += 1;
+  } else if (bucket === "y1") {
+    target.y1Cents += cents;
+    target.y1Count += 1;
+  } else if (bucket === "y3") {
+    target.y3Cents += cents;
+    target.y3Count += 1;
+  } else {
+    target.y5Cents += cents;
+    target.y5Count += 1;
+  }
 }
 
 function monthKeyFromDate(date: string | null | undefined): string | null {
@@ -279,6 +301,13 @@ function monthLabelFromKey(key: string): string {
   const [, mo] = key.split("-");
   const idx = Number.parseInt(mo, 10) - 1;
   return MONTH_LABELS[idx] ?? key;
+}
+
+/** Same month name can appear twice when a range crosses a year, so append the year. */
+function spanMonthLabel(monthKey: string, fromYmd: string, toYmd: string): string {
+  const name = monthLabelFromKey(monthKey);
+  if (fromYmd.slice(0, 4) === toYmd.slice(0, 4)) return name;
+  return `${name} ${monthKey.slice(2, 4)}`;
 }
 
 /** Fixed calendar window for Production Trend (mockup: this year vs. two prior). */
@@ -417,11 +446,8 @@ export function buildPeriodTrendPoints(
     const key = ymd.slice(0, 7);
     byMonth.set(key, (byMonth.get(key) ?? 0) + cents);
   }
-  const multiYear = fromYmd.slice(0, 4) !== toYmd.slice(0, 4);
   return enumerateMonths(fromYmd, toYmd).map((key) => ({
-    label: multiYear
-      ? `${monthLabelFromKey(key)} ${key.slice(2, 4)}`
-      : monthLabelFromKey(key),
+    label: spanMonthLabel(key, fromYmd, toYmd),
     dollars: (byMonth.get(key) ?? 0) / 100,
   }));
 }
@@ -437,7 +463,7 @@ function buildTreatmentByMonth(
     if (!row) {
       row = {
         monthKey: e.monthKey,
-        label: monthLabelFromKey(e.monthKey),
+        label: spanMonthLabel(e.monthKey, fromYmd, toYmd),
         categories: {},
       };
       byMonth.set(e.monthKey, row);
@@ -456,14 +482,14 @@ function buildTreatmentByMonth(
     return [{ ...row, label: dayLabel(fromYmd) }];
   }
 
-  return enumerateMonths(fromYmd, toYmd).map(
-    (monthKey) =>
-      byMonth.get(monthKey) ?? {
-        monthKey,
-        label: monthLabelFromKey(monthKey),
-        categories: {},
-      },
-  );
+  return enumerateMonths(fromYmd, toYmd).map((monthKey) => {
+    const row = byMonth.get(monthKey) ?? {
+      monthKey,
+      label: "",
+      categories: {},
+    };
+    return { ...row, label: spanMonthLabel(monthKey, fromYmd, toYmd) };
+  });
 }
 
 function buildMonthlyCollections(
@@ -508,7 +534,7 @@ function buildMonthlyCollections(
   }
   return enumerateMonths(fromYmd, toYmd).map((monthKey) => ({
     monthKey,
-    label: monthLabelFromKey(monthKey),
+    label: spanMonthLabel(monthKey, fromYmd, toYmd),
     cents: byMonth.get(monthKey) ?? 0,
     productionCents: productionByMonth.get(monthKey) ?? 0,
   }));

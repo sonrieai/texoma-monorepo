@@ -17,7 +17,7 @@ import {
   providerProductionCategoryDonutTotalCents,
 } from "@/lib/warehouse/production-category-donut";
 import { normalizeToCockpitDisplayCategory } from "@/lib/charts/cockpit-display-categories";
-import { CHANNEL_COLORS } from "@/lib/types/viz";
+import { productionGrowthLines } from "@/lib/charts/production-trend";
 
 const SAME_DAY_NP_TARGET = 0.3;
 
@@ -290,20 +290,12 @@ export function DoctorCockpitMetrics({
 
 export function DoctorProductionTrendSection({
   providerName,
-  periodTrend,
-  periodLabel,
+  monthlyProduction,
 }: {
   providerName: string;
-  periodTrend: { label: string; dollars: number }[];
-  periodLabel: string;
+  monthlyProduction: { year: number; months: number[] }[];
 }) {
-  const series = [
-    {
-      label: "Production",
-      values: periodTrend.map((point) => point.dollars),
-      color: CHANNEL_COLORS[0],
-    },
-  ];
+  const trend = productionGrowthLines(monthlyProduction);
 
   return (
     <>
@@ -311,14 +303,10 @@ export function DoctorProductionTrendSection({
       <div className="mb-4 min-w-0">
         <Card
           title="Production"
-          subtitle={`${providerName} · ${periodLabel} · hover for detail`}
+          subtitle={`${providerName} · ${trend.subtitle} · hover for detail`}
           className="min-w-0 overflow-hidden"
         >
-          <LineChart
-            series={series}
-            xLabels={periodTrend.map((point) => point.label)}
-            money
-          />
+          <LineChart series={trend.series} xLabels={trend.xLabels} money />
         </Card>
       </div>
     </>

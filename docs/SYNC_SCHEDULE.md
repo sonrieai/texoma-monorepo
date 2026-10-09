@@ -43,3 +43,17 @@ npm run validate:opendental
 Also: `GET /api/health/opendental-mysql` (auth may be required).
 
 See [DATA_ACCESS.md](./DATA_ACCESS.md).
+
+## Open Dental → GoHighLevel
+
+`npm run sync:od-ghl` polls MySQL and upserts one GoHighLevel contact per changed patient. A no-show confirmation adds one of `NO SHOWED AOX`, `NO SHOWED IMP`, `NO SHOWED OTN`, `NO SHOWED UTN`, or `NO SHOWED DENT`. Show, cancel, reschedule, and a completed sold code remove that tag. Booked consults create or match the contact and do not add a tag.
+
+The first run only writes a cursor in `data/od-ghl-sync.json` (PatNum and contact id). It does not backfill old patients. Names, phones, and emails are not stored. GoHighLevel should run one workflow on those no-show tags, not a second workflow on contact create.
+
+Run it every 5 minutes on the office host that can reach MySQL, from the app directory:
+
+```bat
+schtasks /Create /SC MINUTE /MO 5 /TN "Texoma OD to GHL" /TR "cmd /c cd /d D:\texoma-monorepo-main\texoma-monorepo-main && npm run sync:od-ghl"
+```
+
+Requires `OD_MYSQL_*` plus GoHighLevel credentials (`GHL_API_KEY` and `GHL_LOCATION_ID`, or Settings). Optional `GHL_OD_PATNUM_FIELD_ID` stores `od_pat_num` on the contact.

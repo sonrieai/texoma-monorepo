@@ -6,7 +6,7 @@ import {
   requireOpenDentalMysqlConfig,
 } from "@/lib/opendental/config";
 
-const POOL_SIZE = 8;
+const POOL_SIZE = 16;
 const CONNECT_TIMEOUT_MS = 15_000;
 
 let pool: Pool | null = null;
@@ -24,6 +24,8 @@ function getPool(): Pool {
     connectionLimit: POOL_SIZE,
     connectTimeout: CONNECT_TIMEOUT_MS,
     timezone: "Z",
+    // Skip per-cell Date allocation on large ledger reads. Mappers accept both.
+    dateStrings: true,
   });
   return pool;
 }
@@ -34,6 +36,14 @@ export async function queryOpenDental<T extends mysql.RowDataPacket>(
 ): Promise<T[]> {
   const [rows] = await getPool().execute<T[]>(sql, params as ExecuteValues);
   return rows;
+}
+
+/** Release the pool so a one-shot script can exit. */
+export async function closeOpenDentalMysql(): Promise<void> {
+  if (!pool) return;
+  const current = pool;
+  pool = null;
+  await current.end();
 }
 
 /** Lightweight connectivity check (no PHI). */

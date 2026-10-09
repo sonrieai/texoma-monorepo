@@ -161,7 +161,7 @@ function ledgerWindow(): OdDateWindow {
   const trend = productionTrendRange();
   return {
     startYmd: trend.fromYmd,
-    endYmd: ymdDaysAhead(APPOINTMENT_LOOKAHEAD_DAYS),
+    endYmd: trend.toYmd,
   };
 }
 
@@ -337,27 +337,80 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
 }
 
 /** Reuse one mapped snapshot across navigations. Empty OD dates are dropped before this cache is filled. */
-const SNAPSHOT_TTL_MS = 3 * 60 * 1000;
-let snapshotModuleCache: {
-  snapshot: OpenDentalSnapshot;
-  loadedAtMs: number;
-} | null = null;
+export const SNAPSHOT_FRESH_MS = 2 * 60 * 1000;
+export const SNAPSHOT_STALE_MS = 15 * 60 * 1000;
+
+export function snapshotCacheAction(
+  ageMs: number | null,
+  freshMs = SNAPSHOT_FRESH_MS,
+  staleMs = SNAPSHOT_STALE_MS,
+): "fresh" | "stale" | "miss" {
+  if (ageMs == null || ageMs < 0) return "miss";
+  if (ageMs < freshMs) return "fresh";
+  if (ageMs < staleMs) return "stale";
+  return "miss";
+}
+
+type SnapshotCacheBox = {
+  entry: { snapshot: OpenDentalSnapshot; loadedAtMs: number } | null;
+  generation: number;
+  inflight: Promise<OpenDentalSnapshot> | null;
+};
+
+const snapshotCacheBox: SnapshotCacheBox = ((
+  globalThis as { __texomaOdSnapshot?: SnapshotCacheBox }
+).__texomaOdSnapshot ??= {
+  entry: null,
+  generation: 0,
+  inflight: null,
+});
+
+/** Cached snapshot when one is still fresh or stale. Does not start a database read. */
+export function readCachedOpenDentalSnapshot(): OpenDentalSnapshot | null {
+  const cached = snapshotCacheBox.entry;
+  if (!cached) return null;
+  const action = snapshotCacheAction(Date.now() - cached.loadedAtMs);
+  if (action === "miss") return null;
+  return cached.snapshot;
+}
 
 export function invalidateOpenDentalSnapshotCache(): void {
-  snapshotModuleCache = null;
+  snapshotCacheBox.generation += 1;
+  snapshotCacheBox.entry = null;
+  snapshotCacheBox.inflight = null;
+}
+
+function refreshOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
+  if (snapshotCacheBox.inflight) return snapshotCacheBox.inflight;
+  const generation = snapshotCacheBox.generation;
+  snapshotCacheBox.inflight = fetchOpenDentalSnapshot()
+    .then((snapshot) => {
+      if (generation === snapshotCacheBox.generation) {
+        snapshotCacheBox.entry = { snapshot, loadedAtMs: Date.now() };
+      }
+      return snapshot;
+    })
+    .finally(() => {
+      if (generation === snapshotCacheBox.generation) snapshotCacheBox.inflight = null;
+    });
+  return snapshotCacheBox.inflight;
 }
 
 async function loadOpenDentalSnapshotCached(): Promise<OpenDentalSnapshot> {
-  const now = Date.now();
-  if (
-    snapshotModuleCache &&
-    now - snapshotModuleCache.loadedAtMs < SNAPSHOT_TTL_MS
-  ) {
-    return snapshotModuleCache.snapshot;
+  const cached = snapshotCacheBox.entry;
+  const ageMs = cached ? Date.now() - cached.loadedAtMs : null;
+  const action = snapshotCacheAction(ageMs);
+  if (cached && action === "fresh") return cached.snapshot;
+  if (cached && action === "stale") {
+    void refreshOpenDentalSnapshot().catch((error: unknown) => {
+      console.error(
+        "Open Dental snapshot refresh failed",
+        error instanceof Error ? error.message : error,
+      );
+    });
+    return cached.snapshot;
   }
-  const snapshot = await fetchOpenDentalSnapshot();
-  snapshotModuleCache = { snapshot, loadedAtMs: now };
-  return snapshot;
+  return refreshOpenDentalSnapshot();
 }
 
 /** One snapshot per server request; also TTL-cached across requests. */

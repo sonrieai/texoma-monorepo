@@ -98,7 +98,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
     endYmd: period.end.slice(0, 10),
   });
 
-  if (error || !data) {
+  if ((error || !data) && !ghlReady) {
     return (
       <AppShell
         title="Marketing"
@@ -113,9 +113,11 @@ export default async function MarketingPage({ searchParams }: PageProps) {
     );
   }
 
-  const conv = data.conversion;
+  const conv = data?.conversion;
   const consultShowRate =
-    conv.npConsultShowRate != null ? conv.npConsultShowRate : data.showRate;
+    conv?.npConsultShowRate != null
+      ? conv.npConsultShowRate
+      : (data?.showRate ?? 0);
   const t = marketing.totals;
   const lookbackNote = `last ${marketing.lookbackDays}d`;
 
@@ -131,6 +133,12 @@ export default async function MarketingPage({ searchParams }: PageProps) {
         )
       }
     >
+      {error ? (
+        <p className="mb-4 text-[12px] text-warn">
+          Practice totals from Open Dental did not load ({error}). Channel
+          numbers below are live from GoHighLevel.
+        </p>
+      ) : null}
       <SectionHeading title="Cockpit" />
       <div className="mb-4 grid grid-cols-2 items-stretch gap-2.5 md:grid-cols-4">
         <ComboStat
@@ -212,7 +220,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
           title="No opportunities in range"
           description={
             marketing.notices[0] ??
-            `No Call Center / Appointment opportunities in the last ${marketing.lookbackDays} days.`
+            `No Marketing Pipeline opportunities in this period (${marketing.lookbackDays} days).`
           }
         />
       ) : (
@@ -400,10 +408,6 @@ export default async function MarketingPage({ searchParams }: PageProps) {
             </Card>
             <Card title="Marketing scorecard" subtitle="Live vs goals">
               <Scorecard items={marketing.scorecard} />
-              <p className="mb-0 mt-3 text-[11px] text-muted">
-                Lead response time needs conversation timestamps (not wired
-                yet). Spend/ROI use GHL Ad Publishing when ads are connected.
-              </p>
             </Card>
           </div>
         </>

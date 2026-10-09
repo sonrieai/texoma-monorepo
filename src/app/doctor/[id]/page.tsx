@@ -58,8 +58,7 @@ export default async function DoctorDetailPage({ params, searchParams }: Props) 
       />
       <DoctorProductionTrendSection
         providerName={provider.name}
-        periodTrend={provider.production.periodTrend}
-        periodLabel={pl}
+        monthlyProduction={provider.production.monthlyProduction}
       />
     </AppShell>
   );

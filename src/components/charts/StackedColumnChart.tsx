@@ -196,7 +196,7 @@ export function StackedColumnChart({
           let accH = 0;
           const isHoveredCol = hover?.rowIndex === i;
           return (
-            <g key={r.label}>
+            <g key={`${i}-${r.label}`}>
               {types.map((t, ti) => {
                 const v = r.values[t.key] ?? 0;
                 if (v <= 0) return null;

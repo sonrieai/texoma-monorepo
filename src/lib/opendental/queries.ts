@@ -58,6 +58,35 @@ export async function listOdAppointmentTypes(): Promise<OdAppointmentTypeRow[]> 
   return asRows<OdAppointmentTypeRow>(rows);
 }
 
+/** Provider + type only, for the treatment-coordinator roster. */
+export async function listOdAppointmentProvidersByType(
+  window: OdDateWindow,
+  typeIds: number[],
+  clinicNums?: number[],
+): Promise<{ ProvNum: number; AppointmentTypeNum: number }[]> {
+  const ids = typeIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return [];
+  const params: unknown[] = [
+    window.startYmd,
+    `${window.endYmd} 23:59:59`,
+    ...ids,
+  ];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0) {
+    clinicClause = ` AND ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT ProvNum, AppointmentTypeNum
+     FROM appointment
+     WHERE AptDateTime >= ? AND AptDateTime <= ?
+       AND AppointmentTypeNum IN (${ids.map(() => "?").join(",")})
+       AND ProvNum > 0${clinicClause}`,
+    params,
+  );
+  return asRows<{ ProvNum: number; AppointmentTypeNum: number }>(rows);
+}
+
 export async function listOdAppointments(
   window: OdDateWindow,
   clinicNums?: number[],
@@ -73,11 +102,56 @@ export async function listOdAppointments(
             AppointmentTypeNum, ClinicNum, DateTStamp,
             DateTimeArrived, DateTimeDismissed, IsNewPatient
      FROM appointment
-     WHERE AptDateTime >= ? AND AptDateTime <= ?${clinicClause}
-     ORDER BY AptNum`,
+     WHERE AptDateTime >= ? AND AptDateTime <= ?${clinicClause}`,
     params,
   );
   return asRows<OdAppointmentRow>(rows);
+}
+
+/** City/state/ZIP and status only — no names or birth dates. */
+export async function listOdPatientGeoRows(): Promise<
+  {
+    PatNum: number;
+    City: string | null;
+    State: string | null;
+    Zip: string | null;
+    PatStatus: number;
+  }[]
+> {
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT PatNum, City, State, Zip, PatStatus
+     FROM patient`,
+  );
+  return asRows<{
+    PatNum: number;
+    City: string | null;
+    State: string | null;
+    Zip: string | null;
+    PatStatus: number;
+  }>(rows);
+}
+
+/** Completed procedure fees in the range, summed to cents per patient. */
+export async function listOdProductionCentsByPatient(
+  window: OdDateWindow,
+  clinicNums?: number[],
+): Promise<{ PatNum: number; Cents: number }[]> {
+  const params: unknown[] = [window.startYmd, window.endYmd];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0) {
+    clinicClause = ` AND pl.ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT pl.PatNum, SUM(ROUND(pl.ProcFee * 100, 0)) AS Cents
+     FROM procedurelog pl
+     WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
+       AND pl.ProcStatus = ${OdProcStatus.Complete}
+       AND pl.ProcFee > 0${clinicClause}
+     GROUP BY pl.PatNum`,
+    params,
+  );
+  return asRows<{ PatNum: number; Cents: number }>(rows);
 }
 
 export async function listOdPatients(
@@ -90,11 +164,10 @@ export async function listOdPatients(
     params.push(updatedSince.replace("T", " ").replace("Z", "").slice(0, 19));
   }
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT PatNum, Guarantor, FName, LName, City, State, Zip, Birthdate,
+    `SELECT PatNum, Guarantor, City, State, Zip, Birthdate,
             PatStatus, ClinicNum, DateTStamp, PriProv, DateFirstVisit
      FROM patient
-     ${where}
-     ORDER BY PatNum`,
+     ${where}`,
     params,
   );
   return asRows<OdPatientRow>(rows);
@@ -126,8 +199,7 @@ export async function listOdProcedureLogs(
      FROM procedurelog pl
      LEFT JOIN procedurecode pc ON pc.CodeNum = pl.CodeNum
      WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
-       AND pl.ProcStatus <> ${OdProcStatus.Deleted}${clinicClause}
-     ORDER BY pl.ProcNum`,
+       AND pl.ProcStatus = ${OdProcStatus.Complete}${clinicClause}`,
     params,
   );
   return asRows<OdProcedureLogRow>(rows);
@@ -181,8 +253,7 @@ export async function listOdPaySplits(
      FROM paysplit ps
      INNER JOIN payment p ON p.PayNum = ps.PayNum
      LEFT JOIN definition d ON d.DefNum = p.PayType
-     WHERE ps.DatePay >= ? AND ps.DatePay <= ?${clinicClause}
-     ORDER BY ps.SplitNum`,
+     WHERE ps.DatePay >= ? AND ps.DatePay <= ?${clinicClause}`,
     params,
   );
   return asRows<OdPaySplitRow>(rows);
@@ -203,8 +274,7 @@ export async function listOdAdjustments(
             a.DateEntry, a.ClinicNum, d.ItemName AS AdjTypeName
      FROM adjustment a
      LEFT JOIN definition d ON d.DefNum = a.AdjType
-     WHERE a.AdjDate >= ? AND a.AdjDate <= ?${clinicClause}
-     ORDER BY a.AdjNum`,
+     WHERE a.AdjDate >= ? AND a.AdjDate <= ?${clinicClause}`,
     params,
   );
   return asRows<OdAdjustmentRow>(rows);
@@ -242,35 +312,44 @@ export async function listOdTreatPlans(
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT TreatPlanNum, PatNum, DateTP, Heading, TPStatus, ${stampSelect}
      FROM treatplan
-     ${where}
-     ORDER BY TreatPlanNum`,
+     ${where}`,
     params,
   );
   return asRows<OdTreatPlanRow>(rows);
 }
 
 const PROC_TP_CHUNK_SIZE = 800;
+const PROC_TP_CONCURRENCY = 4;
+
+async function listOdProcTpChunk(chunk: number[]): Promise<OdProcTpRow[]> {
+  const placeholders = chunk.map(() => "?").join(",");
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT pt.ProcTPNum, pt.TreatPlanNum, pt.PatNum, pt.ProcNumOrig, pt.ProcCode,
+            pt.Descript, pt.FeeAmt, pt.Priority,
+            pl.ProcStatus AS LogProcStatus, pl.ProcDate AS LogProcDate,
+            pl.DateComplete AS LogDateComplete, pl.ProcFee AS LogProcFee
+     FROM proctp pt
+     LEFT JOIN procedurelog pl ON pl.ProcNum = pt.ProcNumOrig AND pt.ProcNumOrig > 0
+     WHERE pt.TreatPlanNum IN (${placeholders})`,
+    chunk,
+  );
+  return asRows<OdProcTpRow>(rows);
+}
 
 export async function listOdProcTps(
   treatPlanNums: number[],
 ): Promise<OdProcTpRow[]> {
   if (treatPlanNums.length === 0) return [];
-  const out: OdProcTpRow[] = [];
+  const chunks: number[][] = [];
   for (let i = 0; i < treatPlanNums.length; i += PROC_TP_CHUNK_SIZE) {
-    const chunk = treatPlanNums.slice(i, i + PROC_TP_CHUNK_SIZE);
-    const placeholders = chunk.map(() => "?").join(",");
-    const rows = await queryOpenDental<RowDataPacket>(
-      `SELECT pt.ProcTPNum, pt.TreatPlanNum, pt.PatNum, pt.ProcNumOrig, pt.ProcCode,
-              pt.Descript, pt.FeeAmt, pt.Priority,
-              pl.ProcStatus AS LogProcStatus, pl.ProcDate AS LogProcDate,
-              pl.DateComplete AS LogDateComplete, pl.ProcFee AS LogProcFee
-       FROM proctp pt
-       LEFT JOIN procedurelog pl ON pl.ProcNum = pt.ProcNumOrig AND pt.ProcNumOrig > 0
-       WHERE pt.TreatPlanNum IN (${placeholders})
-       ORDER BY pt.TreatPlanNum, pt.ProcTPNum`,
-      chunk,
+    chunks.push(treatPlanNums.slice(i, i + PROC_TP_CHUNK_SIZE));
+  }
+  const out: OdProcTpRow[] = [];
+  for (let i = 0; i < chunks.length; i += PROC_TP_CONCURRENCY) {
+    const parts = await Promise.all(
+      chunks.slice(i, i + PROC_TP_CONCURRENCY).map(listOdProcTpChunk),
     );
-    out.push(...asRows<OdProcTpRow>(rows));
+    for (const part of parts) out.push(...part);
   }
   return out;
 }
@@ -299,8 +378,7 @@ export async function listOdClaims(
             InsPayAmt, WriteOff, CorrectionType, ProvTreat, ClinicNum, ${stampSelect}
      FROM claim
      WHERE ((DateService >= ? AND DateService <= ?)
-        OR (DateSent >= ? AND DateSent <= ?))${clinicClause}
-     ORDER BY ClaimNum`,
+        OR (DateSent >= ? AND DateSent <= ?))${clinicClause}`,
     params,
   );
   return asRows<OdClaimRow>(rows);
@@ -324,8 +402,7 @@ export async function listOdClaimProcs(
      LEFT JOIN insplan ip ON ip.PlanNum = cp.PlanNum
      LEFT JOIN carrier c ON c.CarrierNum = ip.CarrierNum
      WHERE cp.Status IN (1, 4)
-       AND cp.DateCP >= ? AND cp.DateCP <= ?${clinicClause.replaceAll("ClinicNum", "cp.ClinicNum")}
-     ORDER BY cp.ClaimProcNum`,
+       AND cp.DateCP >= ? AND cp.DateCP <= ?${clinicClause.replaceAll("ClinicNum", "cp.ClinicNum")}`,
     params,
   );
   return asRows<OdClaimProcRow>(rows);
@@ -348,8 +425,7 @@ export async function listOdPrimaryPatPlans(): Promise<OdPatPlanJoinRow[]> {
      INNER JOIN inssub s ON s.InsSubNum = pp.InsSubNum
      INNER JOIN insplan ip ON ip.PlanNum = s.PlanNum
      LEFT JOIN carrier c ON c.CarrierNum = ip.CarrierNum
-     WHERE pp.Ordinal = 1
-     ORDER BY pp.PatNum`,
+     WHERE pp.Ordinal = 1`,
   );
   return asRows<OdPatPlanJoinRow>(rows);
 }
@@ -362,8 +438,7 @@ export async function listOdGuarantorBalances(): Promise<OdGuarantorBalanceRow[]
     `SELECT PatNum, Bal_0_30, Bal_31_60, Bal_61_90, BalOver90, InsEst,
             ${totalBalCol} AS TotBal, EstBalance
      FROM patient
-     WHERE PatNum = Guarantor
-     ORDER BY PatNum`,
+     WHERE PatNum = Guarantor`,
   );
   return asRows<OdGuarantorBalanceRow>(rows);
 }

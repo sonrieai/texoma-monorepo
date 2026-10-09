@@ -10,11 +10,15 @@ import {
 } from "@/lib/ghl/ad-spend";
 import { getGhlConfig, isGhlConfigured, type GhlConfig } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
+import {
+  formatResponseMinutes,
+  loadMedianResponseMinutes,
+} from "@/lib/ghl/response-time";
 import { safeRate } from "@/lib/metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 import { opportunityBelongsToCoordinator } from "@/lib/tc/ghl-attribution";
 
-const MAX_PAGES_PER_PIPELINE = 5;
+const MAX_PAGES_PER_PIPELINE = 20;
 const PAGE_SIZE = 100;
 /** Lookback for opportunity `date` filter when no dashboard period is passed. */
 const LOOKBACK_DAYS = 90;
@@ -109,6 +113,8 @@ type GhlPipeline = {
 type GhlAttribution = {
   utmSessionSource?: string | null;
   utmSource?: string | null;
+  utmCampaign?: string | null;
+  utmMedium?: string | null;
   campaign?: string | null;
   medium?: string | null;
   isFirst?: boolean;
@@ -225,17 +231,12 @@ function rangeLookbackDays(startYmd: string, endYmd: string): number {
 export function stageTierFromName(raw: string | null | undefined): FunnelTier {
   const n = (raw ?? "").toLowerCase().replace(/\s+/g, " ").trim();
   if (!n) return "lead";
+  if (/\blost\b|\bdeclin/.test(n)) return "lead";
   if (/\bno-?show\b|\bcancel/.test(n)) return "booked";
-  if (/\bsold\b|\bsurgery\b/.test(n)) return "surgery";
+  if (/\bsold\b|\bsurgery\b|\bclosed\b|\bwon\b/.test(n)) return "surgery";
   if (/accepted treatment|accepted\b/.test(n)) return "accepted";
   if (/\bshowed\b/.test(n)) return "showed";
-  if (
-    /consult booked|consult confirmed|appointment confirmed|appointment booked/.test(
-      n,
-    )
-  ) {
-    return "booked";
-  }
+  if (/\bbooked\b/.test(n)) return "booked";
   return "lead";
 }
 
@@ -272,16 +273,26 @@ function normalizeSourceLabel(raw: string | null | undefined): string {
   return s.slice(0, 40);
 }
 
+function isGenericSource(raw: string | null | undefined): boolean {
+  const s = (raw ?? "").trim().toLowerCase();
+  return !s || /^(social media|other|unknown|direct|none)$/.test(s);
+}
+
 function attributionSource(opp: GhlOpportunity): string {
   const attrs = opp.attributions ?? [];
   const first = attrs.find((a) => a.isFirst) ?? attrs[0];
-  const fromAttr =
-    first?.utmSessionSource ||
-    first?.utmSource ||
-    first?.campaign ||
-    null;
-  if (fromAttr) return normalizeSourceLabel(fromAttr);
-  if (opp.source?.trim()) return normalizeSourceLabel(opp.source);
+  const medium = first?.medium || first?.utmMedium || null;
+  const session = first?.utmSessionSource || first?.utmSource || null;
+  const campaign = first?.utmCampaign || first?.campaign || null;
+  if (medium && (isGenericSource(session) || /social/i.test(session ?? ""))) {
+    return normalizeSourceLabel(medium);
+  }
+  if (session && !isGenericSource(session)) return normalizeSourceLabel(session);
+  if (medium) return normalizeSourceLabel(medium);
+  if (campaign) return normalizeSourceLabel(campaign);
+  if (opp.source?.trim() && !isGenericSource(opp.source)) {
+    return normalizeSourceLabel(opp.source);
+  }
   return "Unknown";
 }
 
@@ -289,7 +300,7 @@ function preferMarketingPipelines(pipelines: GhlPipeline[]): GhlPipeline[] {
   const scored = pipelines.map((p) => {
     const name = (p.name ?? "").toLowerCase();
     let score = 0;
-    if (/call center|appointment system/.test(name)) score += 10;
+    if (/call center|appointment system|marketing/.test(name)) score += 10;
     if (/nurtur|long term/.test(name)) score += 2;
     if ((p.stages?.length ?? 0) > 5) score += 1;
     return { p, score };
@@ -371,9 +382,11 @@ function buildScorecard(params: {
   acceptanceRate: number | null;
   roi: number | null;
   costPerArch: number | null;
+  responseMinutes: number | null;
   goals: MarketingGoals;
 }): MarketingScoreItem[] {
-  const { showRate, acceptanceRate, roi, costPerArch, goals } = params;
+  const { showRate, acceptanceRate, roi, costPerArch, responseMinutes, goals } =
+    params;
   return [
     {
       label: "Cost per arch",
@@ -401,9 +414,13 @@ function buildScorecard(params: {
     },
     {
       label: "Lead response time",
-      show: "—",
+      show:
+        responseMinutes != null ? formatResponseMinutes(responseMinutes) : "—",
       goal: `< ${goals.responseMin} min`,
-      pass: null,
+      pass:
+        responseMinutes == null
+          ? null
+          : responseMinutes < goals.responseMin,
     },
     {
       label: "Marketing ROI",
@@ -441,9 +458,6 @@ export async function loadMarketingSummary(
     }
 
     const selected = preferMarketingPipelines(pipelines);
-    notices.push(
-      `Pipelines: ${selected.map((p) => p.name ?? p.id).join(", ")}.`,
-    );
 
     const startYmd = range?.startYmd;
     const endYmd = range?.endYmd;
@@ -492,19 +506,13 @@ export async function loadMarketingSummary(
       }
     }
 
-    const adSpend = await loadAdSpendByChannel(
-      config,
-      spendStartYmd,
-      spendEndYmd,
-    );
-    notices.push(...adSpend.notices);
+    const [adSpend, responseMinutes] = await Promise.all([
+      loadAdSpendByChannel(config, spendStartYmd, spendEndYmd),
+      loadMedianResponseMinutes(config, spendStartYmd, spendEndYmd),
+    ]);
     if (adSpend.available) {
       notices.push(
         `Ad spend from GHL Ad Manager (Facebook + Google) · ${spendStartYmd} → ${spendEndYmd}.`,
-      );
-    } else if (adSpend.notices.length === 0) {
-      notices.push(
-        "Ad spend is $0 — connect Facebook/Google ads in GHL and grant adPublishing.readonly on the API token.",
       );
     }
     mergeSpendIntoChannels(bySource, adSpend, emptyChannel);
@@ -575,6 +583,7 @@ export async function loadMarketingSummary(
         acceptanceRate,
         roi,
         costPerArch,
+        responseMinutes,
         goals: DEFAULT_GOALS,
       }),
       opportunityCount,

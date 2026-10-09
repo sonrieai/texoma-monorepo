@@ -9,7 +9,7 @@ import type { MarketingRange } from "@/lib/ghl/marketing";
 import { opportunityBelongsToCoordinator } from "@/lib/tc/ghl-attribution";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
-const MAX_PAGES_PER_PIPELINE = 5;
+const MAX_PAGES_PER_PIPELINE = 20;
 const PAGE_SIZE = 100;
 const LOOKBACK_DAYS = 90;
 
@@ -39,6 +39,8 @@ export type GhlOpportunity = {
   attributions?: {
     utmSessionSource?: string | null;
     utmSource?: string | null;
+    utmCampaign?: string | null;
+    utmMedium?: string | null;
     campaign?: string | null;
     medium?: string | null;
     isFirst?: boolean;
@@ -87,7 +89,7 @@ function preferMarketingPipelines(pipelines: GhlPipeline[]): GhlPipeline[] {
   const scored = pipelines.map((p) => {
     const name = (p.name ?? "").toLowerCase();
     let score = 0;
-    if (/call center|appointment system/.test(name)) score += 10;
+    if (/call center|appointment system|marketing/.test(name)) score += 10;
     if (/nurtur|long term/.test(name)) score += 2;
     if ((p.stages?.length ?? 0) > 5) score += 1;
     return { p, score };

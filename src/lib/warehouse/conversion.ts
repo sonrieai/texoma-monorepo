@@ -2,7 +2,7 @@
  * PHI-safe new-patient conversion aggregates (counts + dollars only).
  * Consult = Mongo `cdt_codes.isConsult` or configured appointment types;
  * show rate Complete ÷ (Complete + Broken); 66/67 drop; 69 miss;
- * same-day = sold codes; TP closed = all procs Complete.
+ * same-day = more than $250 collected that day; TP closed = all procs Complete.
  */
 
 import {
@@ -25,9 +25,13 @@ import {
   moneyToCents,
   type AppointmentRecord,
   type AppointmentTypeRecord,
+  type PaymentRecord,
   type ProcedureRecord,
   type TreatmentPlanRecord,
 } from "@/lib/warehouse/types";
+
+/** Same-day start requires patient payments that day strictly above this amount. */
+export const SAME_DAY_START_MIN_CENTS = 25_000;
 
 const OD_CONFIRM_CANCEL = new Set([66, 67]);
 const OD_CONFIRM_NO_SHOW = new Set([69]);
@@ -56,7 +60,7 @@ export type ConversionSummary = {
   newPatientBooked: number;
   /** IsNewPatient shows when the flag is loaded; otherwise consult shows. */
   newPatientShows: number;
-  /** Consult Complete + same-day sold / first Tx Complete. */
+  /** Consult show with more than $250 collected that calendar day. */
   sameDayStarts: number;
   /** sameDayStarts ÷ npConsultShow (null if no shows). Target ≥30%. */
   sameDayStartRate: number | null;
@@ -232,6 +236,7 @@ export function summarizeConversion(params: {
   appointmentTypeDocs?: NpConsultTypeDoc[];
   procedures?: ProcedureRecord[];
   plans?: TreatmentPlanRecord[];
+  payments?: PaymentRecord[];
   cdt?: CdtLookup;
   /** patient.DateFirstVisit values. When present, NP count uses this column. */
   firstVisits?: Array<string | null | undefined>;
@@ -322,18 +327,6 @@ export function summarizeConversion(params: {
     );
   }
 
-  const completeProcsByDay = new Map<string, ProcedureRecord[]>();
-  for (const proc of procedures) {
-    if (!isProcedureComplete(proc.status)) continue;
-    const patientId = procedurePatientId(proc);
-    const ymd = procedureYmd(proc);
-    if (patientId == null || !ymd) continue;
-    const key = patientDayKey(patientId, ymd);
-    const list = completeProcsByDay.get(key);
-    if (list) list.push(proc);
-    else completeProcsByDay.set(key, [proc]);
-  }
-
   const npFlag = appointmentHasNewPatientFlag(params.appointments);
   const npShowDays = new Set<string>();
   let newPatientBooked = 0;
@@ -355,23 +348,21 @@ export function summarizeConversion(params: {
     }
   }
 
+  const paymentCentsByDay = paymentsByPatientDay(params.payments ?? []);
   let sameDayStarts = 0;
   for (const key of npFlag ? npShowDays : consultShowDays) {
-    const dayProcs = completeProcsByDay.get(key) ?? [];
-    const sold = dayProcs.some((p) => cdt.isAoxSoldCode(p.code));
-    const firstTx = dayProcs.some(
-      (p) => !cdt.isConsultCode(p.code) && !cdt.isAoxSoldCode(p.code),
-    );
-    if (sold || firstTx) sameDayStarts += 1;
+    if (isSameDayStartPayment(paymentCentsByDay.get(key) ?? 0)) {
+      sameDayStarts += 1;
+    }
   }
   if ((npFlag ? npShowDays : consultShowDays).size > 0) {
     if (sameDayStarts > 0) {
       notices.push(
-        `Same-day starts: ${sameDayStarts} consult complete(s) with sold or treatment code same day.`,
+        `Same-day starts: ${sameDayStarts} show(s) with more than $250 collected the same day.`,
       );
     } else {
       notices.push(
-        "Same-day starts: no consult complete + same-day sold or treatment code pairs yet.",
+        "Same-day starts: no show with more than $250 collected the same day yet.",
       );
     }
   }
@@ -446,6 +437,7 @@ export type ProviderNpConsultParams = {
   cdt?: CdtLookup;
   /** Primary SoonerCare / OHCA patients. Used when appointments carry IsNewPatient. */
   soonercarePatientIds?: ReadonlySet<number>;
+  payments?: PaymentRecord[];
 };
 
 function appointmentSoonercareHaystack(
@@ -514,6 +506,25 @@ function buildCompleteProcsByDay(
     else completeProcsByDay.set(key, [proc]);
   }
   return completeProcsByDay;
+}
+
+export function paymentsByPatientDay(
+  payments: readonly PaymentRecord[],
+): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const payment of payments) {
+    if (payment.deleted_at) continue;
+    if (typeof payment.patient_id !== "number" || !payment.paid_at) continue;
+    const cents = moneyToCents(payment.payment_amount);
+    if (cents <= 0) continue;
+    const key = patientDayKey(payment.patient_id, payment.paid_at.slice(0, 10));
+    totals.set(key, (totals.get(key) ?? 0) + cents);
+  }
+  return totals;
+}
+
+export function isSameDayStartPayment(cents: number): boolean {
+  return cents > SAME_DAY_START_MIN_CENTS;
 }
 
 function dayHasNpClose(dayProcs: ProcedureRecord[], cdt: CdtLookup): boolean {
@@ -683,29 +694,18 @@ export function perProviderSameDayNp(
   params: ProviderNpConsultParams,
 ): Map<number, number> {
   const ctx = resolveProviderConsultContext(params);
-  const completeProcsByDay = buildCompleteProcsByDay(params.procedures);
-  if (appointmentHasNewPatientFlag(params.appointments)) {
-    const counts = new Map<number, number>();
-    for (const [pid, keys] of buildNewPatientShowByProvider(params)) {
-      let total = 0;
-      for (const key of keys) {
-        const dayProcs = completeProcsByDay.get(key) ?? [];
-        if (dayHasNpClose(dayProcs, ctx.cdt)) total += 1;
-      }
-      if (total > 0) counts.set(pid, total);
-    }
-    return counts;
-  }
-  if (!ctx.hasConsultFilter) return new Map();
-
-  const consultShowByProvider = buildConsultShowByProvider(params, ctx);
+  const paymentCentsByDay = paymentsByPatientDay(params.payments ?? []);
+  const showKeys = appointmentHasNewPatientFlag(params.appointments)
+    ? buildNewPatientShowByProvider(params)
+    : ctx.hasConsultFilter
+      ? buildConsultShowByProvider(params, ctx)
+      : new Map<number, Set<string>>();
 
   const counts = new Map<number, number>();
-  for (const [pid, keys] of consultShowByProvider) {
+  for (const [pid, keys] of showKeys) {
     let total = 0;
     for (const key of keys) {
-      const dayProcs = completeProcsByDay.get(key) ?? [];
-      if (dayHasNpClose(dayProcs, ctx.cdt)) total += 1;
+      if (isSameDayStartPayment(paymentCentsByDay.get(key) ?? 0)) total += 1;
     }
     if (total > 0) counts.set(pid, total);
   }

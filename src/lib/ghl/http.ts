@@ -25,7 +25,9 @@ export async function ghlFetch<T>(
 
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${cfg.apiKey}`);
-  headers.set("Version", GHL_API_VERSION);
+  if (!headers.has("Version")) {
+    headers.set("Version", GHL_API_VERSION);
+  }
   headers.set("Accept", "application/json");
   if (init.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");

@@ -182,30 +182,59 @@ describe("summarizeConversion", () => {
     assert.equal(summary.newPatients, 2);
   });
 
-  it("counts same-day start from U-AOXS Complete on consult day", () => {
-    const procedures: ProcedureRecord[] = [
-      {
+  it("counts a same-day start only when more than $250 is collected", () => {
+    const show = [
+      appt({
         id: 1,
         patient_id: 20,
-        code: "U-AOXS",
-        status: "completed",
-        start_date: "2026-08-10",
-      },
+        start_time: "2026-08-10T14:00:00+0000",
+        apt_status: "Complete",
+      }),
     ];
-    const summary = summarizeConversion({
+    const base = {
       fromYmd: "2026-08-01",
       toYmd: "2026-08-31",
       appointmentTypes: [consultType],
       appointmentTypeDocs: [consultTypeDoc],
-      appointments: [
-        appt({
+      appointments: show,
+      procedures: [
+        {
           id: 1,
           patient_id: 20,
-          start_time: "2026-08-10T14:00:00+0000",
-          apt_status: "Complete",
-        }),
+          code: "U-AOXS",
+          status: "completed" as const,
+          start_date: "2026-08-10",
+        },
       ],
-      procedures,
+    };
+    assert.equal(summarizeConversion(base).sameDayStarts, 0);
+    assert.equal(
+      summarizeConversion({
+        ...base,
+        payments: [
+          {
+            patient_id: 20,
+            paid_at: "2026-08-10",
+            payment_amount: { amount: "250.00" },
+          },
+        ],
+      }).sameDayStarts,
+      0,
+    );
+    const summary = summarizeConversion({
+      ...base,
+      payments: [
+        {
+          patient_id: 20,
+          paid_at: "2026-08-10",
+          payment_amount: { amount: "200.00" },
+        },
+        {
+          patient_id: 20,
+          paid_at: "2026-08-10",
+          payment_amount: { amount: "50.01" },
+        },
+      ],
     });
     assert.equal(summary.npConsultShow, 1);
     assert.equal(summary.sameDayStarts, 1);
@@ -247,7 +276,7 @@ describe("summarizeConversion", () => {
       cdt,
     });
     assert.equal(summary.npConsultShow, 1);
-    assert.equal(summary.sameDayStarts, 1);
+    assert.equal(summary.sameDayStarts, 0);
   });
 
   it("does not add consult procedure days when consult types exist", () => {
@@ -439,6 +468,13 @@ describe("perProviderNp metrics", () => {
           code: "D6010",
           status: "completed",
           start_date: "2026-08-18",
+        },
+      ],
+      payments: [
+        {
+          patient_id: 20,
+          paid_at: "2026-08-10",
+          payment_amount: { amount: "250.01" },
         },
       ],
     };

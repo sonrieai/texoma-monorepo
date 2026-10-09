@@ -172,6 +172,63 @@ describe("summarizeProductionFromLedger periodTrend", () => {
     assert.equal(summary.periodTrend[0]?.dollars, 125);
     assert.equal(summary.treatmentByMonth[0]?.label, "Oct 6");
   });
+
+  it("labels repeated months with the year when the range crosses a year", () => {
+    const summary = summarizeProductionFromLedger({
+      fromYmd: "2025-10-09",
+      toYmd: "2026-10-09",
+      procedures: [],
+      charges: [],
+      payments: [],
+      adjustments: [],
+    });
+
+    const labels = summary.treatmentByMonth.map((row) => row.label);
+    assert.equal(labels[0], "Oct 25");
+    assert.equal(labels.at(-1), "Oct 26");
+    assert.equal(new Set(labels).size, labels.length);
+  });
+});
+
+describe("summarizeProductionFromLedger denture warranty", () => {
+  it("counts denture charges in each warranty bucket", () => {
+    const summary = summarizeProductionFromLedger({
+      fromYmd: "2026-08-01",
+      toYmd: "2026-08-31",
+      procedures: [],
+      charges: [
+        charge({
+          id: 1,
+          charged_at: "2026-08-02",
+          procedure_code: "D5110.6MO",
+          description: "complete denture",
+          fee: { amount: "1000.00" },
+        }),
+        charge({
+          id: 2,
+          charged_at: "2026-08-03",
+          procedure_code: "D5120.6MO",
+          description: "complete denture",
+          fee: { amount: "500.00" },
+        }),
+        charge({
+          id: 3,
+          charged_at: "2026-08-04",
+          procedure_code: "D5211.1YR",
+          description: "partial denture",
+          fee: { amount: "250.00" },
+        }),
+      ],
+      payments: [],
+      adjustments: [],
+    });
+
+    assert.equal(summary.dentureWarranty.m6Count, 2);
+    assert.equal(summary.dentureWarranty.m6Cents, 150_000);
+    assert.equal(summary.dentureWarranty.y1Count, 0);
+    assert.equal(summary.partialWarranty.y1Count, 1);
+    assert.equal(summary.partialWarranty.y1Cents, 25_000);
+  });
 });
 
 describe("summarizeProductionFromLedger collections", () => {

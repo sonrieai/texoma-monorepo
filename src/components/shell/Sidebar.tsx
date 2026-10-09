@@ -12,6 +12,7 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { BrandLogo } from "@/components/brand/BrandLogo";
 import { LIST_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
 import { parsePeriodParams, periodToSearchString } from "@/lib/ui/period";
+import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
 
 const NAV = [
   { href: "/overview", label: "Overview", icon: "▦" },
@@ -66,7 +67,7 @@ function readStoredProviders(): ProviderLink[] | null {
     const parsed = JSON.parse(raw) as StoredProviders;
     if (!parsed?.expiresAt || !Array.isArray(parsed.providers)) return null;
     if (parsed.expiresAt <= Date.now()) return null;
-    return parsed.providers;
+    return parsed.providers.filter((p) => !isExcludedDoctorProvider(p.name));
   } catch {
     return null;
   }
@@ -160,8 +161,11 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
       .then((r) => r.json())
       .then((j) => {
         if (cancelled || !Array.isArray(j.providers)) return;
-        writeStoredProviders(j.providers);
-        setProviders(j.providers);
+        const providers = j.providers.filter(
+          (p: ProviderLink) => !isExcludedDoctorProvider(p.name),
+        );
+        writeStoredProviders(providers);
+        setProviders(providers);
       })
       .catch(() => {
         if (!cancelled) setProviders([]);

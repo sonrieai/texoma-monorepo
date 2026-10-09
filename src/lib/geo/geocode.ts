@@ -12,10 +12,14 @@ export type GeocodeResult = {
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_LOOKUPS_PER_RUN = 60;
+const CENSUS_CONCURRENCY = 8;
 
 type CacheEntry = { expiresAt: number; result: GeocodeResult | null };
+type GeocodeCache = Map<string, CacheEntry>;
 
-const cache = new Map<string, CacheEntry>();
+const cache: GeocodeCache = ((
+  globalThis as { __texomaGeocode?: GeocodeCache }
+).__texomaGeocode ??= new Map());
 
 export function normalizeGeocodeKey(query: string): string {
   return query.trim().toLowerCase().replace(/\s+/g, " ");
@@ -106,7 +110,7 @@ export async function geocodeAddressQuery(
   return result;
 }
 
-/** Geocode unique address queries with a per-request cap. */
+/** Geocode unique address queries with a per-request cap. Census lookups run together. */
 export async function geocodeAddressQueries(
   queries: string[],
 ): Promise<Map<string, GeocodeResult | null>> {
@@ -121,25 +125,43 @@ export async function geocodeAddressQueries(
   }
 
   const out = new Map<string, GeocodeResult | null>();
-  let lookups = 0;
+  const pending: string[] = [];
 
   for (const query of uniqueQueries) {
-    if (lookups >= MAX_LOOKUPS_PER_RUN) break;
     const normalized = cacheKey(query);
-
     const cached = cache.get(normalized);
     if (cached && cached.expiresAt > Date.now()) {
       out.set(normalized, cached.result);
       continue;
     }
+    if (pending.length < MAX_LOOKUPS_PER_RUN) pending.push(query);
+  }
 
-    const result = await geocodeAddressQuery(query);
+  const misses: string[] = [];
+  for (let i = 0; i < pending.length; i += CENSUS_CONCURRENCY) {
+    const chunk = pending.slice(i, i + CENSUS_CONCURRENCY);
+    const hits = await Promise.all(chunk.map((query) => geocodeCensus(query)));
+    chunk.forEach((query, index) => {
+      const result = hits[index] ?? null;
+      if (result) {
+        const normalized = cacheKey(query);
+        cache.set(normalized, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          result,
+        });
+        out.set(normalized, result);
+      } else {
+        misses.push(query);
+      }
+    });
+  }
+
+  for (const query of misses) {
+    await new Promise((r) => setTimeout(r, 1100));
+    const result = await geocodeNominatim(query);
+    const normalized = cacheKey(query);
+    cache.set(normalized, { expiresAt: Date.now() + CACHE_TTL_MS, result });
     out.set(normalized, result);
-    lookups += 1;
-
-    if (lookups < uniqueQueries.length && lookups < MAX_LOOKUPS_PER_RUN) {
-      await new Promise((r) => setTimeout(r, 200));
-    }
   }
 
   return out;

@@ -196,7 +196,7 @@ export function HBarChart({
   width: _width,
   maxWidth: _maxWidth,
 }: {
-  rows: { label: string; value: number; color?: string }[];
+  rows: { label: string; value: number; color?: string; count?: number }[];
   money?: boolean;
   /** @deprecated Layout is CSS-driven; kept for call-site compatibility. */
   labelWidth?: number;
@@ -237,6 +237,8 @@ export function HBarChart({
         const pct = max > 0 ? (r.value / max) * 100 : 0;
         const color = r.color ?? CHANNEL_COLORS[i % CHANNEL_COLORS.length];
         const valueLabel = money ? formatUsd(r.value) : String(Math.round(r.value));
+        const countLabel =
+          money && r.count != null ? r.count.toLocaleString("en-US") : null;
         return (
           <div
             key={`${r.label}-${i}`}
@@ -252,8 +254,11 @@ export function HBarChart({
               >
                 {r.label}
               </span>
-              <span className="shrink-0 text-[11.5px] tabular-nums text-muted sm:hidden">
+              <span className="shrink-0 text-right text-[11.5px] tabular-nums text-muted sm:hidden">
                 {valueLabel}
+                {countLabel != null ? (
+                  <span className="mt-0.5 block text-[10.5px]">count {countLabel}</span>
+                ) : null}
               </span>
             </div>
             <div
@@ -270,8 +275,11 @@ export function HBarChart({
                 />
               ) : null}
             </div>
-            <span className="hidden min-w-[2.25rem] shrink-0 text-right text-[11.5px] tabular-nums text-muted sm:inline">
+            <span className="hidden min-w-[2.25rem] shrink-0 text-right text-[11.5px] tabular-nums leading-tight text-muted sm:inline">
               {valueLabel}
+              {countLabel != null ? (
+                <span className="mt-0.5 block text-[10.5px]">count {countLabel}</span>
+              ) : null}
             </span>
           </div>
         );
@@ -285,6 +293,12 @@ export function HBarChart({
               label={money ? "Production" : "Count"}
               value={money ? formatUsd(hovered.value) : String(Math.round(hovered.value))}
             />
+            {money && hovered.count != null ? (
+              <ChartTooltipRow
+                label="Count"
+                value={hovered.count.toLocaleString("en-US")}
+              />
+            ) : null}
             <ChartTooltipRow
               label="Share of max"
               value={`${Math.round((100 * hovered.value) / max)}%`}

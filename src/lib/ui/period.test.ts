@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   defaultPeriodState,
+  matchRangePreset,
   parsePeriodParams,
   periodToRange,
   periodToSearchString,
+  resolveRangePreset,
   todayYmd,
 } from "./period";
 
@@ -61,6 +63,38 @@ describe("parsePeriodParams", () => {
       start: "2026-04-01",
       end: "2026-06-30",
     });
+  });
+});
+
+describe("resolveRangePreset", () => {
+  const now = new Date(2026, 9, 9);
+
+  it("covers today through the last 12 months", () => {
+    assert.deepEqual(resolveRangePreset("today", now), {
+      from: "2026-10-09",
+      to: "2026-10-09",
+    });
+    assert.deepEqual(resolveRangePreset("last7", now), {
+      from: "2026-10-03",
+      to: "2026-10-09",
+    });
+    assert.deepEqual(resolveRangePreset("last30", now), {
+      from: "2026-09-10",
+      to: "2026-10-09",
+    });
+    assert.deepEqual(resolveRangePreset("last90", now), {
+      from: "2026-07-12",
+      to: "2026-10-09",
+    });
+    assert.deepEqual(resolveRangePreset("last12", now), {
+      from: "2025-10-09",
+      to: "2026-10-09",
+    });
+  });
+
+  it("matches a preset and leaves other ranges custom", () => {
+    assert.equal(matchRangePreset("2026-10-03", "2026-10-09", now), "last7");
+    assert.equal(matchRangePreset("2026-04-01", "2026-06-30", now), "custom");
   });
 });
 

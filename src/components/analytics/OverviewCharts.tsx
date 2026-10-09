@@ -16,7 +16,7 @@ import {
 } from "@/lib/charts/cockpit-display-categories";
 import { emptyCategoryValues } from "@/lib/charts/category-chart";
 import type { ChartCategoryDef } from "@/lib/charts/category-chart";
-import { CHANNEL_COLORS } from "@/lib/types/viz";
+import { productionGrowthLines } from "@/lib/charts/production-trend";
 
 function categoryRows(
   treatmentByMonth: LiveProduction["treatmentByMonth"],
@@ -151,24 +151,17 @@ export function PaymentAndDentureSection({
   ];
 
   const dw = production.dentureWarranty;
-  const pw = production.partialWarranty;
   const dentureWarrantyRows = [
-    { label: "6-month", value: centsToDollars(dw.m6Cents) },
-    { label: "1-Yr", value: centsToDollars(dw.y1Cents) },
-    { label: "3-Yr", value: centsToDollars(dw.y3Cents) },
-    { label: "5-Yr", value: centsToDollars(dw.y5Cents) },
-  ];
-  const partialWarrantyRows = [
-    { label: "6-month", value: centsToDollars(pw.m6Cents) },
-    { label: "1-Yr", value: centsToDollars(pw.y1Cents) },
-    { label: "3-Yr", value: centsToDollars(pw.y3Cents) },
-    { label: "5-Yr", value: centsToDollars(pw.y5Cents) },
+    { label: "6-month", value: centsToDollars(dw.m6Cents), count: dw.m6Count ?? 0 },
+    { label: "1-Yr", value: centsToDollars(dw.y1Cents), count: dw.y1Count ?? 0 },
+    { label: "3-Yr", value: centsToDollars(dw.y3Cents), count: dw.y3Count ?? 0 },
+    { label: "5-Yr", value: centsToDollars(dw.y5Cents), count: dw.y5Count ?? 0 },
   ];
 
   return (
     <>
       <SectionHeading title="Denture Production & Payments" />
-      <div className="mb-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-4 grid gap-4 md:grid-cols-2">
         <Card
           title="Denture Production by Warranty"
           subtitle="6-mo · 1-Yr · 3-Yr · 5-Yr"
@@ -176,15 +169,8 @@ export function PaymentAndDentureSection({
           <HBarChart rows={dentureWarrantyRows} />
         </Card>
         <Card
-          title="Partial Production by Warranty"
-          subtitle="6-mo · 1-Yr · 3-Yr · 5-Yr"
-        >
-          <HBarChart rows={partialWarrantyRows} />
-        </Card>
-        <Card
           title="Payment Mix"
           subtitle="Cash · Insurance · Financed · SoonerCare"
-          className="md:col-span-2 lg:col-span-1"
         >
           <DonutChart
             slices={paymentSlices}
@@ -201,19 +187,10 @@ export function PaymentAndDentureSection({
 
 export function ProductionTrendSection({
   production,
-  periodLabel,
 }: {
   production: LiveProduction;
-  periodLabel: string;
 }) {
-  const points = production.periodTrend;
-  const series = [
-    {
-      label: "Production",
-      values: points.map((point) => point.dollars),
-      color: CHANNEL_COLORS[0],
-    },
-  ];
+  const trend = productionGrowthLines(production.monthlyProduction);
 
   return (
     <>
@@ -221,14 +198,10 @@ export function ProductionTrendSection({
       <div className="mb-4 min-w-0">
         <Card
           title="Production"
-          subtitle={`${periodLabel} · hover for detail`}
+          subtitle={`${trend.subtitle} · hover for detail`}
           className="min-w-0 overflow-hidden"
         >
-          <LineChart
-            series={series}
-            xLabels={points.map((point) => point.label)}
-            money
-          />
+          <LineChart series={trend.series} xLabels={trend.xLabels} money />
         </Card>
       </div>
     </>

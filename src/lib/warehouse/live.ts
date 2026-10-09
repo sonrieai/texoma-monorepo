@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
 import type { AppointmentTypeMixRow } from "@/lib/warehouse/appointment-mix";
 import type { ConversionSummary } from "@/lib/warehouse/conversion";
 import type { ArSummary } from "@/lib/warehouse/ar";
@@ -31,7 +32,7 @@ export type LiveProviderRow = {
   upcomingCount: number;
   /** NP consult shows (when type IDs configured). */
   npConsultShow: number;
-  /** Consult show + same-day sold / first Tx Complete for this provider. */
+  /** Consult show with more than $250 collected the same day for this provider. */
   sameDayNp: number;
   /** SoonerCare NP consult shows (appointment text / type). */
   scNpSeen: number;
@@ -110,6 +111,12 @@ export type LiveOverview = {
 };
 
 /** Dashboard overview — live Open Dental MySQL. */
+const OVERVIEW_CACHE_LIMIT = 8;
+type OverviewCache = Map<string, { loadedAt: string; overview: LiveOverview }>;
+const overviewCache: OverviewCache = ((
+  globalThis as { __texomaOverviewCache?: OverviewCache }
+).__texomaOverviewCache ??= new Map());
+
 export const loadLiveOverview = cache(
   async (start?: string, end?: string): Promise<LiveOverview> => {
     const { loadOpenDentalSnapshot } = await import(
@@ -120,15 +127,37 @@ export const loadLiveOverview = cache(
     );
     const snapshot = await loadOpenDentalSnapshot();
     const range = start && end ? { start, end } : defaultOverviewRange();
-    return buildOverviewFromSnapshot(snapshot, range);
+    const key = `${snapshot.loadedAt}|${range.start}|${range.end}`;
+    const hit = overviewCache.get(key);
+    if (hit) return hit.overview;
+
+    const overview = buildOverviewFromSnapshot(snapshot, range);
+    if (overviewCache.size >= OVERVIEW_CACHE_LIMIT) {
+      const oldest = overviewCache.keys().next().value;
+      if (oldest) overviewCache.delete(oldest);
+    }
+    overviewCache.set(key, { loadedAt: snapshot.loadedAt, overview });
+    return overview;
   },
 );
 
 export async function loadLiveProviders(): Promise<
   { id: string; name: string }[]
 > {
-  const overview = await loadLiveOverview();
-  return overview.providers.map((p) => ({ id: p.id, name: p.name }));
+  const { loadOpenDentalSnapshot } = await import(
+    "@/lib/opendental/snapshot"
+  );
+  const snapshot = await loadOpenDentalSnapshot();
+  return snapshot.providers
+    .filter(
+      (provider) =>
+        !provider.inactive &&
+        !isExcludedDoctorProvider(provider.name ?? ""),
+    )
+    .map((provider) => ({
+      id: String(provider.id),
+      name: provider.name ?? `Provider ${provider.id}`,
+    }));
 }
 
 export type { AppointmentRecord };

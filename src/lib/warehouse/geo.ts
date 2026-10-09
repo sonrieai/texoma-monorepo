@@ -4,10 +4,16 @@
  */
 
 import { geocodeAddressQueries, normalizeGeocodeKey } from "@/lib/geo/geocode";
-import { loadOpenDentalSnapshot } from "@/lib/opendental/snapshot";
 import { isOpenDentalMysqlConfigured } from "@/lib/opendental/config";
+import { getOdClinicNums } from "@/lib/opendental/location";
+import {
+  listOdPatientGeoRows,
+  listOdProductionCentsByPatient,
+} from "@/lib/opendental/queries";
+import { readCachedOpenDentalSnapshot } from "@/lib/opendental/snapshot";
 import {
   aggregateProductionCentsByCity,
+  buildPatientCityIndex,
   TEXOMA_REGION_COUNTY_COUNT,
   UNKNOWN_ADDRESS_LABEL,
   type PatientCityRow,
@@ -63,15 +69,88 @@ function addressFromIndex(p: PatientGeoIndex): PatientAddress {
   };
 }
 
-function patientGeoIndexFromSnapshot(
-  snapshot: Awaited<ReturnType<typeof loadOpenDentalSnapshot>>,
+function trimOrNull(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  return text ? text : null;
+}
+
+function patientsFromGeoRows(
+  rows: {
+    PatNum: number;
+    City: string | null;
+    State: string | null;
+    Zip: string | null;
+    PatStatus: number;
+  }[],
 ): PatientGeoIndex[] {
-  return snapshot.patients.map((d) => ({
-    patientId: d.patientId,
-    inactive: d.inactive,
-    city: d.geoCity,
-    state: d.geoState,
-    zip: d.geoZip,
+  return rows
+    .filter((row) => Number(row.PatStatus) === 0)
+    .map((row) => ({
+      patientId: row.PatNum,
+      inactive: false,
+      city: trimOrNull(row.City),
+      state: trimOrNull(row.State),
+      zip: trimOrNull(row.Zip),
+    }));
+}
+
+function productionFromPatientCents(
+  patients: PatientCityRow[],
+  centsByPatient: { PatNum: number; Cents: number }[],
+): Map<string, number> {
+  const patientCity = buildPatientCityIndex(patients);
+  const byCity = new Map<string, number>();
+  for (const row of centsByPatient) {
+    const cents = Number(row.Cents);
+    if (!Number.isFinite(cents) || cents <= 0) continue;
+    const city = patientCity.get(row.PatNum);
+    if (!city) continue;
+    byCity.set(city, (byCity.get(city) ?? 0) + cents);
+  }
+  return byCity;
+}
+
+const GEO_SUMMARY_TTL_MS = 5 * 60 * 1000;
+const GEO_SUMMARY_LIMIT = 8;
+
+type GeoSummaryCache = Map<string, { cachedAtMs: number; summary: GeoSummary }>;
+
+const geoSummaryCache: GeoSummaryCache = ((
+  globalThis as { __texomaGeoSummary?: GeoSummaryCache }
+).__texomaGeoSummary ??= new Map());
+
+function geoSummaryKey(range?: PeriodRange): string {
+  return range ? `${range.start}|${range.end}` : "all";
+}
+
+function readGeoSummaryCache(key: string): GeoSummary | null {
+  const hit = geoSummaryCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.cachedAtMs > GEO_SUMMARY_TTL_MS) {
+    geoSummaryCache.delete(key);
+    return null;
+  }
+  return hit.summary;
+}
+
+function writeGeoSummaryCache(key: string, summary: GeoSummary): GeoSummary {
+  if (geoSummaryCache.size >= GEO_SUMMARY_LIMIT) {
+    const oldest = geoSummaryCache.keys().next().value;
+    if (oldest) geoSummaryCache.delete(oldest);
+  }
+  geoSummaryCache.set(key, { cachedAtMs: Date.now(), summary });
+  return summary;
+}
+
+function patientGeoIndexFromSnapshot(
+  snapshot: NonNullable<ReturnType<typeof readCachedOpenDentalSnapshot>>,
+): PatientGeoIndex[] {
+  return snapshot.patients.map((patient) => ({
+    patientId: patient.patientId,
+    inactive: patient.inactive,
+    city: patient.geoCity,
+    state: patient.geoState,
+    zip: patient.geoZip,
   }));
 }
 
@@ -82,21 +161,51 @@ export async function loadPatientGeoIndex(): Promise<PatientGeoIndex[]> {
     );
   }
 
-  const snapshot = await loadOpenDentalSnapshot();
-  return patientGeoIndexFromSnapshot(snapshot);
+  const snapshot = readCachedOpenDentalSnapshot();
+  if (snapshot) return patientGeoIndexFromSnapshot(snapshot).filter((p) => !p.inactive);
+
+  return patientsFromGeoRows(await listOdPatientGeoRows());
 }
 
 export async function loadGeoSummary(
   range?: PeriodRange,
 ): Promise<GeoSummary> {
+  const cacheKey = geoSummaryKey(range);
+  const cached = readGeoSummaryCache(cacheKey);
+  if (cached) return cached;
+
   const notices: string[] = [];
   let patients: PatientGeoIndex[] = [];
-  let snapshot: Awaited<ReturnType<typeof loadOpenDentalSnapshot>> | null =
-    null;
+  let productionByCity = new Map<string, number>();
 
   try {
-    snapshot = await loadOpenDentalSnapshot();
-    patients = patientGeoIndexFromSnapshot(snapshot).filter((p) => !p.inactive);
+    if (!isOpenDentalMysqlConfigured()) {
+      throw new Error(
+        "Open Dental MySQL is not configured. Set OD_MYSQL_HOST, OD_MYSQL_USER, OD_MYSQL_DB, and OD_MYSQL_PASS.",
+      );
+    }
+    const snapshot = readCachedOpenDentalSnapshot();
+    if (snapshot) {
+      patients = patientGeoIndexFromSnapshot(snapshot).filter(
+        (patient) => !patient.inactive,
+      );
+      productionByCity = aggregateProductionCentsByCity(
+        patients,
+        snapshot.charges,
+        range,
+      );
+    } else {
+      const window = {
+        startYmd: range?.start ?? "2000-01-01",
+        endYmd: range?.end ?? new Date().toISOString().slice(0, 10),
+      };
+      const [patientRows, feeRows] = await Promise.all([
+        listOdPatientGeoRows(),
+        listOdProductionCentsByPatient(window, getOdClinicNums()),
+      ]);
+      patients = patientsFromGeoRows(patientRows);
+      productionByCity = productionFromPatientCents(patients, feeRows);
+    }
   } catch (e) {
     return {
       available: false,
@@ -125,15 +234,6 @@ export async function loadGeoSummary(
 
   if (withAddress.length === 0 && patients.length > 0) {
     notices.push("No city/state/ZIP on patient records in Open Dental.");
-  }
-
-  let productionByCity = new Map<string, number>();
-  if (snapshot) {
-    productionByCity = aggregateProductionCentsByCity(
-      patients,
-      snapshot.charges,
-      range,
-    );
   }
 
   const byCity = new Map<string, CityAgg>();
@@ -229,7 +329,7 @@ export async function loadGeoSummary(
     );
   }
 
-  return {
+  return writeGeoSummaryCache(cacheKey, {
     available: true,
     cities,
     mapCities,
@@ -241,7 +341,7 @@ export async function loadGeoSummary(
     countiesReached,
     regionCountyCount: TEXOMA_REGION_COUNTY_COUNT,
     notices,
-  };
+  });
 }
 
 /** Debug tooling: coverage of de-identified geo fields. */

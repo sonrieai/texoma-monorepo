@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/ui/States";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
   parsePeriodParams,
-  periodLabel,
   periodToRange,
   treatmentChartSubtitle,
 } from "@/lib/ui/period";
@@ -66,7 +65,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
         subtitle={treatmentChartSubtitle(period)}
       />
       <PaymentAndDentureSection production={prod} />
-      <ProductionTrendSection production={prod} periodLabel={periodLabel(period)} />
+      <ProductionTrendSection production={prod} />
     </AppShell>
   );
 }

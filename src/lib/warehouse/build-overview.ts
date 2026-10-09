@@ -40,6 +40,7 @@ import {
   emptyProviderProduction,
   summarizeProductionFromLedger,
 } from "@/lib/warehouse/production";
+import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
 import { buildSoonerCarePatientSet } from "@/lib/warehouse/sc-production";
 import type { OpenDentalSnapshot } from "@/lib/opendental/snapshot";
 import type {
@@ -239,6 +240,7 @@ export function buildOverviewFromSnapshot(
     appointmentTypeDocs: snapshot.appointmentTypeDocs,
     procedures: snapshot.procedures,
     plans: snapshot.treatmentPlans,
+    payments: snapshot.payments,
     cdt,
     firstVisits: snapshot.patients.map((patient) => patient.dateFirstVisit),
   });
@@ -304,8 +306,14 @@ export function buildOverviewFromSnapshot(
   const byProvider = new Map<number, LiveProviderRow>();
   const providerTypeMaps = new Map<number, Map<string, AppointmentTypeMixRow>>();
   const practiceTypes = new Map<string, AppointmentTypeMixRow>();
+  const excludedProviderIds = new Set(
+    snapshot.providers
+      .filter((p) => isExcludedDoctorProvider(p.name ?? ""))
+      .map((p) => p.id),
+  );
 
   for (const p of snapshot.providers.filter((x) => !x.inactive)) {
+    if (excludedProviderIds.has(p.id)) continue;
     byProvider.set(p.id, emptyProviderRow(p.id, p.name ?? `Provider ${p.id}`));
     providerTypeMaps.set(p.id, new Map());
   }
@@ -345,13 +353,15 @@ export function buildOverviewFromSnapshot(
     bumpTypeMix(practiceRow, status);
 
     const pid = appt.provider_id;
-    if (pid == null) continue;
+    if (pid == null || excludedProviderIds.has(pid)) continue;
     let row = byProvider.get(pid);
     if (!row) {
-      row = emptyProviderRow(
-        pid,
-        String(appt.provider_name || `Provider ${pid}`),
-      );
+      const name = String(appt.provider_name || `Provider ${pid}`);
+      if (isExcludedDoctorProvider(name)) {
+        excludedProviderIds.add(pid);
+        continue;
+      }
+      row = emptyProviderRow(pid, name);
       byProvider.set(pid, row);
       providerTypeMaps.set(pid, new Map());
     }
@@ -399,6 +409,7 @@ export function buildOverviewFromSnapshot(
     appointmentTypeDocs: snapshot.appointmentTypeDocs,
     cdt,
     soonercarePatientIds,
+    payments: snapshot.payments,
   };
   for (const [pid, count] of perProviderSameDayNp(providerNpParams)) {
     const row = byProvider.get(pid);
@@ -425,9 +436,9 @@ export function buildOverviewFromSnapshot(
     locationName: snapshot.locationName,
     range,
     notices,
-    providers: [...byProvider.values()].sort(
-      (a, b) => b.appointmentCount - a.appointmentCount,
-    ),
+    providers: [...byProvider.values()]
+      .filter((p) => !isExcludedDoctorProvider(p.name))
+      .sort((a, b) => b.appointmentCount - a.appointmentCount),
     appointments: {
       total: apptRaws.length,
       show,

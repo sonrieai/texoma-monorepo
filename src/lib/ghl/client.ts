@@ -1,5 +1,5 @@
 /**
- * GoHighLevel adapter — live when GHL_API_KEY + GHL_LOCATION_ID are set.
+ * GoHighLevel adapter — live when saved JSON settings or GHL_API_KEY + GHL_LOCATION_ID are set.
  */
 
 export {

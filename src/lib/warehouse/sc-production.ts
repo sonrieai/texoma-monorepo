@@ -6,9 +6,9 @@
 import type { CdtLookup } from "@/lib/cdt/categories";
 import type { PatientRecord } from "@/lib/warehouse/types";
 
-/** Primary insurance carrier names that count as SoonerCare / Medicaid (OD defaults). */
+/** Primary carrier names that are SoonerCare itself. Managed-care brands stay on their own payers. */
 export const SOONERCARE_CARRIER_PATTERN =
-  /\b(sooner\s*care|soonercare|medicaid|ohca|oklahoma\s+medicaid)\b/i;
+  /\b(sooner\s*care|soonercare|ohca)\b/i;
 
 const CARRIER_STRING_KEYS = [
   "primary_insurance_carrier",
@@ -182,6 +182,7 @@ export function resolveProcedureDescription(
   return cdt.lookupDescription(code) ?? trimmed;
 }
 
+/** Completed production for a patient whose primary carrier is SoonerCare or OHCA. */
 export function isScProductionCharge(params: {
   code: string;
   chargeName: string;
@@ -189,25 +190,8 @@ export function isScProductionCharge(params: {
   soonerCarePatients: Set<number>;
   cdt: CdtLookup;
 }): boolean {
-  const description = resolveProcedureDescription(
-    params.code,
-    params.chargeName,
-    params.cdt,
-  );
-
-  const warrantyBucket = params.cdt.lookupWarrantyBucket(params.code);
-  if (warrantyBucket && !isScChartDescription(description)) {
-    return false;
-  }
-
-  if (isScChartDescription(description)) return true;
-
-  if (
+  return (
     typeof params.patientId === "number" &&
     params.soonerCarePatients.has(params.patientId)
-  ) {
-    return true;
-  }
-
-  return false;
+  );
 }

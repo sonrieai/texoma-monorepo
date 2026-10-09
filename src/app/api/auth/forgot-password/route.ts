@@ -16,7 +16,6 @@ import {
   findDashboardUserByEmail,
   insertPasswordResetRecord,
 } from "@/lib/auth/users";
-import { isMongoConfigured } from "@/lib/mongo/client";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +31,8 @@ export async function POST(request: Request) {
       {
         ok: false,
         error:
-          "Password reset is not configured. Set AUTH_EMAIL, MAILGUN_API_KEY, and MongoDB.",
+          "Password reset is not configured. Set AUTH_EMAIL, AUTH_SESSION_SECRET, and MAILGUN_API_KEY.",
       },
-      { status: 503 },
-    );
-  }
-
-  if (!isMongoConfigured()) {
-    return NextResponse.json(
-      { ok: false, error: "MongoDB is required for password reset." },
       { status: 503 },
     );
   }

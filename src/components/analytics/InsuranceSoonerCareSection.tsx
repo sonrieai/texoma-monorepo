@@ -55,6 +55,8 @@ export function InsuranceSoonerCareSection({
     insurance.claimsAvailable && insurance.soonercareClaimsSubmitted > 0;
   const hasScPreAuth =
     insurance.claimsAvailable && insurance.soonercarePreAuthsSubmitted > 0;
+  const hasPracticePreAuth =
+    insurance.claimsAvailable && insurance.preAuthsSubmitted > 0;
 
   return (
     <>
@@ -174,7 +176,10 @@ export function InsuranceSoonerCareSection({
               value:
                 insurance.soonercarePreAuthApprovalRate != null
                   ? formatPct(insurance.soonercarePreAuthApprovalRate)
-                  : "—",
+                  : insurance.preAuthApprovalRate != null &&
+                      insurance.soonercarePreAuthsSubmitted === 0
+                    ? `${formatPct(insurance.preAuthApprovalRate)} (all payers)`
+                    : "—",
             },
             {
               label: "Claims denied",
@@ -207,7 +212,7 @@ export function InsuranceSoonerCareSection({
                 variant="inset"
                 label="Submitted"
                 value={String(insurance.soonercarePreAuthsSubmitted)}
-                note={`PreAuth · ${periodLabel}`}
+                note={`Medicaid / SC plan or patient · ${periodLabel}`}
               />
               <ComboStat
                 variant="inset"
@@ -232,10 +237,49 @@ export function InsuranceSoonerCareSection({
                 target="≥80%"
               />
             </div>
+          ) : hasPracticePreAuth ? (
+            <>
+              <p className="mb-2 mt-0.5 text-[12px] leading-snug text-muted">
+                No PreAuth claims on SoonerCare, DentaQuest, or Liberty plans (or
+                SC patients) in {periodLabel}. Open Dental shows{" "}
+                {insurance.preAuthsSubmitted} practice-wide PreAuth claims on
+                other carriers — summary below.
+              </p>
+              <div className="mt-1 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <ComboStat
+                  variant="inset"
+                  label="All payers submitted"
+                  value={String(insurance.preAuthsSubmitted)}
+                  note={`ClaimType PreAuth · date sent · ${periodLabel}`}
+                />
+                <ComboStat
+                  variant="inset"
+                  label="Approved"
+                  value={String(insurance.preAuthsApproved)}
+                  note="received"
+                />
+                <ComboStat
+                  variant="inset"
+                  label="Pending"
+                  value={String(insurance.preAuthsPending)}
+                  note="sent / hold / waiting"
+                />
+                <ComboStat
+                  variant="inset"
+                  label="Approval rate"
+                  value={
+                    insurance.preAuthApprovalRate != null
+                      ? formatPct(insurance.preAuthApprovalRate)
+                      : "—"
+                  }
+                  target="≥80%"
+                />
+              </div>
+            </>
           ) : (
             <EmptyState
-              title="No SC pre-authorizations in range"
-              description="Medicaid PreAuth claims (ClaimType PreAuth) with date sent in this period will appear here."
+              title="No pre-authorizations in range"
+              description={`No Open Dental PreAuth claims (date sent) for ${periodLabel}. SC billing may use authorizations on standard claims instead of ClaimType PreAuth.`}
             />
           )}
         </Card>

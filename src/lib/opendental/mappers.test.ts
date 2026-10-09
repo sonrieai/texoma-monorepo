@@ -136,7 +136,7 @@ describe("opendental mappers", () => {
     assert.equal(plan.procedures?.[0]?.status, "Complete");
   });
 
-  it("normalizes guarantor total from aging when EstBalance is negative", () => {
+  it("keeps a credit guarantor balance out of total AR", () => {
     const row = mapOdGuarantorBalance({
       PatNum: 1,
       Bal_0_30: 100,
@@ -147,7 +147,22 @@ describe("opendental mappers", () => {
       TotBal: -1000,
       EstBalance: -1000,
     });
-    assert.equal(row.total_balance?.amount, "250.00");
+    assert.equal(row.total_balance?.amount, "0.00");
+    assert.equal(row.total_balance_over_90?.amount, "75.00");
+  });
+
+  it("uses positive BalTotal for total AR", () => {
+    const row = mapOdGuarantorBalance({
+      PatNum: 2,
+      Bal_0_30: 10,
+      Bal_31_60: 0,
+      Bal_61_90: 0,
+      BalOver90: 5,
+      InsEst: 0,
+      TotBal: 40,
+      EstBalance: 12,
+    });
+    assert.equal(row.total_balance?.amount, "40.00");
   });
 
   it("maps paysplits and claims", () => {
@@ -239,6 +254,29 @@ describe("opendental mappers", () => {
       }),
       true,
     );
+    assert.equal(
+      odClaimNeedsCorrection({
+        ClaimNum: 3,
+        PatNum: 1,
+        PlanNum: 1,
+        ClaimStatus: "R",
+        ClaimType: "P",
+        DateService: "2026-01-01",
+        DateSent: "2026-02-01",
+        DateSentOrig: "2026-02-01",
+        DateReceived: "2026-02-10",
+        DateResent: "0001-01-01",
+        ClaimFee: 0,
+        InsPayEst: 0,
+        InsPayAmt: 0,
+        WriteOff: 0,
+        CorrectionType: 0,
+        ProvTreat: 1,
+        ClinicNum: 0,
+        DateTStamp: null,
+      }),
+      false,
+    );
   });
 
   it("maps patient geo + carrier without requiring PHI in warehouse", () => {
@@ -260,6 +298,7 @@ describe("opendental mappers", () => {
       "SoonerCare",
     );
     assert.equal(patient.id, 12);
+    assert.equal(patient.guarantor_id, 12);
     assert.equal(patient.inactive, false);
     assert.equal((patient.bio as { city?: string }).city, "Sherman");
     assert.deepEqual(patient.insurance_plans, [
@@ -271,6 +310,9 @@ describe("opendental mappers", () => {
     assert.equal(odDateToYmd("2024-05-06"), "2024-05-06");
     assert.ok(odDateToIso("2024-05-06 12:30:00")?.startsWith("2024-05-06T"));
     assert.equal(odDateToIso("0000-00-00"), null);
+    assert.equal(odDateToIso("0001-01-01"), null);
+    assert.equal(odDateToIso(new Date(Date.UTC(1901, 0, 1))), null);
+    assert.equal(odDateToYmd("0001-01-01"), null);
   });
 });
 

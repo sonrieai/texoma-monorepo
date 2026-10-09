@@ -16,6 +16,7 @@ import {
   buildProviderProductionCategoryDonutSlices,
   providerProductionCategoryDonutTotalCents,
 } from "@/lib/warehouse/production-category-donut";
+import { normalizeToCockpitDisplayCategory } from "@/lib/charts/cockpit-display-categories";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 
 const SAME_DAY_NP_TARGET = 0.3;
@@ -34,11 +35,7 @@ function sumCategoryProductionCents(
   );
 }
 
-const RESTORATIVE_CATEGORIES = new Set([
-  "Restorative Dentistry",
-  "Restorative",
-  "Hygiene",
-]);
+const RESTORATIVE_SLICES = new Set(["Hygiene", "Restorative Dentistry"]);
 
 function DoctorComboStack({
   title,
@@ -57,11 +54,16 @@ function DoctorComboStack({
 function toRestorativeSlices(
   rows: LiveProviderRow["production"]["productionByCategory"],
 ): { label: string; value: number }[] {
-  return rows
-    .filter((r) => RESTORATIVE_CATEGORIES.has(r.category) && r.productionCents > 0)
-    .map((r) => ({
-      label: r.category === "Restorative" ? "Restorative" : r.category,
-      value: centsToDollars(r.productionCents),
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const bucket = normalizeToCockpitDisplayCategory(row.category);
+    if (!RESTORATIVE_SLICES.has(bucket) || row.productionCents <= 0) continue;
+    totals.set(bucket, (totals.get(bucket) ?? 0) + row.productionCents);
+  }
+  return [...totals.entries()]
+    .map(([label, cents]) => ({
+      label,
+      value: centsToDollars(cents),
     }))
     .sort((a, b) => b.value - a.value);
 }
@@ -131,7 +133,7 @@ export function DoctorCockpitMetrics({
               variant="inset"
               label="SC NP's seen"
               value={String(provider.scNpSeen)}
-              note="SoonerCare consult shows"
+              note="SoonerCare new patients"
             />
             <ComboStat
               variant="inset"

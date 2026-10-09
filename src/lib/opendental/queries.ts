@@ -14,6 +14,7 @@ import {
   type OdAdjustmentRow,
   type OdAppointmentRow,
   type OdAppointmentTypeRow,
+  type OdClaimProcRow,
   type OdClaimRow,
   type OdDefinitionRow,
   type OdGuarantorBalanceRow,
@@ -70,7 +71,7 @@ export async function listOdAppointments(
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT AptNum, PatNum, ProvNum, AptStatus, AptDateTime, Confirmed,
             AppointmentTypeNum, ClinicNum, DateTStamp,
-            DateTimeArrived, DateTimeDismissed
+            DateTimeArrived, DateTimeDismissed, IsNewPatient
      FROM appointment
      WHERE AptDateTime >= ? AND AptDateTime <= ?${clinicClause}
      ORDER BY AptNum`,
@@ -90,7 +91,7 @@ export async function listOdPatients(
   }
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT PatNum, Guarantor, FName, LName, City, State, Zip, Birthdate,
-            PatStatus, ClinicNum, DateTStamp, PriProv
+            PatStatus, ClinicNum, DateTStamp, PriProv, DateFirstVisit
      FROM patient
      ${where}
      ORDER BY PatNum`,
@@ -211,6 +212,7 @@ export async function listOdAdjustments(
 
 export async function listOdTreatPlans(
   updatedSince?: string | null,
+  completedProcWindow?: OdDateWindow | null,
 ): Promise<OdTreatPlanRow[]> {
   const filterCol =
     (await odPickColumn("treatplan", "DateTStamp", "DateTP")) ?? "DateTP";
@@ -219,7 +221,21 @@ export async function listOdTreatPlans(
     : `${filterCol} AS DateTStamp`;
   const params: unknown[] = [];
   let where = "WHERE 1=1";
-  if (updatedSince) {
+  if (updatedSince && completedProcWindow) {
+    where = `WHERE (${filterCol} >= ? OR TreatPlanNum IN (
+      SELECT pt.TreatPlanNum
+      FROM proctp pt
+      INNER JOIN procedurelog pl
+        ON pl.ProcNum = pt.ProcNumOrig AND pt.ProcNumOrig > 0
+      WHERE pl.ProcStatus = 2
+        AND pl.ProcDate >= ? AND pl.ProcDate <= ?
+    ))`;
+    params.push(
+      updatedSince.replace("T", " ").replace("Z", "").slice(0, 19),
+      completedProcWindow.startYmd,
+      completedProcWindow.endYmd,
+    );
+  } else if (updatedSince) {
     where += ` AND ${filterCol} >= ?`;
     params.push(updatedSince.replace("T", " ").replace("Z", "").slice(0, 19));
   }
@@ -247,7 +263,7 @@ export async function listOdProcTps(
       `SELECT pt.ProcTPNum, pt.TreatPlanNum, pt.PatNum, pt.ProcNumOrig, pt.ProcCode,
               pt.Descript, pt.FeeAmt, pt.Priority,
               pl.ProcStatus AS LogProcStatus, pl.ProcDate AS LogProcDate,
-              pl.DateComplete AS LogDateComplete
+              pl.DateComplete AS LogDateComplete, pl.ProcFee AS LogProcFee
        FROM proctp pt
        LEFT JOIN procedurelog pl ON pl.ProcNum = pt.ProcNumOrig AND pt.ProcNumOrig > 0
        WHERE pt.TreatPlanNum IN (${placeholders})
@@ -288,6 +304,31 @@ export async function listOdClaims(
     params,
   );
   return asRows<OdClaimRow>(rows);
+}
+
+/** Received and supplemental claim lines. Insurance pay and write-off live here, not on the claim header. */
+export async function listOdClaimProcs(
+  window: OdDateWindow,
+  clinicNums?: number[],
+): Promise<OdClaimProcRow[]> {
+  const params: unknown[] = [window.startYmd, window.endYmd];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0 && (await odHasColumn("claimproc", "ClinicNum"))) {
+    clinicClause = ` AND ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT cp.ClaimProcNum, cp.PatNum, cp.ProvNum, cp.Status, cp.InsPayAmt,
+            cp.WriteOff, cp.DateCP, c.CarrierName
+     FROM claimproc cp
+     LEFT JOIN insplan ip ON ip.PlanNum = cp.PlanNum
+     LEFT JOIN carrier c ON c.CarrierNum = ip.CarrierNum
+     WHERE cp.Status IN (1, 4)
+       AND cp.DateCP >= ? AND cp.DateCP <= ?${clinicClause.replaceAll("ClinicNum", "cp.ClinicNum")}
+     ORDER BY cp.ClaimProcNum`,
+    params,
+  );
+  return asRows<OdClaimProcRow>(rows);
 }
 
 export async function listOdInsPlans(): Promise<OdInsPlanRow[]> {

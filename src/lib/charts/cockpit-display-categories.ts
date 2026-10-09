@@ -28,6 +28,9 @@ const PRIMARY_SET = new Set<string>(COCKPIT_PRIMARY_CATEGORY_NAMES);
 /** Map warehouse / OD labels into a cockpit primary bucket (or Other). */
 const CATEGORY_ALIASES: Record<string, (typeof COCKPIT_PRIMARY_CATEGORY_NAMES)[number] | typeof COCKPIT_OTHER_CATEGORY> = {
   Restorative: "Restorative Dentistry",
+  Cleanings: "Hygiene",
+  Fillings: "Restorative Dentistry",
+  "Crown & Bridge": "Restorative Dentistry",
   "Fixed (All-on-4)": "Other",
   "Other Surgery": "Other",
   Uncategorized: "Other",

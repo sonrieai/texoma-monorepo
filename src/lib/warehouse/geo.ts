@@ -9,8 +9,11 @@ import { isOpenDentalMysqlConfigured } from "@/lib/opendental/config";
 import {
   aggregateProductionCentsByCity,
   TEXOMA_REGION_COUNTY_COUNT,
+  UNKNOWN_ADDRESS_LABEL,
   type PatientCityRow,
 } from "@/lib/warehouse/geo-production";
+
+export { UNKNOWN_ADDRESS_LABEL };
 import {
   cityLabel,
   formatGeocodeQuery,
@@ -120,27 +123,14 @@ export async function loadGeoSummary(
     hasGeocodableAddress(addressFromIndex(p)),
   );
 
-  if (withAddress.length === 0) {
+  if (withAddress.length === 0 && patients.length > 0) {
     notices.push("No city/state/ZIP on patient records in Open Dental.");
-    return {
-      available: true,
-      cities: [],
-      mapCities: [],
-      totalPatients: patients.length,
-      patientsWithAddress: 0,
-      patientsGeocoded: 0,
-      geocodeLookups: 0,
-      totalProductionCents: 0,
-      countiesReached: 0,
-      regionCountyCount: TEXOMA_REGION_COUNTY_COUNT,
-      notices,
-    };
   }
 
   let productionByCity = new Map<string, number>();
   if (snapshot) {
     productionByCity = aggregateProductionCentsByCity(
-      withAddress,
+      patients,
       snapshot.charges,
       range,
     );
@@ -148,10 +138,9 @@ export async function loadGeoSummary(
 
   const byCity = new Map<string, CityAgg>();
 
-  for (const p of withAddress) {
+  for (const p of patients) {
     const addr = addressFromIndex(p);
-    const label = cityLabel(addr);
-    if (!label) continue;
+    const label = cityLabel(addr) ?? UNKNOWN_ADDRESS_LABEL;
 
     let row = byCity.get(label);
     if (!row) {
@@ -162,7 +151,8 @@ export async function loadGeoSummary(
         latSum: 0,
         lonSum: 0,
         coordCount: 0,
-        sampleQuery: formatGeocodeQuery(addr),
+        sampleQuery:
+          label === UNKNOWN_ADDRESS_LABEL ? null : formatGeocodeQuery(addr),
       };
       byCity.set(label, row);
     }
@@ -222,6 +212,12 @@ export async function loadGeoSummary(
   notices.push(
     `${withAddress.length} patients with city/ZIP · ${mapCities.length} cities on map (${geocodeHits} city keys geocoded).`,
   );
+  const unknownPatients = byCity.get(UNKNOWN_ADDRESS_LABEL)?.patients ?? 0;
+  if (unknownPatients > 0) {
+    notices.push(
+      `${unknownPatients} patients have no city, state, or ZIP in Open Dental. Their production is listed as Unknown address.`,
+    );
+  }
   if (withAddress.length > 0 && mapCities.length === 0) {
     notices.push(
       "City/state present but geocoding returned no matches — verify city/state/ZIP.",

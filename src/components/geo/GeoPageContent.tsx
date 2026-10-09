@@ -8,6 +8,7 @@ import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/States";
 import { centsToDollars, formatUsd } from "@/lib/metrics";
 import type { GeoSummary } from "@/lib/warehouse/geo";
+import { UNKNOWN_ADDRESS_LABEL } from "@/lib/warehouse/geo-production";
 import type { GeoCity } from "@/lib/types/viz";
 import { GEO_CITY_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
 
@@ -47,6 +48,7 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
 
   const trackedPatients = rows.reduce((sum, r) => sum + r.patients, 0);
   const trackedProduction = centsToDollars(geo.totalProductionCents);
+  const cityCount = rows.filter((row) => row.city !== UNKNOWN_ADDRESS_LABEL).length;
 
   return (
     <>
@@ -62,13 +64,13 @@ export function GeoPageContent({ geo }: { geo: GeoSummary }) {
         <ComboStat
           label="Patients (tracked)"
           value={String(trackedPatients)}
-          note={`across ${rows.length} cities`}
+          note={`across ${cityCount} cities`}
           size="lg"
         />
         <ComboStat
           label="Production (tracked)"
           value={formatUsd(trackedProduction)}
-          note="mapped areas"
+          note="includes unknown address"
           size="lg"
         />
         <ComboStat

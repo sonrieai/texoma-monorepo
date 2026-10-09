@@ -3,6 +3,7 @@
  * PHI-safe aggregates only (counts, cents, payer names).
  */
 
+import type { ClaimProcLine } from "@/lib/opendental/mappers";
 import {
   moneyToCents,
   type ClaimRecord,
@@ -10,9 +11,7 @@ import {
   type InsurancePlanRecord,
 } from "@/lib/warehouse/types";
 import type { ArAgingBuckets } from "@/lib/warehouse/ar";
-
-const SOONERCARE_PLAN =
-  /\b(sooner\s*care|soonercare|medicaid|ohca)\b/i;
+import { isSoonerCareCarrier } from "@/lib/warehouse/sc-production";
 
 const DAYS_IN_AR_MIDPOINTS = {
   under30: 15,
@@ -139,8 +138,8 @@ export function emptyInsuranceMetrics(notices: string[] = []): InsuranceMetrics 
 /** Open Dental Outstanding / Manage Claims “Date Range Applies To: Date Sent”. */
 function claimSentYmd(claim: ClaimRecord): string | null {
   const sent = claim.sent_at?.slice(0, 10);
-  if (sent) return sent;
-  return claim.date_of_service?.slice(0, 10) || null;
+  if (sent && sent > "0001-01-01") return sent;
+  return null;
 }
 
 function isPaidStatus(status: string): boolean {
@@ -203,7 +202,28 @@ function normalizeStatus(status: string | null | undefined): string {
 }
 
 function isSoonerCarePlan(name: string | null | undefined): boolean {
-  return Boolean(name && SOONERCARE_PLAN.test(name));
+  return isSoonerCareCarrier(name);
+}
+
+function isSoonerCarePatient(
+  patientId: number | null | undefined,
+  soonercarePatientIds: ReadonlySet<number> | undefined,
+): boolean {
+  return (
+    typeof patientId === "number" &&
+    Boolean(soonercarePatientIds?.has(patientId))
+  );
+}
+
+function isSoonerCareClaimContext(
+  claim: ClaimRecord,
+  planLabel: string | null,
+  soonercarePatientIds: ReadonlySet<number> | undefined,
+): boolean {
+  return (
+    isSoonerCarePlan(planLabel) ||
+    isSoonerCarePatient(claim.patient_id, soonercarePatientIds)
+  );
 }
 
 /** Claim credits (estimate, payment, write-off) are often negative. */
@@ -308,6 +328,10 @@ export function summarizeInsuranceMetrics(input: {
   claims: ClaimRecord[];
   balances: InsuranceBalanceRecord[];
   plans: InsurancePlanRecord[];
+  /** Primary-carrier SoonerCare / Medicaid patients (for PreAuth attribution). */
+  soonercarePatientIds?: ReadonlySet<number>;
+  /** claimproc lines. Insurance collected and write-off use these amounts. */
+  claimProcs?: ClaimProcLine[];
   now?: Date;
 }): InsuranceMetrics {
   const notices: string[] = [];
@@ -360,7 +384,11 @@ export function summarizeInsuranceMetrics(input: {
     const planId = claim.primary_insurance_plan_id;
     const planLabel =
       typeof planId === "number" ? planName.get(planId) ?? null : null;
-    const soonercare = isSoonerCarePlan(planLabel);
+    const soonercare = isSoonerCareClaimContext(
+      claim,
+      planLabel,
+      input.soonercarePatientIds,
+    );
 
     if (isPreAuthClaim(claim)) {
       preAuthsSubmitted += 1;
@@ -439,11 +467,9 @@ export function summarizeInsuranceMetrics(input: {
     outstanding.d60Cents +
     outstanding.d90Cents;
 
-  if (outstandingTotalCents > 0) {
+  if (insuranceArCents <= 0 && outstandingTotalCents > 0) {
     aging = outstandingClaimAgingToArBuckets(outstanding);
     insuranceArCents = outstandingTotalCents;
-  } else if (insuranceArCents <= 0) {
-    insuranceArCents = agingBucketTotal(aging);
   }
 
   const claimsAvailable = claims.length > 0;
@@ -457,6 +483,18 @@ export function summarizeInsuranceMetrics(input: {
     notices.push(
       "Insurance AR aging uses guarantor estimates until insurance balances sync.",
     );
+  }
+
+  if (input.claimProcs && input.claimProcs.length > 0) {
+    collectedCents = 0;
+    writeOffCents = 0;
+    for (const line of input.claimProcs) {
+      if (line.status !== 1 && line.status !== 4) continue;
+      if (!inYmdRange(line.dateCp, input.fromYmd, input.toYmd)) continue;
+      const paid = moneyToCents(line.insPay);
+      if (paid > 0) collectedCents += paid;
+      writeOffCents += Math.abs(moneyToCents(line.writeOff));
+    }
   }
 
   const payerMix = [...payerCents.entries()]

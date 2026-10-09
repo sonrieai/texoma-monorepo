@@ -1,6 +1,7 @@
 import type { ClaimRecord, PaymentRecord } from "@/lib/warehouse/types";
 import { moneyToCents } from "@/lib/warehouse/types";
 import { inYmdRange } from "@/lib/warehouse/conversion";
+import { isSoonerCareCarrier } from "@/lib/warehouse/sc-production";
 
 export type PaymentMixBucket = "cash" | "insurance" | "financed" | "soonercare";
 
@@ -182,6 +183,60 @@ export function supplementInsurancePaymentMixFromClaims(
       totalCents: mix.totalCents + delta,
     },
     supplementedCents: delta,
+  };
+}
+
+/** Insurance dollars from claimproc.InsPayAmt (Status Received or Supplemental). */
+export function applyClaimProcInsurance(
+  mix: PaymentMix,
+  lines: Array<{ status: number; insPay: { amount: string }; dateCp: string | null }>,
+  fromYmd: string,
+  toYmd: string,
+): PaymentMix {
+  let insurance = 0;
+  for (const line of lines) {
+    if (line.status !== 1 && line.status !== 4) continue;
+    if (!inYmdRange(line.dateCp, fromYmd, toYmd)) continue;
+    const cents = moneyToCents(line.insPay);
+    if (cents > 0) insurance += cents;
+  }
+  if (insurance <= mix.insurance) return mix;
+  return {
+    ...mix,
+    insurance,
+    totalCents: mix.totalCents + (insurance - mix.insurance),
+  };
+}
+
+/**
+ * SoonerCare / OHCA insurance dollars from claimproc carrier names.
+ * Those dollars stay out of the general insurance bucket.
+ * Patient PayType rows already in soonercare are kept.
+ */
+export function applyClaimProcSoonerCare(
+  mix: PaymentMix,
+  lines: Array<{
+    status: number;
+    insPay: { amount: string };
+    dateCp: string | null;
+    carrierName?: string | null;
+  }>,
+  fromYmd: string,
+  toYmd: string,
+): PaymentMix {
+  let claimSoonercare = 0;
+  for (const line of lines) {
+    if (line.status !== 1 && line.status !== 4) continue;
+    if (!inYmdRange(line.dateCp, fromYmd, toYmd)) continue;
+    if (!isSoonerCareCarrier(line.carrierName)) continue;
+    const cents = moneyToCents(line.insPay);
+    if (cents > 0) claimSoonercare += cents;
+  }
+  if (claimSoonercare <= 0) return mix;
+  return {
+    ...mix,
+    soonercare: mix.soonercare + claimSoonercare,
+    insurance: Math.max(0, mix.insurance - claimSoonercare),
   };
 }
 

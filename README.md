@@ -8,13 +8,13 @@ Custom KPI dashboard for Texoma implant / denture practices.
 
 The official Open Dental trial can be restored to local MySQL for development.
 Production access should use a SELECT-only database account on the office LAN
-(or VPN). MongoDB is used only for dashboard login and GHL settings.
+(or VPN). Login users and saved GHL settings live in a local JSON file (`data/store.json`).
 
 ## Quick start (laptop)
 
 ```bash
 npm install
-cp .env.example .env.local   # OD_MYSQL_* required; MONGODB_URI for login
+cp .env.example .env.local   # OD_MYSQL_* required; AUTH_* for login
 # Trial: match Choose Database (often localhost / root / demo) — see docs/LOCAL_OPENDENTAL.md
 npm run probe:opendental-mysql
 npm run validate:opendental  # optional PHI-safe snapshot sanity

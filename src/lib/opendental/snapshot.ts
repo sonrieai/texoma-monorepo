@@ -49,6 +49,9 @@ import {
 import {
   buildPrimaryCarrierMap,
   mapOdAdjTypeDefinition,
+  mapOdClaimProc,
+  odDateToYmd,
+  type ClaimProcLine,
   mapOdAdjustment,
   mapOdAppointment,
   mapOdAppointmentType,
@@ -69,6 +72,7 @@ import {
   listOdAdjustments,
   listOdAppointmentTypes,
   listOdAppointments,
+  listOdClaimProcs,
   listOdClaims,
   listOdGuarantorBalances,
   listOdInsPlans,
@@ -111,6 +115,7 @@ export type OpenDentalSnapshot = {
   treatmentPlans: TreatmentPlanRecord[];
   guarantorBalances: GuarantorBalanceRecord[];
   claims: ClaimRecord[];
+  claimProcs: ClaimProcLine[];
   insuranceBalances: InsuranceBalanceRecord[];
   insurancePlans: InsurancePlanRecord[];
   patients: SlimPatientIndex[];
@@ -184,6 +189,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     treatPlanRows,
     guarantorRows,
     claimRows,
+    claimProcRows,
     insPlanRows,
     patientRows,
     primaryPlans,
@@ -198,9 +204,10 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     listOdPaySplits(ledger, clinicNums),
     listOdAdjustments(ledger, clinicNums),
     listOdAdjTypeDefinitions(),
-    listOdTreatPlans(treatPlanSince),
+    listOdTreatPlans(treatPlanSince, ledger),
     listOdGuarantorBalances(),
     listOdClaims(ledger, clinicNums),
+    listOdClaimProcs(ledger, clinicNums),
     listOdInsPlans(),
     listOdPatients(),
     listOdPrimaryPatPlans(),
@@ -258,16 +265,21 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     if (charge) charges.push(charge);
   }
 
-  const inferredConsultTypes = new Set(
-    inferNpConsultAppointmentTypeIds(appointments, procedures, cdt),
-  );
   const appointmentTypes = appointmentTypeRows.map(mapOdAppointmentType);
+  const namedConsultTypes = appointmentTypes.some((type) =>
+    inferNpConsultAppointmentTypeFromName(type.name),
+  );
+  const inferredConsultTypes = namedConsultTypes
+    ? new Set<number>()
+    : new Set(
+        inferNpConsultAppointmentTypeIds(appointments, procedures, cdt),
+      );
   const appointmentTypeDocs: NpConsultTypeDoc[] = appointmentTypes.map(
     (type) => ({
       sourceId: type.id,
-      isNpConsult:
-        inferredConsultTypes.has(type.id) ||
-        inferNpConsultAppointmentTypeFromName(type.name),
+      isNpConsult: namedConsultTypes
+        ? inferNpConsultAppointmentTypeFromName(type.name)
+        : inferredConsultTypes.has(type.id),
     }),
   );
 
@@ -277,9 +289,11 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
   );
   const bySourceId = indexPatientsForPhiStrip(patientRecords);
   const patients: SlimPatientIndex[] = [];
-  for (const record of patientRecords) {
-    const slim = stripPhiFromPatientRecord(record, bySourceId);
-    if (slim) patients.push(slim);
+  for (let i = 0; i < patientRecords.length; i += 1) {
+    const slim = stripPhiFromPatientRecord(patientRecords[i], bySourceId);
+    if (!slim) continue;
+    slim.dateFirstVisit = odDateToYmd(patientRows[i]?.DateFirstVisit);
+    patients.push(slim);
   }
 
   return {
@@ -311,6 +325,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     ),
     guarantorBalances: guarantorRows.map(mapOdGuarantorBalance),
     claims: claimRows.map(mapOdClaim),
+    claimProcs: claimProcRows.map(mapOdClaimProc),
     insuranceBalances: guarantorRows.map(mapOdInsuranceBalance),
     insurancePlans: insPlanRows.map(mapOdInsPlan),
     patients,
@@ -321,7 +336,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
   };
 }
 
-/** Reuse snapshot across navigations (dev/prod) without stale data for too long. */
+/** Reuse one mapped snapshot across navigations. Empty OD dates are dropped before this cache is filled. */
 const SNAPSHOT_TTL_MS = 3 * 60 * 1000;
 let snapshotModuleCache: {
   snapshot: OpenDentalSnapshot;

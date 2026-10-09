@@ -175,7 +175,7 @@ describe("summarizeProductionFromLedger periodTrend", () => {
 });
 
 describe("summarizeProductionFromLedger collections", () => {
-  it("excludes negative payment reversals from collection ratio (matches payment-mix)", () => {
+  it("nets payment reversals into collections", () => {
     const summary = summarizeProductionFromLedger({
       fromYmd: "2025-12-01",
       toYmd: "2026-01-31",
@@ -209,11 +209,7 @@ describe("summarizeProductionFromLedger collections", () => {
       adjustments: [],
     });
 
-    assert.equal(summary.collectionsCents, 0);
-    assert.equal(summary.collectionRatio, 0);
-    assert.match(
-      summary.notices.join(" "),
-      /reversals\/credits/i,
-    );
+    assert.equal(summary.collectionsCents, -15_500);
+    assert.ok(summary.collectionRatio != null && summary.collectionRatio < 0);
   });
 });

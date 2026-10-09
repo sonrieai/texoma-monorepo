@@ -1,64 +1,56 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { verifyLogin } from "@/lib/auth/credentials";
 import { hashPassword, verifyPasswordHash } from "@/lib/auth/password";
 import { createSignedResetToken, getResetTokenTtlMs } from "@/lib/auth/reset-token";
 import {
-  AUTH_COLLECTIONS,
+  deleteAuthRecordsByEmail,
   findDashboardUserByEmail,
   findPasswordResetByToken,
   insertPasswordResetRecord,
   markPasswordResetUsed,
+  saveDashboardUser,
   updateDashboardUserPassword,
 } from "@/lib/auth/users";
-import { closeMongoClient, getDb, isMongoConfigured } from "@/lib/mongo/client";
 
 const TEST_EMAIL = "texoma-auth-test@example.com";
 const TEST_PASSWORD = "TestPass1!";
 const NEW_PASSWORD = "TestPass2!";
 const TEST_USER_ID = "texoma-auth-test-user";
 
-const mongoConfigured = isMongoConfigured();
+describe("auth flow (JSON store)", () => {
+  let storeDir = "";
 
-describe("auth flow (MongoDB integration)", { skip: !mongoConfigured }, () => {
   before(async () => {
     process.env.AUTH_SESSION_SECRET ??=
       "integration-test-session-secret-32chars-min";
     process.env.RESET_TOKEN_SECRET ??=
       "integration-test-reset-secret-32chars-min";
 
-    const db = await getDb();
-    await db.collection(AUTH_COLLECTIONS.dashboardUsers).deleteMany({
-      email: TEST_EMAIL,
-    });
-    await db.collection(AUTH_COLLECTIONS.passwordResets).deleteMany({
-      email: TEST_EMAIL,
-    });
+    storeDir = await mkdtemp(path.join(tmpdir(), "texoma-auth-"));
+    process.env.JSON_STORE_PATH = path.join(storeDir, "store.json");
 
-    await db.collection(AUTH_COLLECTIONS.dashboardUsers).insertOne({
+    const now = new Date();
+    await saveDashboardUser({
       id: TEST_USER_ID,
       username: "auth-test",
       email: TEST_EMAIL,
       passwordHash: hashPassword(TEST_PASSWORD),
       isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
     });
   });
 
   after(async () => {
-    const db = await getDb();
-    await db.collection(AUTH_COLLECTIONS.dashboardUsers).deleteMany({
-      email: TEST_EMAIL,
-    });
-    await db.collection(AUTH_COLLECTIONS.passwordResets).deleteMany({
-      email: TEST_EMAIL,
-    });
-    await closeMongoClient();
+    await deleteAuthRecordsByEmail(TEST_EMAIL);
+    if (storeDir) await rm(storeDir, { recursive: true, force: true });
   });
 
-  it("logs in with a valid email and password from MongoDB", async () => {
+  it("logs in with a valid email and password from the JSON store", async () => {
     const result = await verifyLogin(TEST_EMAIL, TEST_PASSWORD);
     assert.ok(result);
     assert.equal(result.email, TEST_EMAIL);

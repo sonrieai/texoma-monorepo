@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Authentication is not configured. Set AUTH_SESSION_SECRET and MongoDB.",
+        error: "Authentication is not configured. Set AUTH_SESSION_SECRET.",
       },
       { status: 503 },
     );

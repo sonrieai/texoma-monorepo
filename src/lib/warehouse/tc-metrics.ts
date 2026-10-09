@@ -20,6 +20,7 @@ import {
 } from "@/lib/warehouse/types";
 import type { ConversionSummary } from "@/lib/warehouse/conversion";
 import {
+  appointmentHasNewPatientFlag,
   buildConsultProcedureDays,
   inYmdRange,
   isConsultAppointment,
@@ -271,6 +272,7 @@ export function summarizeTcMetrics(params: {
   conversion: ConversionSummary;
   cdt?: CdtLookup;
   coordinator?: TcCoordinator;
+  soonercarePatientIds?: ReadonlySet<number>;
 }): TcMetrics {
   const notices: string[] = [];
   const coordinator = params.coordinator;
@@ -345,25 +347,39 @@ export function summarizeTcMetrics(params: {
         consultShowYmdByPatient.set(appt.patient_id, ymd);
       }
       consultShowPatients.add(appt.patient_id);
-      if (SOONERCARE_PATTERN.test(apptSoonercareHaystack(appt, typeCatalog))) {
+      if (
+        !appointmentHasNewPatientFlag(appointments) &&
+        SOONERCARE_PATTERN.test(apptSoonercareHaystack(appt, typeCatalog))
+      ) {
         scNpSeen += 1;
       }
     }
+    if (
+      appointmentHasNewPatientFlag(appointments) &&
+      appt.is_new_patient === true &&
+      mapConversionAttendance(appt) === "show" &&
+      typeof appt.patient_id === "number" &&
+      params.soonercarePatientIds?.has(appt.patient_id)
+    ) {
+      scNpSeen += 1;
+    }
   }
 
-  for (const proc of params.procedures) {
-    if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
-      continue;
-    }
-    const patientId = procedurePatientId(proc);
-    const ymd = procedureYmd(proc);
-    if (patientId == null || !ymd || !inYmdRange(ymd, params.fromYmd, params.toYmd)) {
-      continue;
-    }
-    consultShowPatients.add(patientId);
-    const prev = consultShowYmdByPatient.get(patientId);
-    if (!prev || ymd < prev) {
-      consultShowYmdByPatient.set(patientId, ymd);
+  if (consultTypeSet.size === 0) {
+    for (const proc of params.procedures) {
+      if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
+        continue;
+      }
+      const patientId = procedurePatientId(proc);
+      const ymd = procedureYmd(proc);
+      if (patientId == null || !ymd || !inYmdRange(ymd, params.fromYmd, params.toYmd)) {
+        continue;
+      }
+      consultShowPatients.add(patientId);
+      const prev = consultShowYmdByPatient.get(patientId);
+      if (!prev || ymd < prev) {
+        consultShowYmdByPatient.set(patientId, ymd);
+      }
     }
   }
 

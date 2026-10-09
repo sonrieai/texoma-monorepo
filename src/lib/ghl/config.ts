@@ -6,7 +6,6 @@ import {
   defaultGhlBaseUrl,
   getGhlIntegrationDoc,
 } from "@/lib/mongo/integration-settings";
-import { isMongoConfigured } from "@/lib/mongo/client";
 
 export type { GhlConfig } from "@/lib/ghl/types";
 
@@ -17,7 +16,7 @@ export class GhlConfigError extends Error {
   }
 }
 
-export type GhlConfigSource = "mongo" | "env";
+export type GhlConfigSource = "json" | "env";
 
 function normalizeBaseUrl(raw: string | undefined | null): string {
   return (raw?.trim() || defaultGhlBaseUrl()).replace(/\/$/, "");
@@ -42,8 +41,7 @@ function getGhlConfigFromEnv(): GhlConfig | null {
   };
 }
 
-async function getGhlConfigFromMongo(): Promise<GhlConfig | null> {
-  if (!isMongoConfigured()) return null;
+async function getGhlConfigFromJson(): Promise<GhlConfig | null> {
   const doc = await getGhlIntegrationDoc();
   if (!doc?.apiKeyEncrypted?.trim() || !doc.locationId?.trim()) return null;
   try {
@@ -61,21 +59,21 @@ async function getGhlConfigFromMongo(): Promise<GhlConfig | null> {
 }
 
 export async function resolveGhlConfigSource(): Promise<GhlConfigSource | null> {
-  const mongo = await getGhlConfigFromMongo();
-  if (mongo) return "mongo";
+  const saved = await getGhlConfigFromJson();
+  if (saved) return "json";
   if (isGhlConfiguredFromEnv()) return "env";
   return null;
 }
 
-/** True when Mongo integration doc or env vars provide GHL credentials. */
+/** True when the JSON settings file or env vars provide GHL credentials. */
 export async function isGhlConfigured(): Promise<boolean> {
   return (await resolveGhlConfigSource()) != null;
 }
 
-/** Mongo-first, then env fallback for local dev. */
+/** Saved JSON settings first, then env fallback. */
 export async function getGhlConfig(): Promise<GhlConfig> {
-  const mongo = await getGhlConfigFromMongo();
-  if (mongo) return mongo;
+  const saved = await getGhlConfigFromJson();
+  if (saved) return saved;
   const env = getGhlConfigFromEnv();
   if (env) return env;
   throw new GhlConfigError(

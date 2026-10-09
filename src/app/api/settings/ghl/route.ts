@@ -7,7 +7,6 @@ import {
 } from "@/lib/ghl/config";
 import { testGhlConnection } from "@/lib/ghl/test-connection";
 import type { GhlConfig } from "@/lib/ghl/types";
-import { isMongoConfigured } from "@/lib/mongo/client";
 import {
   decryptGhlApiKey,
   deleteGhlIntegrationDoc,
@@ -31,7 +30,7 @@ function normalizeBaseUrl(raw: unknown): string {
 
 async function buildStatusPayload() {
   const source = await resolveGhlConfigSource();
-  const mongoDoc = await getGhlIntegrationDoc();
+  const savedDoc = await getGhlIntegrationDoc();
   const envConfigured = isGhlConfiguredFromEnv();
 
   let locationId: string | null = null;
@@ -39,12 +38,12 @@ async function buildStatusPayload() {
   let apiKeyMasked: string | null = null;
   let pipelineCount: number | null = null;
 
-  if (source === "mongo" && mongoDoc) {
-    locationId = mongoDoc.locationId;
-    locationName = mongoDoc.locationName ?? null;
-    pipelineCount = mongoDoc.pipelineCount ?? null;
+  if (source === "json" && savedDoc) {
+    locationId = savedDoc.locationId;
+    locationName = savedDoc.locationName ?? null;
+    pipelineCount = savedDoc.pipelineCount ?? null;
     try {
-      const apiKey = await decryptGhlApiKey(mongoDoc);
+      const apiKey = await decryptGhlApiKey(savedDoc);
       apiKeyMasked = maskApiKey(apiKey);
     } catch {
       apiKeyMasked = "••••";
@@ -59,25 +58,25 @@ async function buildStatusPayload() {
     ok: true,
     configured: source != null,
     source,
-    mongoConfigured: isMongoConfigured(),
+    jsonConfigured: true,
     envConfigured,
     locationId,
     locationName,
     apiKeyMasked,
     baseUrl:
-      mongoDoc?.baseUrl ??
+      savedDoc?.baseUrl ??
       process.env.GHL_BASE_URL?.trim().replace(/\/$/, "") ??
       defaultGhlBaseUrl(),
     sourceCustomFieldId:
-      mongoDoc?.sourceCustomFieldId ??
+      savedDoc?.sourceCustomFieldId ??
       process.env.GHL_SOURCE_CUSTOM_FIELD_ID?.trim() ??
       null,
-    lastTestedAt: mongoDoc?.lastTestedAt ?? null,
-    lastTestOk: mongoDoc?.lastTestOk ?? null,
-    lastTestError: mongoDoc?.lastTestError ?? null,
+    lastTestedAt: savedDoc?.lastTestedAt ?? null,
+    lastTestOk: savedDoc?.lastTestOk ?? null,
+    lastTestError: savedDoc?.lastTestError ?? null,
     pipelineCount,
-    updatedAt: mongoDoc?.updatedAt ?? null,
-    updatedBy: mongoDoc?.updatedBy ?? null,
+    updatedAt: savedDoc?.updatedAt ?? null,
+    updatedBy: savedDoc?.updatedBy ?? null,
   };
 }
 
@@ -96,17 +95,10 @@ type SaveBody = {
   testOnly?: boolean;
 };
 
-/** POST /api/settings/ghl — test and save GHL credentials to MongoDB. */
+/** POST /api/settings/ghl — test and save GHL credentials to the local JSON store. */
 export async function POST(request: Request) {
   const session = await requireStaffSession();
   if (!session) return unauthorized();
-
-  if (!isMongoConfigured()) {
-    return NextResponse.json(
-      { ok: false, error: "MONGODB_URI is not configured" },
-      { status: 503 },
-    );
-  }
 
   let body: SaveBody;
   try {
@@ -194,17 +186,10 @@ export async function POST(request: Request) {
   return NextResponse.json(await buildStatusPayload());
 }
 
-/** DELETE /api/settings/ghl — remove Mongo credentials (env fallback remains). */
+/** DELETE /api/settings/ghl — remove saved JSON credentials (env fallback remains). */
 export async function DELETE() {
   const session = await requireStaffSession();
   if (!session) return unauthorized();
-
-  if (!isMongoConfigured()) {
-    return NextResponse.json(
-      { ok: false, error: "MONGODB_URI is not configured" },
-      { status: 503 },
-    );
-  }
 
   await deleteGhlIntegrationDoc();
   return NextResponse.json(await buildStatusPayload());
@@ -219,18 +204,18 @@ export async function PATCH() {
     const config = await getGhlConfig();
     const test = await testGhlConnection(config);
     const testedAt = new Date().toISOString();
-    const mongoDoc = await getGhlIntegrationDoc();
+    const savedDoc = await getGhlIntegrationDoc();
 
-    if (mongoDoc && (await resolveGhlConfigSource()) === "mongo") {
+    if (savedDoc && (await resolveGhlConfigSource()) === "json") {
       await upsertGhlIntegrationDoc({
-        ...mongoDoc,
+        ...savedDoc,
         lastTestedAt: testedAt,
         lastTestOk: test.ok,
         lastTestError: test.ok ? undefined : test.error,
         pipelineCount: test.pipelineCount,
-        locationName: test.locationName ?? mongoDoc.locationName,
-        updatedAt: mongoDoc.updatedAt,
-        updatedBy: mongoDoc.updatedBy,
+        locationName: test.locationName ?? savedDoc.locationName,
+        updatedAt: savedDoc.updatedAt,
+        updatedBy: savedDoc.updatedBy,
       });
     }
 

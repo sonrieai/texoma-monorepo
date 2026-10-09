@@ -13,7 +13,7 @@ export default function GhlSettingsPage() {
     >
       <NoticeList
         notices={[
-          "Marketing and TC journey pages fetch GHL opportunities live at page load — they are not synced to MongoDB.",
+          "Marketing and TC journey pages fetch GHL opportunities live at page load — they are not copied into the JSON settings file.",
           "Use a Private Integration token with Opportunities read + Ad Publishing read (adPublishing.readonly) for spend/ROI.",
           "Connect Facebook and/or Google ads in GHL so Marketing can fill Total ad spend, ROI, and Cost/arch.",
         ]}

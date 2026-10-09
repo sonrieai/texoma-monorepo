@@ -8,6 +8,11 @@ import {
   mergePatientAddress,
   resolvePatientAddress,
 } from "@/lib/warehouse/patient-address";
+import {
+  aggregateProductionCentsByCity,
+  UNKNOWN_ADDRESS_LABEL,
+} from "@/lib/warehouse/geo-production";
+import type { ChargeRecord } from "@/lib/warehouse/types";
 
 describe("patient address enrichment", () => {
   it("reads city/state/ZIP from source bio (street is not geocoded)", () => {
@@ -82,5 +87,20 @@ describe("patient address enrichment", () => {
     };
     assert.equal(hasGeocodableAddress(streetOnly), false);
     assert.equal(formatGeocodeQuery(streetOnly), null);
+  });
+
+  it("keeps production when city, state, and ZIP are blank", () => {
+    const byCity = aggregateProductionCentsByCity(
+      [{ patientId: 1, city: null, state: null, zip: null }],
+      [
+        {
+          patient_id: 1,
+          fee: { amount: "35.00" },
+          charged_at: "2026-02-01",
+        } as ChargeRecord,
+      ],
+      { start: "2026-01-01", end: "2026-10-09" },
+    );
+    assert.equal(byCity.get(UNKNOWN_ADDRESS_LABEL), 3500);
   });
 });

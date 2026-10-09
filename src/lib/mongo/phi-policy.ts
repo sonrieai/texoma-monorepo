@@ -71,6 +71,8 @@ export type SlimPatientIndex = {
   geoCity: string | null;
   geoState: string | null;
   geoZip: string | null;
+  /** Open Dental patient.DateFirstVisit (YYYY-MM-DD). Not a name or address. */
+  dateFirstVisit: string | null;
 };
 
 export function omitPhiKeys<T extends Record<string, unknown>>(raw: T): T {
@@ -115,6 +117,7 @@ export function stripPhiFromPatientRecord(
     geoCity: addr.city,
     geoState: addr.state,
     geoZip: addr.postalCode,
+    dateFirstVisit: null,
   };
 }
 

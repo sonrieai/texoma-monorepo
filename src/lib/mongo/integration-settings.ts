@@ -6,11 +6,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
-import {
-  COLLECTIONS,
-  getCollection,
-  isMongoConfigured,
-} from "@/lib/mongo/client";
+import { readJsonStore, updateJsonStore } from "@/lib/store/json-store";
 
 export const GHL_INTEGRATION_ID = "ghl" as const;
 
@@ -84,36 +80,26 @@ export function defaultGhlBaseUrl(): string {
 }
 
 export async function getGhlIntegrationDoc(): Promise<GhlIntegrationDoc | null> {
-  if (!isMongoConfigured()) return null;
-  const col = await getCollection<GhlIntegrationDoc>(
-    COLLECTIONS.integrationSettings,
-  );
-  return col.findOne({ _id: GHL_INTEGRATION_ID });
+  const store = await readJsonStore();
+  return store.ghl;
 }
 
 export async function upsertGhlIntegrationDoc(
   doc: Omit<GhlIntegrationDoc, "_id">,
 ): Promise<void> {
-  if (!isMongoConfigured()) {
-    throw new Error("MONGODB_URI is not configured");
-  }
-  const col = await getCollection<GhlIntegrationDoc>(
-    COLLECTIONS.integrationSettings,
-  );
-  await col.updateOne(
-    { _id: GHL_INTEGRATION_ID },
-    { $set: { _id: GHL_INTEGRATION_ID, ...doc } },
-    { upsert: true },
-  );
+  const saved: GhlIntegrationDoc = { _id: GHL_INTEGRATION_ID, ...doc };
+  await updateJsonStore((store) => {
+    store.ghl = saved;
+  });
 }
 
 export async function deleteGhlIntegrationDoc(): Promise<boolean> {
-  if (!isMongoConfigured()) return false;
-  const col = await getCollection<GhlIntegrationDoc>(
-    COLLECTIONS.integrationSettings,
-  );
-  const result = await col.deleteOne({ _id: GHL_INTEGRATION_ID });
-  return result.deletedCount > 0;
+  const existing = await getGhlIntegrationDoc();
+  if (!existing) return false;
+  await updateJsonStore((store) => {
+    store.ghl = null;
+  });
+  return true;
 }
 
 export async function decryptGhlApiKey(

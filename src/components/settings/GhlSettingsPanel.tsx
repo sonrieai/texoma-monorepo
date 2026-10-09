@@ -8,8 +8,8 @@ import { InlineSpinner } from "@/components/ui/States";
 type GhlStatus = {
   ok: boolean;
   configured: boolean;
-  source: "mongo" | "env" | null;
-  mongoConfigured: boolean;
+  source: "json" | "env" | null;
+  jsonConfigured: boolean;
   envConfigured: boolean;
   locationId: string | null;
   locationName: string | null;
@@ -157,7 +157,7 @@ export function GhlSettingsPanel() {
   async function clearCredentials() {
     if (
       !window.confirm(
-        "Remove saved GoHighLevel credentials from MongoDB? Env vars will still apply if set.",
+        "Remove saved GoHighLevel credentials? Env vars will still apply if set.",
       )
     ) {
       return;
@@ -182,7 +182,6 @@ export function GhlSettingsPanel() {
   }
 
   const canSave =
-    status?.mongoConfigured !== false &&
     locationId.trim().length > 0 &&
     (apiKey.trim().length > 0 || Boolean(status?.apiKeyMasked)) &&
     !saving &&
@@ -202,7 +201,7 @@ export function GhlSettingsPanel() {
           value={loading ? "…" : connectionLabel(status)}
           note={
             status?.source === "env"
-              ? "Using .env fallback — save here for production"
+              ? "Using .env fallback — save here to store them in JSON"
               : status?.locationName ?? status?.locationId ?? "No location"
           }
           status={
@@ -229,19 +228,13 @@ export function GhlSettingsPanel() {
 
       <Card
         title="Credentials"
-        subtitle="Private Integration token and Location ID from your GHL sub-account. Keys are encrypted in MongoDB and never sent back to the browser after save."
+        subtitle="Private Integration token and Location ID from your GHL sub-account. Keys are encrypted in the local JSON store and never sent back to the browser after save."
         className="mb-6"
       >
-        {status?.mongoConfigured === false ? (
-          <p className="mb-3 text-[12px] text-bad">
-            MongoDB is not configured. Set MONGODB_URI before saving credentials
-            here.
-          </p>
-        ) : null}
         {status?.source === "env" ? (
           <p className="mb-3 rounded-lg border border-warn/25 bg-warn/5 px-3 py-2 text-[12px] text-warn">
             Credentials are currently loaded from environment variables. Save
-            below to store them in MongoDB for production admins.
+            below to store them in the local JSON file.
           </p>
         ) : null}
         {status?.lastTestError && status.lastTestOk === false ? (
@@ -347,7 +340,7 @@ export function GhlSettingsPanel() {
           >
             {testing ? "Testing…" : "Test connection"}
           </button>
-          {status?.configured && status.source === "mongo" ? (
+          {status?.configured && status.source === "json" ? (
             <button
               type="button"
               disabled={testing || clearing}
@@ -357,7 +350,7 @@ export function GhlSettingsPanel() {
               Retest saved
             </button>
           ) : null}
-          {status?.source === "mongo" ? (
+          {status?.source === "json" ? (
             <button
               type="button"
               disabled={clearing || saving}

@@ -18,6 +18,9 @@ describe("normalizeToCockpitDisplayCategory", () => {
 
   it("maps aliases and unknown categories to Other", () => {
     assert.equal(normalizeToCockpitDisplayCategory("Restorative"), "Restorative Dentistry");
+    assert.equal(normalizeToCockpitDisplayCategory("Cleanings"), "Hygiene");
+    assert.equal(normalizeToCockpitDisplayCategory("Fillings"), "Restorative Dentistry");
+    assert.equal(normalizeToCockpitDisplayCategory("Crown & Bridge"), "Restorative Dentistry");
     assert.equal(normalizeToCockpitDisplayCategory("Fixed (All-on-4)"), "Other");
     assert.equal(normalizeToCockpitDisplayCategory("Category 377"), "Other");
   });

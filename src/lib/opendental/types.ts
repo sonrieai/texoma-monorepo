@@ -31,6 +31,7 @@ export type OdAppointmentRow = {
   DateTStamp: Date | string | null;
   DateTimeArrived: Date | string | null;
   DateTimeDismissed: Date | string | null;
+  IsNewPatient?: number | boolean | null;
 };
 
 export type OdPatientRow = {
@@ -46,6 +47,7 @@ export type OdPatientRow = {
   ClinicNum: number | null;
   DateTStamp: Date | string | null;
   PriProv: number | null;
+  DateFirstVisit?: Date | string | null;
 };
 
 export type OdProcedureCodeRow = {
@@ -140,6 +142,7 @@ export type OdProcTpRow = {
   LogProcStatus?: number | null;
   LogProcDate?: Date | string | null;
   LogDateComplete?: Date | string | null;
+  LogProcFee?: number | null;
 };
 
 export type OdClaimRow = {
@@ -161,6 +164,18 @@ export type OdClaimRow = {
   ProvTreat: number;
   ClinicNum: number | null;
   DateTStamp: Date | string | null;
+};
+
+/** claimproc line: Status 1 = Received, 4 = Supplemental. */
+export type OdClaimProcRow = {
+  ClaimProcNum: number;
+  PatNum: number;
+  ProvNum: number | null;
+  Status: number;
+  InsPayAmt: number;
+  WriteOff: number;
+  DateCP: Date | string | null;
+  CarrierName?: string | null;
 };
 
 export type OdInsPlanRow = {

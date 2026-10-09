@@ -66,6 +66,22 @@ describe("mapConversionAttendance", () => {
       "no_show",
     );
   });
+
+  it("does not count a confirmed open visit as a show", () => {
+    assert.equal(
+      mapConversionAttendance(
+        appt({
+          id: 8,
+          apt_status: "Scheduled",
+          confirmed: true,
+          patient_confirmed: true,
+          confirmation_status: 21,
+          checkin_at: "2026-08-10T14:05:00+0000",
+        }),
+      ),
+      "unknown",
+    );
+  });
 });
 
 describe("summarizeConversion", () => {
@@ -232,6 +248,43 @@ describe("summarizeConversion", () => {
     });
     assert.equal(summary.npConsultShow, 1);
     assert.equal(summary.sameDayStarts, 1);
+  });
+
+  it("does not add consult procedure days when consult types exist", () => {
+    const cdt = createCdtLookupFromDocs([
+      {
+        code: "N9310",
+        category: "Hygiene",
+        description: "NP Consult",
+        isConsult: true,
+      },
+    ]);
+    const summary = summarizeConversion({
+      fromYmd: "2026-08-01",
+      toYmd: "2026-08-31",
+      appointmentTypes: [consultType],
+      appointmentTypeDocs: [consultTypeDoc],
+      appointments: [
+        appt({
+          id: 1,
+          patient_id: 20,
+          start_time: "2026-08-10T14:00:00+0000",
+          apt_status: "Complete",
+        }),
+      ],
+      procedures: [
+        {
+          id: 9,
+          patient_id: 21,
+          code: "N9310",
+          status: "completed",
+          start_date: "2026-08-12",
+        },
+      ],
+      cdt,
+    });
+    assert.equal(summary.npConsultShow, 1);
+    assert.equal(summary.npConsultBooked, 1);
   });
 
   it("excludes accepted treatment plans that are not fully complete", () => {

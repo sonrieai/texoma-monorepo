@@ -22,7 +22,6 @@ import {
 import { safeRate } from "@/lib/metrics";
 import {
   appointmentTypeId,
-  mapAttendance,
   moneyToCents,
   type AppointmentRecord,
   type AppointmentTypeRecord,
@@ -53,6 +52,10 @@ export type ConversionSummary = {
   npConsultNoShow: number;
   npConsultCancelled: number;
   npConsultShowRate: number | null;
+  /** IsNewPatient visits in range when the flag is loaded; otherwise consult bookings. */
+  newPatientBooked: number;
+  /** IsNewPatient shows when the flag is loaded; otherwise consult shows. */
+  newPatientShows: number;
   /** Consult Complete + same-day sold / first Tx Complete. */
   sameDayStarts: number;
   /** sameDayStarts ÷ npConsultShow (null if no shows). Target ≥30%. */
@@ -72,6 +75,8 @@ export function emptyConversionSummary(): ConversionSummary {
     npConsultNoShow: 0,
     npConsultCancelled: 0,
     npConsultShowRate: null,
+    newPatientBooked: 0,
+    newPatientShows: 0,
     sameDayStarts: 0,
     sameDayStartRate: null,
     tpClosedCents: 0,
@@ -144,16 +149,14 @@ function extractOdConfirmCode(appt: AppointmentRecord): number | null {
 }
 
 /**
- * Consult attendance: OD confirm 66/67 cancel, 69 miss, Complete/Broken,
- * then source flag fallback (`mapAttendance`).
+ * Consult and new-patient attendance from Open Dental AptStatus.
+ * Complete is a show and Broken is a no-show.
+ * Confirm defs 66/67 (cancel) and 69 (no-show) apply only while status is still open.
+ * A confirmed or checked-in visit that is not Complete is not a show.
  */
 export function mapConversionAttendance(
   appt: AppointmentRecord,
 ): "show" | "no_show" | "cancelled" | "unknown" {
-  const od = extractOdConfirmCode(appt);
-  if (od != null && OD_CONFIRM_CANCEL.has(od)) return "cancelled";
-  if (od != null && OD_CONFIRM_NO_SHOW.has(od)) return "no_show";
-
   const aptStatus = String(
     appt.apt_status ?? appt.appointment_status ?? appt.status ?? "",
   )
@@ -162,7 +165,18 @@ export function mapConversionAttendance(
   if (/\bcomplete(d)?\b/.test(aptStatus)) return "show";
   if (/\bbroken\b/.test(aptStatus)) return "no_show";
 
-  return mapAttendance(appt);
+  const od = extractOdConfirmCode(appt);
+  if (od != null && OD_CONFIRM_CANCEL.has(od)) return "cancelled";
+  if (od != null && OD_CONFIRM_NO_SHOW.has(od)) return "no_show";
+
+  return "unknown";
+}
+
+/** Live Open Dental rows set this boolean. Test fixtures omit it and keep consult-type rules. */
+export function appointmentHasNewPatientFlag(
+  appointments: AppointmentRecord[],
+): boolean {
+  return appointments.some((appt) => typeof appt.is_new_patient === "boolean");
 }
 
 /** Consult appointment: configured type, else any appt on a consult-procedure day. */
@@ -219,6 +233,8 @@ export function summarizeConversion(params: {
   procedures?: ProcedureRecord[];
   plans?: TreatmentPlanRecord[];
   cdt?: CdtLookup;
+  /** patient.DateFirstVisit values. When present, NP count uses this column. */
+  firstVisits?: Array<string | null | undefined>;
 }): ConversionSummary {
   const notices: string[] = [];
   const procedures = params.procedures ?? [];
@@ -281,19 +297,21 @@ export function summarizeConversion(params: {
       }
     }
 
-    for (const proc of procedures) {
-      if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
-        continue;
+    if (consultTypeSet.size === 0) {
+      for (const proc of procedures) {
+        if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
+          continue;
+        }
+        const patientId = procedurePatientId(proc);
+        const ymd = procedureYmd(proc);
+        if (patientId == null || !ymd) continue;
+        if (!inYmdRange(ymd, params.fromYmd, params.toYmd)) continue;
+        const key = patientDayKey(patientId, ymd);
+        if (consultApptKeysInRange.has(key) || consultShowDays.has(key)) continue;
+        consultShowDays.add(key);
+        npConsultBooked += 1;
+        npConsultShow += 1;
       }
-      const patientId = procedurePatientId(proc);
-      const ymd = procedureYmd(proc);
-      if (patientId == null || !ymd) continue;
-      if (!inYmdRange(ymd, params.fromYmd, params.toYmd)) continue;
-      const key = patientDayKey(patientId, ymd);
-      if (consultApptKeysInRange.has(key) || consultShowDays.has(key)) continue;
-      consultShowDays.add(key);
-      npConsultBooked += 1;
-      npConsultShow += 1;
     }
   }
 
@@ -316,8 +334,29 @@ export function summarizeConversion(params: {
     else completeProcsByDay.set(key, [proc]);
   }
 
+  const npFlag = appointmentHasNewPatientFlag(params.appointments);
+  const npShowDays = new Set<string>();
+  let newPatientBooked = 0;
+  let newPatientShows = 0;
+  if (npFlag) {
+    for (const appt of params.appointments) {
+      if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
+      if (appt.is_new_patient !== true) continue;
+      const attendance = mapConversionAttendance(appt);
+      if (attendance === "cancelled") continue;
+      newPatientBooked += 1;
+      if (attendance !== "show") continue;
+      newPatientShows += 1;
+      if (typeof appt.patient_id === "number" && appt.start_time) {
+        npShowDays.add(
+          patientDayKey(appt.patient_id, appt.start_time.slice(0, 10)),
+        );
+      }
+    }
+  }
+
   let sameDayStarts = 0;
-  for (const key of consultShowDays) {
+  for (const key of npFlag ? npShowDays : consultShowDays) {
     const dayProcs = completeProcsByDay.get(key) ?? [];
     const sold = dayProcs.some((p) => cdt.isAoxSoldCode(p.code));
     const firstTx = dayProcs.some(
@@ -325,7 +364,7 @@ export function summarizeConversion(params: {
     );
     if (sold || firstTx) sameDayStarts += 1;
   }
-  if (consultShowDays.size > 0) {
+  if ((npFlag ? npShowDays : consultShowDays).size > 0) {
     if (sameDayStarts > 0) {
       notices.push(
         `Same-day starts: ${sameDayStarts} consult complete(s) with sold or treatment code same day.`,
@@ -361,12 +400,19 @@ export function summarizeConversion(params: {
   }
 
   let newPatients = 0;
-  for (const ymd of firstTxYmdByPatient.values()) {
-    if (inYmdRange(ymd, params.fromYmd, params.toYmd)) newPatients += 1;
+  if (params.firstVisits) {
+    for (const ymd of params.firstVisits) {
+      if (inYmdRange(ymd, params.fromYmd, params.toYmd)) newPatients += 1;
+    }
+  } else {
+    for (const ymd of firstTxYmdByPatient.values()) {
+      if (inYmdRange(ymd, params.fromYmd, params.toYmd)) newPatients += 1;
+    }
   }
 
+  const sameDayDenom = npFlag ? newPatientShows : npConsultShow;
   const sameDayStartRate =
-    npConsultShow > 0 ? safeRate(sameDayStarts, npConsultShow) : null;
+    sameDayDenom > 0 ? safeRate(sameDayStarts, sameDayDenom) : null;
 
   return {
     available: hasConsultFilter || plans.length > 0 || newPatients > 0,
@@ -377,6 +423,8 @@ export function summarizeConversion(params: {
     npConsultNoShow,
     npConsultCancelled,
     npConsultShowRate: showDenom > 0 ? safeRate(npConsultShow, showDenom) : null,
+    newPatientBooked: npFlag ? newPatientBooked : npConsultBooked,
+    newPatientShows: npFlag ? newPatientShows : npConsultShow,
     sameDayStarts,
     sameDayStartRate,
     tpClosedCents,
@@ -396,6 +444,8 @@ export type ProviderNpConsultParams = {
   appointmentTypes?: AppointmentTypeRecord[];
   appointmentTypeDocs?: NpConsultTypeDoc[];
   cdt?: CdtLookup;
+  /** Primary SoonerCare / OHCA patients. Used when appointments carry IsNewPatient. */
+  soonercarePatientIds?: ReadonlySet<number>;
 };
 
 function appointmentSoonercareHaystack(
@@ -506,25 +556,27 @@ function buildConsultShowByProvider(
     set.add(key);
   }
 
-  for (const proc of params.procedures) {
-    if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
-      continue;
+  if (consultTypeSet.size === 0) {
+    for (const proc of params.procedures) {
+      if (!cdt.isConsultCode(proc.code) || !isProcedureComplete(proc.status)) {
+        continue;
+      }
+      const patientId = procedurePatientId(proc);
+      const ymd = procedureYmd(proc);
+      if (patientId == null || !ymd || !inYmdRange(ymd, params.fromYmd, params.toYmd)) {
+        continue;
+      }
+      const key = patientDayKey(patientId, ymd);
+      if (consultApptKeysInRange.has(key)) continue;
+      const pid = proc.provider_id;
+      if (pid == null) continue;
+      let set = consultShowByProvider.get(pid);
+      if (!set) {
+        set = new Set();
+        consultShowByProvider.set(pid, set);
+      }
+      set.add(key);
     }
-    const patientId = procedurePatientId(proc);
-    const ymd = procedureYmd(proc);
-    if (patientId == null || !ymd || !inYmdRange(ymd, params.fromYmd, params.toYmd)) {
-      continue;
-    }
-    const key = patientDayKey(patientId, ymd);
-    if (consultApptKeysInRange.has(key)) continue;
-    const pid = proc.provider_id;
-    if (pid == null) continue;
-    let set = consultShowByProvider.get(pid);
-    if (!set) {
-      set = new Set();
-      consultShowByProvider.set(pid, set);
-    }
-    set.add(key);
   }
 
   return consultShowByProvider;
@@ -557,14 +609,32 @@ function hasDeferredNpClose(
   return false;
 }
 
-/** SoonerCare NP consult shows attributed to scheduling provider. */
+/** SoonerCare new-patient shows attributed to the appointment provider. */
 export function perProviderScNpSeen(
   params: ProviderNpConsultParams,
 ): Map<number, number> {
   const ctx = resolveProviderConsultContext(params);
-  if (!ctx.hasConsultFilter) return new Map();
-
   const counts = new Map<number, number>();
+  if (appointmentHasNewPatientFlag(params.appointments)) {
+    for (const appt of params.appointments) {
+      if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
+      if (appt.is_new_patient !== true) continue;
+      if (mapConversionAttendance(appt) !== "show") continue;
+      const patientId = appt.patient_id;
+      const onSoonerCare =
+        params.soonercarePatientIds != null
+          ? typeof patientId === "number" &&
+            params.soonercarePatientIds.has(patientId)
+          : isSoonercareConsultAppointment(appt, ctx.typeCatalog);
+      if (!onSoonerCare) continue;
+      const pid = appt.provider_id;
+      if (pid == null) continue;
+      counts.set(pid, (counts.get(pid) ?? 0) + 1);
+    }
+    return counts;
+  }
+  if (!ctx.hasConsultFilter) return counts;
+
   for (const appt of params.appointments) {
     if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
     if (
@@ -585,14 +655,49 @@ export function perProviderScNpSeen(
   return counts;
 }
 
+function buildNewPatientShowByProvider(
+  params: ProviderNpConsultParams,
+): Map<number, Set<string>> {
+  const shows = new Map<number, Set<string>>();
+  for (const appt of params.appointments) {
+    if (!inYmdRange(appt.start_time, params.fromYmd, params.toYmd)) continue;
+    if (appt.is_new_patient !== true) continue;
+    if (mapConversionAttendance(appt) !== "show") continue;
+    const pid = appt.provider_id;
+    if (pid == null || typeof appt.patient_id !== "number" || !appt.start_time) {
+      continue;
+    }
+    const key = patientDayKey(appt.patient_id, appt.start_time.slice(0, 10));
+    let set = shows.get(pid);
+    if (!set) {
+      set = new Set();
+      shows.set(pid, set);
+    }
+    set.add(key);
+  }
+  return shows;
+}
+
 /** Same-day NP starts grouped by source provider id. */
 export function perProviderSameDayNp(
   params: ProviderNpConsultParams,
 ): Map<number, number> {
   const ctx = resolveProviderConsultContext(params);
+  const completeProcsByDay = buildCompleteProcsByDay(params.procedures);
+  if (appointmentHasNewPatientFlag(params.appointments)) {
+    const counts = new Map<number, number>();
+    for (const [pid, keys] of buildNewPatientShowByProvider(params)) {
+      let total = 0;
+      for (const key of keys) {
+        const dayProcs = completeProcsByDay.get(key) ?? [];
+        if (dayHasNpClose(dayProcs, ctx.cdt)) total += 1;
+      }
+      if (total > 0) counts.set(pid, total);
+    }
+    return counts;
+  }
   if (!ctx.hasConsultFilter) return new Map();
 
-  const completeProcsByDay = buildCompleteProcsByDay(params.procedures);
   const consultShowByProvider = buildConsultShowByProvider(params, ctx);
 
   const counts = new Map<number, number>();

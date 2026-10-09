@@ -28,6 +28,7 @@ import {
   type OdAdjustmentRow,
   type OdAppointmentRow,
   type OdAppointmentTypeRow,
+  type OdClaimProcRow,
   type OdClaimRow,
   type OdDefinitionRow,
   type OdGuarantorBalanceRow,
@@ -47,15 +48,22 @@ function money(amount: number | null | undefined): MoneyAmount {
   return { amount: n.toFixed(2), currency: "USD" };
 }
 
+/** Open Dental empty dates are 0001-01-01. mysql2 timezone "Z" turns that into 1901-01-01. */
+function isOdEmptyCalendarYear(year: number): boolean {
+  return year < 1902;
+}
+
 /** Convert MySQL DATE/DATETIME / Date to ISO-ish string. */
 export function odDateToIso(value: Date | string | null | undefined): string | null {
   if (value == null) return null;
   if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
+    if (Number.isNaN(value.getTime()) || isOdEmptyCalendarYear(value.getUTCFullYear())) {
+      return null;
+    }
     return value.toISOString();
   }
   const s = String(value).trim();
-  if (!s || s.startsWith("0000-00-00")) return null;
+  if (!s || s.startsWith("0000-00-00") || s.startsWith("0001-")) return null;
   // MySQL "YYYY-MM-DD HH:MM:SS" → ISO-ish
   if (/^\d{4}-\d{2}-\d{2} /.test(s)) {
     return `${s.replace(" ", "T")}.000Z`;
@@ -136,7 +144,10 @@ export function mapOdAppointment(row: OdAppointmentRow): AppointmentRecord {
     cancelled: row.AptStatus === OdAptStatus.Broken,
     confirmed: confirmed > 0,
     patient_confirmed: confirmed > 0,
-    patient_missed: confirmed === 69 || row.AptStatus === OdAptStatus.Broken,
+    patient_missed:
+      row.AptStatus === OdAptStatus.Broken ||
+      (row.AptStatus !== OdAptStatus.Complete && confirmed === 69),
+    is_new_patient: Number(row.IsNewPatient) === 1,
     checked_out: Boolean(dismissed),
     checkin_at: arrived,
     updated_at: odDateToIso(row.DateTStamp) ?? undefined,
@@ -289,13 +300,17 @@ export function mapOdTreatPlan(
       logStatus != null && logStatus > 0
         ? mapOdProcStatus(logStatus)
         : "TreatmentPlan";
+    const completedFee =
+      logStatus === OdProcStatus.Complete && p.LogProcFee != null
+        ? Number(p.LogProcFee)
+        : Number(p.FeeAmt);
     return {
       id: p.ProcNumOrig ?? p.ProcTPNum,
       patient_id: p.PatNum,
       code: p.ProcCode?.trim() || null,
       name: p.Descript?.trim() || p.ProcCode?.trim() || null,
       status,
-      fee: money(Number(p.FeeAmt)),
+      fee: money(Number.isFinite(completedFee) ? completedFee : 0),
       start_date: odDateToYmd(p.LogProcDate) ?? undefined,
       end_date: odDateToYmd(p.LogDateComplete) ?? odDateToYmd(p.LogProcDate) ?? undefined,
     };
@@ -327,7 +342,7 @@ function mapClaimStatus(raw: string | null): string {
 }
 
 function odYmdAfterOdEpoch(ymd: string | null): ymd is string {
-  return Boolean(ymd && ymd > "0001-01-01");
+  return Boolean(ymd && ymd > "1901-01-01");
 }
 
 /** Open Dental resubmit / replacement (not timezone same-day noise). */
@@ -383,20 +398,16 @@ export function mapOdInsPlan(row: OdInsPlanRow): InsurancePlanRecord {
   };
 }
 
+/** Positive guarantor BalTotal. A credit balance is not accounts receivable. */
 export function resolveGuarantorTotalBalanceDollars(
   row: OdGuarantorBalanceRow,
 ): number {
-  const agingSum =
-    (Number(row.Bal_0_30) || 0) +
-    (Number(row.Bal_31_60) || 0) +
-    (Number(row.Bal_61_90) || 0) +
-    (Number(row.BalOver90) || 0);
-  const est = Number(row.EstBalance) || 0;
-  const fromCol = Number(row.TotBal ?? est) || 0;
-  if (agingSum > 0 && fromCol <= 0) return agingSum;
-  if (fromCol > 0) return fromCol;
-  if (est > 0) return est;
-  return agingSum;
+  const raw =
+    row.TotBal != null && row.TotBal !== undefined
+      ? Number(row.TotBal)
+      : Number(row.EstBalance);
+  if (!Number.isFinite(raw)) return 0;
+  return Math.max(0, raw);
 }
 
 export function mapOdGuarantorBalance(row: OdGuarantorBalanceRow): GuarantorBalanceRecord {
@@ -409,7 +420,31 @@ export function mapOdGuarantorBalance(row: OdGuarantorBalanceRow): GuarantorBala
     total_balance_61_90: money(Number(row.Bal_61_90)),
     total_balance_over_90: money(Number(row.BalOver90)),
     insurance_estimate: money(Number(row.InsEst)),
+    /** Patient-responsible balance. Credits are not subtracted from AR. */
+    guarantor_portion: money(Math.max(0, Number(row.EstBalance) || 0)),
     updated_at: undefined,
+  };
+}
+
+export type ClaimProcLine = {
+  id: number;
+  providerId: number | null;
+  status: number;
+  insPay: MoneyAmount;
+  writeOff: MoneyAmount;
+  dateCp: string | null;
+  carrierName?: string | null;
+};
+
+export function mapOdClaimProc(row: OdClaimProcRow): ClaimProcLine {
+  return {
+    id: row.ClaimProcNum,
+    providerId: row.ProvNum || null,
+    status: Number(row.Status),
+    insPay: money(Number(row.InsPayAmt)),
+    writeOff: money(Number(row.WriteOff)),
+    dateCp: odDateToYmd(row.DateCP),
+    carrierName: row.CarrierName?.trim() || null,
   };
 }
 
@@ -423,12 +458,13 @@ export function mapOdInsuranceBalance(row: OdGuarantorBalanceRow): InsuranceBala
   const insEst = Math.max(0, Number(row.InsEst) || 0);
   const alloc = (part: number) =>
     insEst > 0 && agingSum > 0 ? insEst * (part / agingSum) : 0;
+  const unallocated = insEst > 0 && agingSum <= 0 ? insEst : 0;
 
   return {
     id: row.PatNum,
     patient_id: row.PatNum,
     guarantor_id: row.PatNum,
-    estimated_amount_under_30: money(alloc(b0)),
+    estimated_amount_under_30: money(alloc(b0) + unallocated),
     estimated_amount_31_60: money(alloc(b1)),
     estimated_amount_61_90: money(alloc(b2)),
     estimated_amount_over_90: money(alloc(b3)),
@@ -446,6 +482,7 @@ export function mapOdPatient(
 ): PatientRecord {
   return {
     id: row.PatNum,
+    guarantor_id: row.Guarantor > 0 ? row.Guarantor : null,
     first_name: row.FName?.trim() || undefined,
     last_name: row.LName?.trim() || undefined,
     inactive: Number(row.PatStatus) !== 0, // 0 = Patient (active)

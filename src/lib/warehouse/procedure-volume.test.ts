@@ -57,7 +57,7 @@ describe("accumulateProcedureVolume", () => {
     },
   ]);
 
-  it("counts AOX sold codes only", () => {
+  it("counts all-on procedure codes without a sold-case flag", () => {
     const volume = emptyProcedureVolume();
     const procedures: ProcedureRecord[] = [
       {
@@ -82,7 +82,7 @@ describe("accumulateProcedureVolume", () => {
       toYmd: "2026-12-31",
       volume,
     });
-    assert.equal(volume.aox, 1);
+    assert.equal(volume.aox, 2);
   });
 
   it("excludes N4120 from denture delivery volume", () => {

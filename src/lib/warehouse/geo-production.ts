@@ -6,6 +6,9 @@ import type { PeriodRange } from "@/lib/ui/period";
 /** Texoma region county count (prototype reference map). */
 export const TEXOMA_REGION_COUNTY_COUNT = 10;
 
+/** Completed production whose patient row has no city, state, or ZIP. */
+export const UNKNOWN_ADDRESS_LABEL = "Unknown address";
+
 /** De-identified geo row (city/state/ZIP only). */
 export type PatientCityRow = {
   patientId: number;
@@ -14,16 +17,18 @@ export type PatientCityRow = {
   zip: string | null;
 };
 
-function cityFromRow(p: PatientCityRow): string | null {
-  return cityLabel({
-    addressLine: null,
-    city: p.city,
-    state: p.state,
-    postalCode: p.zip,
-    county: null,
-    latitude: null,
-    longitude: null,
-  });
+function cityFromRow(p: PatientCityRow): string {
+  return (
+    cityLabel({
+      addressLine: null,
+      city: p.city,
+      state: p.state,
+      postalCode: p.zip,
+      county: null,
+      latitude: null,
+      longitude: null,
+    }) ?? UNKNOWN_ADDRESS_LABEL
+  );
 }
 
 /** Map source patient id → city label for charge rollups. */
@@ -32,13 +37,12 @@ export function buildPatientCityIndex(
 ): Map<number, string> {
   const out = new Map<number, string>();
   for (const p of patients) {
-    const label = cityFromRow(p);
-    if (label) out.set(p.patientId, label);
+    out.set(p.patientId, cityFromRow(p));
   }
   return out;
 }
 
-/** Sum charge production cents by patient city (mapped areas only). */
+/** Sum charge production cents by patient city. Blank addresses use Unknown address. */
 export function aggregateProductionCentsByCity(
   patients: PatientCityRow[],
   charges: ChargeRecord[],

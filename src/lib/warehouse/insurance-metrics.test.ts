@@ -55,6 +55,7 @@ describe("summarizeInsuranceMetrics", () => {
       {
         status: "received",
         date_of_service: "2026-06-10",
+        sent_at: "2026-06-10T00:00:00Z",
         primary_insurance_plan_id: 1,
         totals: {
           amount_billed_to_insurance: price("200.00"),
@@ -73,6 +74,7 @@ describe("summarizeInsuranceMetrics", () => {
       {
         status: "canceled",
         date_of_service: "2026-06-15",
+        sent_at: "2026-06-15T00:00:00Z",
         totals: { amount_billed_to_insurance: price("10.00") },
       },
       {
@@ -203,14 +205,14 @@ describe("summarizeInsuranceMetrics", () => {
       toYmd: "2026-08-17",
       claims,
       balances: [],
-      plans: [{ id: 19, name: "Medicaid" }],
+      plans: [{ id: 19, name: "SoonerCare" }],
       now: new Date("2026-08-17T00:00:00Z"),
     });
     assert.equal(summary.claimsSubmitted, 4);
     assert.equal(summary.claimsPaid, 1);
     assert.equal(summary.collectedCents, 15000);
     assert.equal(summary.allowedCents, 15000);
-    assert.equal(summary.payerMix[0]?.label, "Medicaid");
+    assert.equal(summary.payerMix[0]?.label, "SoonerCare");
     assert.equal(summary.outstandingClaimCount, 2);
     assert.equal(summary.outstandingTotalCents, 24800);
     assert.equal(summary.soonercareClaimsSubmitted, 2);
@@ -218,5 +220,32 @@ describe("summarizeInsuranceMetrics", () => {
     assert.equal(summary.soonercareCollectedCents, 15000);
     assert.equal(summary.soonercareOutstandingCount, 1);
     assert.equal(summary.soonercareArCents, 18000);
+  });
+
+  it("keeps guarantor InsEst when sent claims are also outstanding", () => {
+    const summary = summarizeInsuranceMetrics({
+      fromYmd: "2026-01-01",
+      toYmd: "2026-10-09",
+      claims: [
+        {
+          status: "sent",
+          claim_type: "P",
+          sent_at: "2026-03-01T00:00:00Z",
+          totals: { amount_billed_to_insurance: price("500.00") },
+        },
+      ],
+      balances: [
+        {
+          estimated_amount_under_30: price("100.00"),
+          estimated_amount_over_90: price("50.00"),
+        },
+      ],
+      plans: [],
+      now: new Date("2026-10-09T00:00:00Z"),
+    });
+    assert.equal(summary.outstandingTotalCents, 50000);
+    assert.equal(summary.insuranceArCents, 15000);
+    assert.equal(summary.aging.under30Cents, 10000);
+    assert.equal(summary.aging.over90Cents, 5000);
   });
 });

@@ -205,8 +205,8 @@ export function InsuranceCockpitMetrics({
             value={usdOrDash(insuranceArCents, insuranceArAvailable)}
             note={
               insurance.balancesAvailable
-                ? "insurance billed balances"
-                : "guarantor insurance estimate"
+                ? "guarantor insurance estimate"
+                : "outstanding sent claims"
             }
           />
           <ComboStat
@@ -437,12 +437,11 @@ export function InsuranceArAgingSection({
       insurance.balancesAvailable ||
       accountsReceivable.available) &&
     totalCents > 0;
-  const sourceNote =
-    insurance.outstandingTotalCents > 0
+  const sourceNote = insurance.balancesAvailable
+    ? "guarantor insurance estimates"
+    : insurance.outstandingTotalCents > 0
       ? "outstanding sent claims (date sent)"
-      : insurance.balancesAvailable
-        ? "guarantor insurance estimates"
-        : "guarantor totals";
+      : "guarantor totals";
 
   return (
     <>

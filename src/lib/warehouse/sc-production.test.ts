@@ -44,9 +44,10 @@ describe("isScChartDescription", () => {
 });
 
 describe("isSoonerCareCarrier", () => {
-  it("matches SoonerCare and Medicaid carrier names", () => {
+  it("matches SoonerCare carrier names", () => {
     assert.equal(isSoonerCareCarrier("SoonerCare"), true);
-    assert.equal(isSoonerCareCarrier("OK Medicaid"), true);
+    assert.equal(isSoonerCareCarrier("OHCA"), true);
+    assert.equal(isSoonerCareCarrier("OK Medicaid"), false);
     assert.equal(isSoonerCareCarrier("Delta Dental"), false);
   });
 });
@@ -76,7 +77,7 @@ describe("extractPrimaryInsuranceCarrier", () => {
 });
 
 describe("isScProductionCharge", () => {
-  it("flags SC chart codes but not denture warranty suffixes", () => {
+  it("counts only patients whose primary carrier is SoonerCare", () => {
     assert.equal(
       isScProductionCharge({
         code: "D1110.1",
@@ -85,21 +86,18 @@ describe("isScProductionCharge", () => {
         soonerCarePatients: new Set(),
         cdt: scCdt,
       }),
-      true,
+      false,
     );
     assert.equal(
       isScProductionCharge({
         code: "D5110.1",
         chargeName: "6-Month Denture",
-        patientId: 99,
-        soonerCarePatients: new Set(),
+        patientId: 42,
+        soonerCarePatients: new Set([42]),
         cdt: scCdt,
       }),
-      false,
+      true,
     );
-  });
-
-  it("flags any production for SoonerCare patients", () => {
     assert.equal(
       isScProductionCharge({
         code: "D6010",
@@ -114,7 +112,7 @@ describe("isScProductionCharge", () => {
 });
 
 describe("summarizeProductionFromLedger scProductionCents", () => {
-  it("sums SC production from chart codes and patient carrier", () => {
+  it("sums completed fees for SoonerCare patients", () => {
     const patients: PatientRecord[] = [
       { id: 42, bio: { insurance_carrier: "SoonerCare" } },
     ];
@@ -149,6 +147,7 @@ describe("summarizeProductionFromLedger scProductionCents", () => {
           description: "6-Month Denture",
           fee: { amount: "50.00" },
           provider_id: 7,
+          patient_id: 42,
         },
       ],
       payments: [],
@@ -157,14 +156,14 @@ describe("summarizeProductionFromLedger scProductionCents", () => {
       cdt: scCdt,
     });
 
-    assert.equal(summary.scProductionCents, 16000);
+    assert.equal(summary.scProductionCents, 15000);
     assert.equal(summary.grossProductionCents, 21000);
-    assert.equal(summary.byProvider.get(7)?.scProductionCents, 16000);
+    assert.equal(summary.byProvider.get(7)?.scProductionCents, 15000);
   });
 });
 
 describe("summarizeProductionFromLedger without patients", () => {
-  it("still counts SC chart codes when patient sync is omitted", () => {
+  it("does not count SC chart text without a SoonerCare patient", () => {
     const summary = summarizeProductionFromLedger({
       fromYmd: "2026-01-01",
       toYmd: "2026-12-31",
@@ -182,6 +181,6 @@ describe("summarizeProductionFromLedger without patients", () => {
       adjustments: [],
       cdt: scCdt,
     });
-    assert.equal(summary.scProductionCents, 6000);
+    assert.equal(summary.scProductionCents, 0);
   });
 });

@@ -12,9 +12,10 @@ import {
 import {
   aggregateFinancingVendorMix,
   aggregatePaymentMix,
+  applyClaimProcInsurance,
+  applyClaimProcSoonerCare,
   emptyFinancingVendorMix,
   emptyPaymentMix,
-  paymentCollectionCents,
   supplementInsurancePaymentMixFromClaims,
   type FinancingVendorMix,
   type PaymentClassificationOptions,
@@ -41,11 +42,8 @@ import {
   resolveProcedureDescription,
   type PatientCarrierRecord,
 } from "@/lib/warehouse/sc-production";
-import {
-  buildAdjustmentTypeMap,
-  isWriteOffAdjustment,
-  type AdjustmentTypeRecord,
-} from "@/lib/warehouse/adjusted-production";
+import { type AdjustmentTypeRecord } from "@/lib/warehouse/adjusted-production";
+import type { ClaimProcLine } from "@/lib/opendental/mappers";
 import { accumulateProcedureVolume } from "@/lib/warehouse/procedure-volume";
 
 const PROCEDURE_MIX_TOP_N = 15;
@@ -627,6 +625,8 @@ export function summarizeProductionFromLedger(params: {
   cdt?: CdtLookup;
   adjustmentTypes?: AdjustmentTypeRecord[];
   claims?: ClaimRecord[];
+  /** Received/supplemental claimproc lines. Insurance pay and write-off. */
+  claimProcs?: ClaimProcLine[];
   insurancePaymentTypeDefNums?: number[];
   paymentTypeClassification?: {
     insurance: number[];
@@ -695,59 +695,68 @@ export function summarizeProductionFromLedger(params: {
 
   if (paymentsAvailable) {
     totals.paymentCount = payments.length;
-    let reversalCents = 0;
     for (const p of payments) {
       const raw = moneyToCents(p.payment_amount);
-      const cents = paymentCollectionCents(p);
-      if (raw < 0) reversalCents += raw;
-      if (cents <= 0) continue;
-      totals.collectionsCents += cents;
+      totals.collectionsCents += raw;
       if (p.provider_id != null) {
         const prov = ensureProvider(byProvider, p.provider_id);
-        prov.collectionsCents += cents;
-        prov.paymentCount += 1;
+        prov.collectionsCents += raw;
+        if (raw > 0) prov.paymentCount += 1;
       }
-    }
-    if (reversalCents < 0) {
-      notices.push(
-        `Collection total excludes ${formatUsdNotice(Math.abs(reversalCents))} in payment reversals/credits (same rule as payment-mix charts).`,
-      );
     }
   } else {
     notices.push("Payments unavailable.");
   }
 
+  const signedByProvider = new Map<number, number>();
+  let signedAdjustmentCents = 0;
   if (adjustmentsAvailable) {
     totals.adjustmentCount = adjustments.length;
-    const typesById = buildAdjustmentTypeMap(params.adjustmentTypes ?? []);
-    const typesAvailable = typesById.size > 0;
-
     for (const a of adjustments) {
-      if (!typesAvailable || !isWriteOffAdjustment(a, typesById)) continue;
-      const cents = Math.abs(moneyToCents(a.adjustment_amount));
-      totals.adjustmentsCents += cents;
+      const cents = moneyToCents(a.adjustment_amount);
+      signedAdjustmentCents += cents;
       if (a.provider_id != null) {
-        const prov = ensureProvider(byProvider, a.provider_id);
-        prov.adjustmentsCents += cents;
-        prov.adjustmentCount += 1;
+        signedByProvider.set(
+          a.provider_id,
+          (signedByProvider.get(a.provider_id) ?? 0) + cents,
+        );
+        ensureProvider(byProvider, a.provider_id).adjustmentCount += 1;
       }
-    }
-
-    if (!typesAvailable && adjustments.length > 0) {
-      notices.push(
-        "Adjusted production needs synced adjustment_types — run warehouse sync to flag write-off types.",
-      );
-    } else if (
-      typesAvailable &&
-      totals.adjustmentsCents === 0 &&
-      adjustments.length > 0
-    ) {
-      notices.push(
-        "No write-off adjustments matched synced adjustment_types flagged for adjusted production.",
-      );
     }
   } else {
     notices.push("Adjustments unavailable.");
+  }
+
+  const writeOffByProvider = new Map<number, number>();
+  let writeOffCents = 0;
+  let insurancePayCents = 0;
+  for (const line of params.claimProcs ?? []) {
+    if (line.status !== 1 && line.status !== 4) continue;
+    if (!inYmdRange(line.dateCp, fromYmd, toYmd)) continue;
+    const wo = Math.abs(moneyToCents(line.writeOff));
+    const pay = moneyToCents(line.insPay);
+    writeOffCents += wo;
+    if (pay > 0) insurancePayCents += pay;
+    if (line.providerId != null) {
+      writeOffByProvider.set(
+        line.providerId,
+        (writeOffByProvider.get(line.providerId) ?? 0) + wo,
+      );
+      if (pay > 0) {
+        ensureProvider(byProvider, line.providerId).collectionsCents += pay;
+      }
+    }
+  }
+  totals.collectionsCents += insurancePayCents;
+  totals.adjustmentsCents = writeOffCents - signedAdjustmentCents;
+  const providerIds = new Set<number>([
+    ...signedByProvider.keys(),
+    ...writeOffByProvider.keys(),
+  ]);
+  for (const providerId of providerIds) {
+    const signed = signedByProvider.get(providerId) ?? 0;
+    const wo = writeOffByProvider.get(providerId) ?? 0;
+    ensureProvider(byProvider, providerId).adjustmentsCents += wo - signed;
   }
 
   if (charges.length === 0 && proceduresInRange.length > 0) {
@@ -910,7 +919,19 @@ export function summarizeProductionFromLedger(params: {
   let paymentMix = paymentsAvailable
     ? aggregatePaymentMix(payments, paymentClassifyOptions)
     : emptyPaymentMix();
-  if (paymentsAvailable && params.claims && params.claims.length > 0) {
+  if (paymentsAvailable && params.claimProcs && params.claimProcs.length > 0) {
+    paymentMix = applyClaimProcSoonerCare(
+      applyClaimProcInsurance(
+        paymentMix,
+        params.claimProcs,
+        fromYmd,
+        toYmd,
+      ),
+      params.claimProcs,
+      fromYmd,
+      toYmd,
+    );
+  } else if (paymentsAvailable && params.claims && params.claims.length > 0) {
     const supplemented = supplementInsurancePaymentMixFromClaims(
       paymentMix,
       params.claims,
@@ -988,9 +1009,11 @@ export function summarizeProductionFromLedger(params: {
     (sum, row) => sum + row.productionCents,
     0,
   );
+  finalize(totals);
+  for (const prov of byProvider.values()) finalize(prov);
   const collectionRatio =
-    totals.grossProductionCents > 0
-      ? totals.collectionsCents / totals.grossProductionCents
+    totals.netProductionCents > 0
+      ? totals.collectionsCents / totals.netProductionCents
       : null;
 
   if (unmappedCodes.length > 0 && productionByCategory.length > 0) {
@@ -1003,7 +1026,6 @@ export function summarizeProductionFromLedger(params: {
     );
   }
 
-  finalize(totals);
   for (const [pid, prov] of byProvider) {
     prov.procedureMix = sortMix(providerMixMaps.get(pid) ?? new Map());
     prov.productionByCategory = sortCategoryRows(prov.productionByCategory);

@@ -28,7 +28,6 @@ import {
 } from "@/lib/cdt/categories";
 import {
   appointmentTypeId,
-  mapAttendance,
   type AppointmentRecord,
   type AppointmentTypeRecord,
 } from "@/lib/warehouse/types";
@@ -41,6 +40,7 @@ import {
   emptyProviderProduction,
   summarizeProductionFromLedger,
 } from "@/lib/warehouse/production";
+import { buildSoonerCarePatientSet } from "@/lib/warehouse/sc-production";
 import type { OpenDentalSnapshot } from "@/lib/opendental/snapshot";
 import type {
   LiveOverview,
@@ -219,9 +219,17 @@ export function buildOverviewFromSnapshot(
     })),
     cdt,
     claims: snapshot.claims,
+    claimProcs: snapshot.claimProcs,
     insurancePaymentTypeDefNums: snapshot.insurancePaymentTypeDefNums,
     paymentTypeClassification: snapshot.paymentTypeClassification,
   });
+
+  const soonercarePatientIds = buildSoonerCarePatientSet(
+    snapshot.patients.map((p) => ({
+      id: p.patientId,
+      primary_insurance_carrier: p.primaryInsuranceCarrier,
+    })),
+  );
 
   const conversion = summarizeConversion({
     fromYmd,
@@ -232,6 +240,7 @@ export function buildOverviewFromSnapshot(
     procedures: snapshot.procedures,
     plans: snapshot.treatmentPlans,
     cdt,
+    firstVisits: snapshot.patients.map((patient) => patient.dateFirstVisit),
   });
 
   const tcMetrics = summarizeTcMetrics({
@@ -245,6 +254,7 @@ export function buildOverviewFromSnapshot(
     payments: snapshot.payments,
     conversion,
     cdt,
+    soonercarePatientIds,
   });
 
   const tcCoordinators = buildTcCoordinatorRows({
@@ -269,8 +279,10 @@ export function buildOverviewFromSnapshot(
     fromYmd,
     toYmd,
     claims: snapshot.claims,
+    claimProcs: snapshot.claimProcs,
     balances: snapshot.insuranceBalances,
     plans: snapshot.insurancePlans,
+    soonercarePatientIds,
   });
 
   notices.push(...production.notices);
@@ -306,7 +318,7 @@ export function buildOverviewFromSnapshot(
   let past = 0;
 
   for (const appt of apptRaws) {
-    const status = mapAttendance(appt);
+    const status = mapConversionAttendance(appt);
     if (status === "show") show++;
     else if (status === "no_show") noShow++;
     else if (status === "cancelled") cancelled++;
@@ -350,9 +362,13 @@ export function buildOverviewFromSnapshot(
     else if (status === "cancelled") row.cancelledCount++;
     else row.unknownCount++;
 
+    const flaggedNewPatient = typeof appt.is_new_patient === "boolean";
     if (
-      isConsultAppointment(appt, npConsultTypeSet, consultProcedureDays) &&
-      mapConversionAttendance(appt) === "show"
+      flaggedNewPatient
+        ? appt.is_new_patient === true &&
+          mapConversionAttendance(appt) === "show"
+        : isConsultAppointment(appt, npConsultTypeSet, consultProcedureDays) &&
+          mapConversionAttendance(appt) === "show"
     ) {
       row.npConsultShow++;
     }
@@ -382,6 +398,7 @@ export function buildOverviewFromSnapshot(
     appointmentTypes: typeRaws,
     appointmentTypeDocs: snapshot.appointmentTypeDocs,
     cdt,
+    soonercarePatientIds,
   };
   for (const [pid, count] of perProviderSameDayNp(providerNpParams)) {
     const row = byProvider.get(pid);

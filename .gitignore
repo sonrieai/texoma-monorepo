@@ -46,6 +46,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local JSON store (login users + encrypted GHL settings)
+/data/store.json
+/data/*.tmp
+
 # local exports & scratch artifacts
 /exports/
 implant-practice-dashboard*.html

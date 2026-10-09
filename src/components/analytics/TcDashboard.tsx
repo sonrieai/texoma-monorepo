@@ -87,13 +87,13 @@ export function TcCockpitMetrics({
           <ComboStat
             variant="inset"
             label="NP's Scheduled"
-            value={String(conv.npConsultBooked)}
+            value={String(conv.newPatientBooked)}
             note={periodLabel}
           />
           <ComboStat
             variant="inset"
             label="NP's Seen"
-            value={String(conv.npConsultShow)}
+            value={String(conv.newPatientShows)}
             note={periodLabel}
           />
           <ComboStat

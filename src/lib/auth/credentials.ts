@@ -7,7 +7,6 @@ import {
   findDashboardUserByEmail,
   verifyDashboardUserPassword,
 } from "@/lib/auth/users";
-import { isMongoConfigured } from "@/lib/mongo/client";
 
 export type VerifiedLogin = {
   email: string;
@@ -18,7 +17,7 @@ export async function verifyLogin(
   email: string,
   password: string,
 ): Promise<VerifiedLogin | null> {
-  if (!isAuthEnabled() || !isMongoConfigured()) return null;
+  if (!isAuthEnabled()) return null;
 
   await ensureAuthIndexes();
   await ensureDashboardAdminFromEnv();

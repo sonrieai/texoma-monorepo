@@ -10,6 +10,7 @@ import {
 
 const ACTIVITY_EVENTS = [
   "mousedown",
+  "mousemove",
   "keydown",
   "scroll",
   "touchstart",
@@ -67,16 +68,22 @@ export function SessionActivityGuard({ children }: SessionActivityGuardProps) {
       }
     }
 
+    function scheduleHeartbeat() {
+      if (heartbeatTimerRef.current || logoutStartedRef.current) return;
+      heartbeatTimerRef.current = setTimeout(() => {
+        heartbeatTimerRef.current = null;
+        void sendHeartbeat();
+      }, SESSION_HEARTBEAT_DEBOUNCE_MS);
+    }
+
     function registerActivity() {
       if (!enabled || logoutStartedRef.current) return;
       lastActivityRef.current = Date.now();
       scheduleIdleExpiry();
-
-      if (heartbeatTimerRef.current) clearTimeout(heartbeatTimerRef.current);
-      heartbeatTimerRef.current = setTimeout(() => {
-        void sendHeartbeat();
-      }, SESSION_HEARTBEAT_DEBOUNCE_MS);
+      scheduleHeartbeat();
     }
+
+    let primed = false;
 
     async function verifySession() {
       try {
@@ -90,11 +97,20 @@ export function SessionActivityGuard({ children }: SessionActivityGuardProps) {
           return;
         }
         if (!data.authenticated) {
-          await expireSession("expired");
+          const idleMs = Date.now() - lastActivityRef.current;
+          if (idleMs >= SESSION_INACTIVITY_TIMEOUT_MS) {
+            await expireSession("timeout");
+            return;
+          }
+          const refreshed = await sendHeartbeat();
+          if (!refreshed) await expireSession("expired");
           return;
         }
         enabled = true;
-        registerActivity();
+        if (!primed) {
+          primed = true;
+          registerActivity();
+        }
       } catch {
         enabled = false;
       }

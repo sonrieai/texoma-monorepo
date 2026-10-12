@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState, type FormEvent } from "react";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { InlineSpinner, Spinner } from "@/components/ui/States";
 
 function passwordChecks(password: string) {
@@ -119,10 +120,9 @@ function ResetPasswordFormInner() {
         >
           New password
         </label>
-        <input
+        <PasswordInput
           id="new-password"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           required
           value={newPassword}
@@ -138,10 +138,9 @@ function ResetPasswordFormInner() {
         >
           Confirm new password
         </label>
-        <input
+        <PasswordInput
           id="confirm-password"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
           value={confirmPassword}

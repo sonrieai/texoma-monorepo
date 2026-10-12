@@ -1,7 +1,8 @@
 /**
  * Texoma consult lines, confirmation names, and sold codes.
- * GoHighLevel receives only the five no-show tags named on the code list.
- * Cancel, reschedule, show, and a completed sold code clear those tags.
+ * A first send adds NEW PATIENT, plus a consult-line tag when that visit is known.
+ * No-show confirmations add one of the five no-show tags.
+ * Cancel, reschedule, show, and a completed sold code clear those no-show tags.
  */
 
 export type ConsultLine = "aox" | "imp" | "otn" | "utn" | "dent";
@@ -22,6 +23,30 @@ export const NO_SHOW_TAG_LIST: readonly NoShowTag[] = [
   NO_SHOW_TAGS.otn,
   NO_SHOW_TAGS.utn,
   NO_SHOW_TAGS.dent,
+];
+
+/** Applied the first time this app creates the GoHighLevel contact. */
+export const NEW_PATIENT_TAG = "NEW PATIENT";
+
+export const NEW_PATIENT_TAGS = {
+  aox: "NEW PATIENT AOX",
+  imp: "NEW PATIENT IMP",
+  otn: "NEW PATIENT OTN",
+  utn: "NEW PATIENT UTN",
+  dent: "NEW PATIENT DENT",
+} as const;
+
+export type NewPatientLineTag = (typeof NEW_PATIENT_TAGS)[ConsultLine];
+
+export type NewPatientTag = typeof NEW_PATIENT_TAG | NewPatientLineTag;
+
+export const NEW_PATIENT_TAG_LIST: readonly NewPatientTag[] = [
+  NEW_PATIENT_TAG,
+  NEW_PATIENT_TAGS.aox,
+  NEW_PATIENT_TAGS.imp,
+  NEW_PATIENT_TAGS.otn,
+  NEW_PATIENT_TAGS.utn,
+  NEW_PATIENT_TAGS.dent,
 ];
 
 export const CONSULT_APPOINTMENTS = [
@@ -164,6 +189,56 @@ export function consultLineFromProcedures(
     if (line) return line;
   }
   return null;
+}
+
+export function consultLineForAppointment(input: {
+  appointmentTypeName: string | null;
+  procedureCodes: readonly string[];
+}): ConsultLine | null {
+  return (
+    consultLineFromText(input.appointmentTypeName) ??
+    consultLineFromProcedures(input.procedureCodes)
+  );
+}
+
+/** Tags for the first send: the base tag, plus one tag per consult line. */
+export function tagsForNewPatientSend(
+  lines: readonly ConsultLine[],
+): NewPatientTag[] {
+  const tags: NewPatientTag[] = [NEW_PATIENT_TAG];
+  for (const line of lines) {
+    const tag = NEW_PATIENT_TAGS[line];
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
+/** Consult-line tags not yet stored for a contact this app already sent. */
+export function missingConsultTags(
+  already: readonly string[],
+  lines: readonly ConsultLine[],
+): NewPatientLineTag[] {
+  const tags: NewPatientLineTag[] = [];
+  for (const line of lines) {
+    const tag = NEW_PATIENT_TAGS[line];
+    if (!already.includes(tag) && !tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
+/**
+ * Tags still to add.
+ * A contact with no saved id gets the full new-patient set.
+ * A contact this app already tagged gets only consult lines it does not have yet.
+ * Older links that never stored new-patient tags are left alone.
+ */
+export function pendingNewPatientTags(
+  previous: { ghlContactId?: string; newPatientTags?: readonly string[] } | null,
+  lines: readonly ConsultLine[],
+): NewPatientTag[] {
+  if (!previous?.ghlContactId) return tagsForNewPatientSend(lines);
+  if (!previous.newPatientTags) return [];
+  return missingConsultTags(previous.newPatientTags, lines);
 }
 
 export function soldLine(

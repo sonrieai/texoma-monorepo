@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Spinner } from "@/components/ui/States";
 import { resolvePostLoginPath, type DashboardRole } from "@/lib/auth/roles";
 
@@ -14,7 +15,7 @@ function LoginFormInner() {
 
   const timeoutMessage =
     timeoutReason === "timeout"
-      ? "Your session ended after 10 minutes of inactivity. Please sign in again."
+      ? "Your session ended after 15 minutes of inactivity. Please sign in again."
       : timeoutReason === "expired"
         ? "Your session has expired. Please sign in again."
         : timeoutReason === "no-access"
@@ -115,10 +116,9 @@ function LoginFormInner() {
         >
           Password
         </label>
-        <input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}

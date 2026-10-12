@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Card, ComboStat, SectionHeading } from "@/components/ui/Cards";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { InlineSpinner } from "@/components/ui/States";
 
 type GhlStatus = {
@@ -246,8 +247,8 @@ export function GhlSettingsPanel() {
         <div className="grid max-w-xl gap-3">
           <label className="grid gap-1 text-[12px]">
             <span className="font-semibold text-foreground">API key</span>
-            <input
-              type="password"
+            <PasswordInput
+              secretLabel="API key"
               autoComplete="off"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}

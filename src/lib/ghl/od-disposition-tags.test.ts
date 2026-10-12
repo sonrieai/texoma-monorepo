@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  NEW_PATIENT_TAGS,
+  NEW_PATIENT_TAG,
   NO_SHOW_TAGS,
   TREATMENT_COORDINATORS,
   appointmentTagEffect,
   classifyConfirmName,
   consultLineFromText,
   foldTagEffects,
+  pendingNewPatientTags,
   soldLine,
+  tagsForNewPatientSend,
 } from "@/lib/ghl/od-disposition-tags";
 import { normalizeOdGhlSyncState } from "@/lib/ghl/od-ghl-sync-state";
 import {
@@ -176,6 +180,7 @@ describe("sync state", () => {
         "42": {
           ghlContactId: "abc",
           noShowTag: "NO SHOWED AOX",
+          newPatientTags: ["NEW PATIENT", "NOT A TAG"],
           phone: "5551234567",
           email: "a@b.com",
         },
@@ -183,6 +188,7 @@ describe("sync state", () => {
     });
     assert.equal(state.contacts["42"]?.ghlContactId, "abc");
     assert.equal(state.contacts["42"]?.noShowTag, "NO SHOWED AOX");
+    assert.deepEqual(state.contacts["42"]?.newPatientTags, ["NEW PATIENT"]);
     assert.equal("phone" in (state.contacts["42"] ?? {}), false);
     assert.equal(normalizeUsPhone("(580) 555-0100"), "+15805550100");
     assert.equal(normalizeEmail(" Ada@Clinic.com "), "ada@clinic.com");
@@ -196,6 +202,47 @@ describe("sync state", () => {
     assert.equal(
       syncAlreadyApplied({ ghlContactId: "abc", noShowTag: null }, "clear"),
       true,
+    );
+  });
+});
+
+describe("new patient tags", () => {
+  it("adds the base tag and the consult line on the first send", () => {
+    assert.deepEqual(tagsForNewPatientSend([]), [NEW_PATIENT_TAG]);
+    assert.deepEqual(tagsForNewPatientSend(["aox", "aox"]), [
+      NEW_PATIENT_TAG,
+      NEW_PATIENT_TAGS.aox,
+    ]);
+    assert.deepEqual(
+      pendingNewPatientTags(null, ["dent"]),
+      [NEW_PATIENT_TAG, NEW_PATIENT_TAGS.dent],
+    );
+  });
+
+  it("adds only a consult line that was not stored yet", () => {
+    assert.deepEqual(
+      pendingNewPatientTags(
+        { ghlContactId: "abc", newPatientTags: [NEW_PATIENT_TAG] },
+        ["imp"],
+      ),
+      [NEW_PATIENT_TAGS.imp],
+    );
+    assert.deepEqual(
+      pendingNewPatientTags(
+        {
+          ghlContactId: "abc",
+          newPatientTags: [NEW_PATIENT_TAG, NEW_PATIENT_TAGS.imp],
+        },
+        ["imp"],
+      ),
+      [],
+    );
+  });
+
+  it("does not backfill contacts synced before new-patient tags", () => {
+    assert.deepEqual(
+      pendingNewPatientTags({ ghlContactId: "abc" }, ["aox"]),
+      [],
     );
   });
 });

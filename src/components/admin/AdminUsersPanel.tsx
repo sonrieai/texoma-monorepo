@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Card } from "@/components/ui/Cards";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { DASHBOARD_ROLE_DETAILS, type DashboardRole } from "@/lib/auth/roles";
 import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
 
@@ -186,9 +187,8 @@ function CreateUserForm({
         </label>
         <label className="block text-[12px] font-semibold text-foreground">
           Password
-          <input
+          <PasswordInput
             required
-            type="password"
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}

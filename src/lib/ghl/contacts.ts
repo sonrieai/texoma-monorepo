@@ -115,6 +115,15 @@ async function postTags(
   }
 }
 
+/** Add tags without removing the ones already on the contact. */
+export async function addContactTags(
+  contactId: string,
+  tags: readonly string[],
+  config?: GhlConfig,
+): Promise<void> {
+  await postTags(contactId, "POST", tags, config);
+}
+
 /** Remove the other no-show tags, then add the one tag that should remain. */
 export async function replaceNoShowTag(params: {
   contactId: string;

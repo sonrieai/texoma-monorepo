@@ -1,5 +1,6 @@
 import "server-only";
 
+import { networkInterfaces } from "node:os";
 import nodemailer from "nodemailer";
 import { PRODUCTION_APP_URL } from "@/lib/auth/config";
 
@@ -26,6 +27,44 @@ export function getMailgunConfig(): { apiKey: string; domain: string } | null {
   return { apiKey, domain };
 }
 
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+/** First LAN address so reset links open from other devices on the network. */
+function lanIpv4(): string | null {
+  const candidates: string[] = [];
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      const family = entry.family as string | number;
+      const isIpv4 = family === "IPv4" || family === 4;
+      if (isIpv4 && !entry.internal) candidates.push(entry.address);
+    }
+  }
+  return (
+    candidates.find((ip) => ip.startsWith("192.168.")) ||
+    candidates.find((ip) => ip.startsWith("10.")) ||
+    candidates[0] ||
+    null
+  );
+}
+
+function preferLanOrigin(base: string): string {
+  const trimmed = base.replace(/\/+$/, "");
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return trimmed;
+  }
+  if (!isLoopbackHost(url.hostname)) return url.origin;
+  const ip = lanIpv4();
+  if (!ip) return url.origin;
+  url.hostname = ip;
+  return url.origin;
+}
+
 export function getPasswordResetWebBaseUrl(requestOrigin?: string): string {
   const configured =
     process.env.PASSWORD_RESET_WEB_BASE_URL?.trim() ||
@@ -33,7 +72,7 @@ export function getPasswordResetWebBaseUrl(requestOrigin?: string): string {
     process.env.APP_URL?.trim();
 
   if (configured) {
-    return configured.replace(/\/+$/, "");
+    return preferLanOrigin(configured);
   }
 
   if (process.env.VERCEL_ENV === "production") {
@@ -41,10 +80,10 @@ export function getPasswordResetWebBaseUrl(requestOrigin?: string): string {
   }
 
   if (requestOrigin) {
-    return requestOrigin.replace(/\/+$/, "");
+    return preferLanOrigin(requestOrigin);
   }
 
-  return "http://localhost:5001";
+  return preferLanOrigin("http://localhost:5001");
 }
 
 export function buildPasswordResetUrl(token: string, baseUrl: string): string {

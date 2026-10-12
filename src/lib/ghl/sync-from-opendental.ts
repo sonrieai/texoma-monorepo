@@ -1,10 +1,11 @@
 /**
  * Poll Open Dental for new patients and appointment dispositions,
- * then upsert one GoHighLevel contact and one no-show tag.
+ * then upsert one GoHighLevel contact, new-patient tags, and one no-show tag.
  */
 
 import { getGhlConfig } from "@/lib/ghl/config";
 import {
+  addContactTags,
   replaceNoShowTag,
   updateGhlContact,
   upsertGhlContact,
@@ -13,8 +14,12 @@ import {
 import { GhlApiError } from "@/lib/ghl/http";
 import {
   appointmentTagEffect,
+  consultLineForAppointment,
   foldTagEffects,
   isSoldProcedureCode,
+  pendingNewPatientTags,
+  type ConsultLine,
+  type NewPatientTag,
   type NoShowTag,
   type TagEffect,
 } from "@/lib/ghl/od-disposition-tags";
@@ -71,9 +76,21 @@ export function patientContactInput(
   };
 }
 
+function mergeNewPatientTags(
+  previous: readonly NewPatientTag[] | undefined,
+  added: readonly NewPatientTag[],
+): NewPatientTag[] {
+  const tags: NewPatientTag[] = [];
+  for (const tag of [...(previous ?? []), ...added]) {
+    if (!tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
 async function applyPatient(params: {
   input: GhlContactInput | null;
   effect: TagEffect;
+  lines: readonly ConsultLine[];
   previous: OdGhlContactLink | null;
   config: GhlConfig;
 }): Promise<
@@ -87,6 +104,7 @@ async function applyPatient(params: {
 > {
   let contactId = params.previous?.ghlContactId;
   let upserted = false;
+  let firstSend = !contactId;
 
   if (contactId && params.input) {
     try {
@@ -101,15 +119,29 @@ async function applyPatient(params: {
     if (!params.input) return { kind: "skipped" };
     contactId = await upsertGhlContact(params.input, params.config);
     upserted = true;
+    firstSend = true;
   }
 
+  const tagsToAdd = firstSend
+    ? pendingNewPatientTags(null, params.lines)
+    : pendingNewPatientTags(params.previous, params.lines);
+  if (tagsToAdd.length > 0) {
+    await addContactTags(contactId, tagsToAdd, params.config);
+  }
+  const newPatientTags =
+    firstSend || params.previous?.newPatientTags
+      ? mergeNewPatientTags(params.previous?.newPatientTags, tagsToAdd)
+      : undefined;
+
   const previousTag = params.previous?.noShowTag ?? null;
+  const linkTags = newPatientTags ? { newPatientTags } : {};
+
   if (params.effect === "leave") {
     return {
       kind: "ok",
       upserted,
-      tagChange: "unchanged",
-      link: { ghlContactId: contactId, noShowTag: previousTag },
+      tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
+      link: { ghlContactId: contactId, noShowTag: previousTag, ...linkTags },
     };
   }
 
@@ -124,14 +156,14 @@ async function applyPatient(params: {
         kind: "ok",
         upserted,
         tagChange: "cleared",
-        link: { ghlContactId: contactId, noShowTag: null },
+        link: { ghlContactId: contactId, noShowTag: null, ...linkTags },
       };
     }
     return {
       kind: "ok",
       upserted,
-      tagChange: "unchanged",
-      link: { ghlContactId: contactId, noShowTag: null },
+      tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
+      link: { ghlContactId: contactId, noShowTag: null, ...linkTags },
     };
   }
 
@@ -140,8 +172,8 @@ async function applyPatient(params: {
     return {
       kind: "ok",
       upserted,
-      tagChange: "unchanged",
-      link: { ghlContactId: contactId, noShowTag: next },
+      tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
+      link: { ghlContactId: contactId, noShowTag: next, ...linkTags },
     };
   }
   await replaceNoShowTag({ contactId, next, config: params.config });
@@ -149,7 +181,7 @@ async function applyPatient(params: {
     kind: "ok",
     upserted,
     tagChange: "tagged",
-    link: { ghlContactId: contactId, noShowTag: next },
+    link: { ghlContactId: contactId, noShowTag: next, ...linkTags },
   };
 }
 
@@ -187,10 +219,17 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
   }
 
   const events = new Map<number, TimedEffect[]>();
+  const linesByPatient = new Map<number, ConsultLine[]>();
   const touch = (patNum: number, event: TimedEffect) => {
     const list = events.get(patNum) ?? [];
     list.push(event);
     events.set(patNum, list);
+  };
+  const noteLine = (patNum: number, line: ConsultLine | null) => {
+    if (!line) return;
+    const list = linesByPatient.get(patNum) ?? [];
+    if (!list.includes(line)) list.push(line);
+    linesByPatient.set(patNum, list);
   };
 
   let cursor = since;
@@ -203,13 +242,21 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     const at = odStampToCursor(appt.DateTStamp);
     cursor = laterCursor(cursor, at);
     if (!at) continue;
+    const procedureCodes = codesByApt.get(appt.AptNum) ?? [];
+    noteLine(
+      appt.PatNum,
+      consultLineForAppointment({
+        appointmentTypeName: appt.AppointmentTypeName,
+        procedureCodes,
+      }),
+    );
     touch(appt.PatNum, {
       at,
       effect: appointmentTagEffect({
         completed: appt.AptStatus === OdAptStatus.Complete,
         confirmName: appt.ConfirmedName,
         appointmentTypeName: appt.AppointmentTypeName,
-        procedureCodes: codesByApt.get(appt.AptNum) ?? [],
+        procedureCodes,
       }),
     });
   }
@@ -243,7 +290,11 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     );
     const key = String(patNum);
     const previous = state.contacts[key] ?? null;
-    if (syncAlreadyApplied(previous, effect)) {
+    const lines = linesByPatient.get(patNum) ?? [];
+    if (
+      syncAlreadyApplied(previous, effect) &&
+      pendingNewPatientTags(previous, lines).length === 0
+    ) {
       unchanged += 1;
       continue;
     }
@@ -251,7 +302,13 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     const input = row ? patientContactInput(row) : null;
     if (!config) continue;
     try {
-      const outcome = await applyPatient({ input, effect, previous, config });
+      const outcome = await applyPatient({
+        input,
+        effect,
+        lines,
+        previous,
+        config,
+      });
       if (outcome.kind === "skipped") {
         skippedNoContact += 1;
         continue;

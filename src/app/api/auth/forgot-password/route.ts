@@ -91,7 +91,10 @@ export async function POST(request: Request) {
     expiresAt,
   });
 
-  const origin = new URL(request.url).origin;
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost || request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") || "http";
+  const origin = host ? `${proto}://${host}` : new URL(request.url).origin;
   const resetUrl = buildPasswordResetUrl(
     resetToken,
     getPasswordResetWebBaseUrl(origin),

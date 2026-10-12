@@ -30,17 +30,17 @@ export async function POST() {
 
   const refreshedToken = await refreshSessionToken(payload.sub, payload.exp);
   const expiresAt = new Date(payload.exp * 1000);
-  cookieStore.set(
-    getSessionCookieName(),
-    refreshedToken,
-    sessionCookieOptions(expiresAt),
-  );
-
   const session = await verifySessionToken(refreshedToken);
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     inactivityTimeoutMs: SESSION_INACTIVITY_TIMEOUT_MS,
     heartbeatDebounceMs: SESSION_HEARTBEAT_DEBOUNCE_MS,
     inactivityExpiresAt: session?.inactivityExpiresAt ?? null,
   });
+  response.cookies.set(
+    getSessionCookieName(),
+    refreshedToken,
+    sessionCookieOptions(expiresAt),
+  );
+  return response;
 }

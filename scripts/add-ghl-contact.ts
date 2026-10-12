@@ -5,11 +5,12 @@
  *   npm run ghl:add-contact -- 14675
  *
  * Matches an existing GoHighLevel contact by phone or email.
- * Does not add a no-show tag.
+ * The first send adds the NEW PATIENT tag. It does not add a no-show tag.
  */
 import { loadEnvLocal } from "../src/lib/env/load-env-local";
-import { updateGhlContact, upsertGhlContact } from "../src/lib/ghl/contacts";
+import { addContactTags, updateGhlContact, upsertGhlContact } from "../src/lib/ghl/contacts";
 import { GhlApiError } from "../src/lib/ghl/http";
+import { NEW_PATIENT_TAG } from "../src/lib/ghl/od-disposition-tags";
 import {
   readOdGhlSyncState,
   writeOdGhlSyncState,
@@ -42,7 +43,9 @@ async function main() {
 
   const state = await readOdGhlSyncState();
   const key = String(patNum);
-  let contactId = state.contacts[key]?.ghlContactId;
+  const previous = state.contacts[key] ?? null;
+  let contactId = previous?.ghlContactId;
+  let firstSend = !contactId;
   let action: "created" | "updated" = "created";
 
   if (contactId) {
@@ -56,11 +59,19 @@ async function main() {
   }
   if (!contactId) {
     contactId = await upsertGhlContact(input);
+    firstSend = true;
+  }
+  if (firstSend) {
+    await addContactTags(contactId, [NEW_PATIENT_TAG]);
   }
 
+  const newPatientTags = firstSend
+    ? [NEW_PATIENT_TAG]
+    : previous?.newPatientTags;
   state.contacts[key] = {
     ghlContactId: contactId,
-    noShowTag: state.contacts[key]?.noShowTag ?? null,
+    noShowTag: previous?.noShowTag ?? null,
+    ...(newPatientTags ? { newPatientTags: [...newPatientTags] } : {}),
   };
   await writeOdGhlSyncState(state);
 

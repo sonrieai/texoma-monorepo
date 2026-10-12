@@ -46,9 +46,9 @@ See [DATA_ACCESS.md](./DATA_ACCESS.md).
 
 ## Open Dental → GoHighLevel
 
-`npm run sync:od-ghl` polls MySQL and upserts one GoHighLevel contact per changed patient. A no-show confirmation adds one of `NO SHOWED AOX`, `NO SHOWED IMP`, `NO SHOWED OTN`, `NO SHOWED UTN`, or `NO SHOWED DENT`. Show, cancel, reschedule, and a completed sold code remove that tag. Booked consults create or match the contact and do not add a tag.
+`npm run sync:od-ghl` polls MySQL and upserts one GoHighLevel contact per changed patient. The first send adds `NEW PATIENT`, and `NEW PATIENT AOX`, `NEW PATIENT IMP`, `NEW PATIENT OTN`, `NEW PATIENT UTN`, or `NEW PATIENT DENT` when that consult is on the appointment. A later consult on a contact this app already tagged adds only the missing line tag. A no-show confirmation adds one of `NO SHOWED AOX`, `NO SHOWED IMP`, `NO SHOWED OTN`, `NO SHOWED UTN`, or `NO SHOWED DENT`. Show, cancel, reschedule, and a completed sold code remove that no-show tag.
 
-The first run only writes a cursor in `data/od-ghl-sync.json` (PatNum and contact id). It does not backfill old patients. Names, phones, and emails are not stored. GoHighLevel should run one workflow on those no-show tags, not a second workflow on contact create.
+The first run only writes a cursor in `data/od-ghl-sync.json` (PatNum, contact id, and tags already applied). It does not backfill old patients. Names, phones, and emails are not stored. GoHighLevel workflows can trigger on the new-patient tags and the no-show tags.
 
 Run it every 5 minutes on the office host that can reach MySQL, from the app directory:
 

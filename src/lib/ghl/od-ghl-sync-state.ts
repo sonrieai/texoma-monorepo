@@ -7,13 +7,17 @@ import { copyFile, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { COLLECTIONS, getDb, isMongoConfigured } from "@/lib/mongo/client";
 import {
+  NEW_PATIENT_TAG_LIST,
   NO_SHOW_TAG_LIST,
+  type NewPatientTag,
   type NoShowTag,
 } from "@/lib/ghl/od-disposition-tags";
 
 export type OdGhlContactLink = {
   ghlContactId: string;
   noShowTag: NoShowTag | null;
+  /** Present after this app has sent new-patient tags for the contact. */
+  newPatientTags?: NewPatientTag[];
 };
 
 export type OdGhlSyncState = {
@@ -38,6 +42,13 @@ function isNoShowTag(value: unknown): value is NoShowTag {
   );
 }
 
+function isNewPatientTag(value: unknown): value is NewPatientTag {
+  return (
+    typeof value === "string" &&
+    (NEW_PATIENT_TAG_LIST as readonly string[]).includes(value)
+  );
+}
+
 export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
   const parsed =
     raw && typeof raw === "object" ? (raw as Partial<OdGhlSyncState>) : {};
@@ -50,9 +61,14 @@ export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
     const id = (link as OdGhlContactLink).ghlContactId;
     if (typeof id !== "string" || !id.trim()) continue;
     const tag = (link as OdGhlContactLink).noShowTag;
+    const rawTags = (link as OdGhlContactLink).newPatientTags;
+    const newPatientTags = Array.isArray(rawTags)
+      ? rawTags.filter(isNewPatientTag)
+      : undefined;
     contacts[patNum] = {
       ghlContactId: id.trim(),
       noShowTag: isNoShowTag(tag) ? tag : null,
+      ...(newPatientTags ? { newPatientTags } : {}),
     };
   }
   const cursor =

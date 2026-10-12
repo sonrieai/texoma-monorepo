@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { CockpitMetrics } from "@/components/analytics/CockpitMetrics";
 import {
   PaymentAndDentureSection,
@@ -34,7 +34,7 @@ export default async function OverviewPage({ searchParams }: PageProps) {
 
   if (error || !data) {
     return (
-      <AppShell title="Overview" subtitle="Practice KPIs">
+      <DashboardFrame title="Overview" subtitle="Practice KPIs">
         <EmptyState
           title="Unable to load dashboard"
           description={
@@ -42,14 +42,14 @@ export default async function OverviewPage({ searchParams }: PageProps) {
             "Dashboard data is unavailable. Try again shortly or contact your administrator."
           }
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
   const prod = data.production;
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Overview"
       subtitle="Practice-wide cockpit, production, and payment mix."
     >
@@ -66,6 +66,6 @@ export default async function OverviewPage({ searchParams }: PageProps) {
       />
       <PaymentAndDentureSection production={prod} />
       <ProductionTrendSection production={prod} />
-    </AppShell>
+    </DashboardFrame>
   );
 }

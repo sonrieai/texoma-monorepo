@@ -15,6 +15,8 @@ const googleMapsApiKey =
   "";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["nodemailer"],
+  allowedDevOrigins: ["127.0.0.1", "192.168.1.10"],
   devIndicators: false,
   env: {
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: googleMapsApiKey,

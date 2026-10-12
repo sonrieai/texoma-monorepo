@@ -1,36 +1,36 @@
 @import "tailwindcss";
 
-/* Clinical Teal — cool mint surfaces, deep teal nav, strong status contrast */
+/* Practice dashboard palette from implant-practice-dashboard_130.html */
 :root {
-  --bg: #f0f9fb;
-  --sidebar: #0b3d4a;
-  --sidebar-2: #0f4d5c;
-  --sidebar-active: #156574;
-  --sidebar-text: #d5eef2;
-  --sidebar-muted: #8bb8c2;
-  --sidebar-line: #1a5a6a;
-  --card: #ffffff;
-  --ink: #0f3140;
-  --muted: #5a727c;
-  --line: #cfe3e8;
-  --accent: #0e7490;
-  --accent2: #0f766e;
-  --sand: #b45309;
-  --good: #15803d;
-  --warn: #c2410c;
-  --bad: #dc2626;
-  --notice-bg: #ecfeff;
-  --notice-border: #a5f3fc;
-  --badge-bg: #e6f7f4;
-  --badge-border: #99e2d5;
-  --c1: #0e7490;
-  --c2: #0f766e;
-  --c3: #b45309;
-  --c4: #0369a1;
-  --c5: #7c3aed;
-  --c6: #4d7c0f;
-  --c7: #dc2626;
-  --c8: #0f766e;
+  --bg: #edeae0;
+  --sidebar: #16251d;
+  --sidebar-2: #1e3227;
+  --sidebar-active: #294a38;
+  --sidebar-text: #c4cfc3;
+  --sidebar-muted: #7f8f81;
+  --sidebar-line: #2a4232;
+  --card: #fffef9;
+  --ink: #23281f;
+  --muted: #6d7469;
+  --line: #e3ded0;
+  --accent: #b06a4f;
+  --accent2: #4d7358;
+  --sand: #c9a24b;
+  --good: #3f8f5f;
+  --warn: #d19a37;
+  --bad: #c0554a;
+  --notice-bg: #f6ede8;
+  --notice-border: #ead9d0;
+  --badge-bg: #e5f2ea;
+  --badge-border: #c5dfd0;
+  --c1: #b06a4f;
+  --c2: #4d7358;
+  --c3: #c9a24b;
+  --c4: #5b7f95;
+  --c5: #8a6d8b;
+  --c6: #7d8a4e;
+  --c7: #a4553f;
+  --c8: #3f7d75;
   --background: var(--bg);
   --foreground: var(--ink);
 }
@@ -143,4 +143,57 @@ button:disabled,
 
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/** Overview / doctor cockpit row from the practice dashboard prototype. */
+.cockpit-top {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cockpit-donut {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.cockpit-tiles {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .cockpit-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1150px) {
+  .cockpit-top {
+    flex-direction: row;
+  }
+
+  .cockpit-donut {
+    width: 360px;
+    flex: 0 0 360px;
+  }
+
+  .cockpit-tiles {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+/** Doctor and coordinator lists stay open so every name can be clicked. */
+.nav-group .nav-subwrap {
+  max-height: 16rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }

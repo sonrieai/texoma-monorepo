@@ -1,5 +1,5 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function DoctorLoading() {
-  return <PageLoading title="Doctor" />;
+  return <DashboardLoading title="Doctor" />;
 }

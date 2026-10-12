@@ -1,6 +1,23 @@
 import "server-only";
 
+import nodemailer from "nodemailer";
 import { PRODUCTION_APP_URL } from "@/lib/auth/config";
+
+export function getSmtpConfig(): {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+} | null {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  const port = Number(process.env.SMTP_PORT?.trim() || "587");
+  if (!host || !user || !pass || !Number.isInteger(port) || port <= 0) {
+    return null;
+  }
+  return { host, port, user, pass };
+}
 
 export function getMailgunConfig(): { apiKey: string; domain: string } | null {
   const apiKey = process.env.MAILGUN_API_KEY?.trim();
@@ -41,13 +58,15 @@ export async function sendPasswordResetEmail(input: {
   userName: string;
   resetUrl: string;
 }): Promise<boolean> {
+  const smtp = getSmtpConfig();
   const mailgun = getMailgunConfig();
-  if (!mailgun) return false;
+  if (!smtp && !mailgun) return false;
 
   const senderName = process.env.AUTH_SENDER_NAME?.trim() || "Texoma Dashboard";
   const fromAddress =
     process.env.SENDER_EMAIL?.trim() ||
-    `security@${mailgun.domain}`;
+    smtp?.user ||
+    `security@${mailgun?.domain}`;
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f3140;">
@@ -69,10 +88,43 @@ export async function sendPasswordResetEmail(input: {
     </div>
   `.trim();
 
+  const subject = "Reset your Texoma dashboard password";
+  const from = `${senderName} <${fromAddress}>`;
+
+  if (smtp) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.port === 465,
+        requireTLS: smtp.port !== 465,
+        auth: {
+          user: smtp.user,
+          pass: smtp.pass,
+        },
+      });
+      await transporter.sendMail({
+        from,
+        to: input.email,
+        subject,
+        html,
+      });
+      return true;
+    } catch (error) {
+      console.error(
+        "SMTP send failed:",
+        error instanceof Error ? error.message : error,
+      );
+      return false;
+    }
+  }
+
+  if (!mailgun) return false;
+
   const body = new URLSearchParams({
-    from: `${senderName} <${fromAddress}>`,
+    from,
     to: input.email,
-    subject: "Reset your Texoma dashboard password",
+    subject,
     html,
   });
 

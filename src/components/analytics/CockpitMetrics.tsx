@@ -39,8 +39,8 @@ function ComboStack({
   children: ReactNode;
 }) {
   return (
-    <Card title={title} className="h-full">
-      <div className="mt-1 grid grid-cols-1 gap-2.5">{children}</div>
+    <Card title={title} className="flex h-full flex-col">
+      <div className="mt-3 grid flex-1 grid-cols-1 gap-3">{children}</div>
     </Card>
   );
 }
@@ -73,22 +73,25 @@ export function CockpitMetrics({
   return (
     <>
       <SectionHeading title="Cockpit Metrics" tag="top 10" />
-      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:items-start">
+      <div className="cockpit-top">
         <Card
           title="Production by Category"
           subtitle={`Share of production${period ? ` · ${period}` : ""}`}
-          className="min-w-0 w-full"
+          className="cockpit-donut"
         >
-          <ProductionCategoryDonut
-            slices={donutSlices}
-            chartCategories={chartCategories}
-            size={300}
-            centerLabel={formatUsdCompact(centsToDollars(categoryTotalCents))}
-            centerSub="total"
-          />
+          <div className="flex flex-1 items-center justify-center">
+            <ProductionCategoryDonut
+              slices={donutSlices}
+              chartCategories={chartCategories}
+              size={300}
+              showLegend={false}
+              centerLabel={formatUsdCompact(centsToDollars(categoryTotalCents))}
+              centerSub="total"
+            />
+          </div>
         </Card>
 
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="cockpit-tiles">
           <ComboStack title="New Patient Conversion">
             <ComboStat
               variant="inset"
@@ -130,6 +133,12 @@ export function CockpitMetrics({
                       ? "warn"
                       : "bad"
               }
+            />
+            <ComboStat
+              variant="inset"
+              label="Same-day start count"
+              value={String(conversion.sameDayStarts)}
+              note={period ? `patients · ${period}` : "patients"}
             />
             <ComboStat
               variant="inset"

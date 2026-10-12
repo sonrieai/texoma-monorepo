@@ -145,7 +145,7 @@ function CityMarkers({
             center={[c.lat, c.lon]}
             radius={radius}
             pathOptions={{
-              color: "#0f3140",
+              color: "#23281f",
               fillColor: "#b06a4f",
               fillOpacity: 0.75,
               weight: 2,

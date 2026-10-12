@@ -68,9 +68,11 @@ function formatTrailingValue(
 function ProviderMobileCard({
   provider: p,
   productionAvailable,
+  periodQuery,
 }: {
   provider: DoctorProviderRow;
   productionAvailable: boolean;
+  periodQuery?: string;
 }) {
   const perPatient =
     p.npConsultShow > 0
@@ -81,7 +83,7 @@ function ProviderMobileCard({
     <article className="border-b border-line px-3 py-3.5 last:border-b-0 sm:px-4">
       <div className="flex items-start justify-between gap-3">
         <Link
-          href={`/doctor/${p.id}`}
+          href={providerHref(p.id, periodQuery)}
           className="min-w-0 truncate font-bold text-foreground no-underline hover:text-accent hover:underline"
         >
           {p.name}
@@ -130,12 +132,18 @@ function ProviderMobileCard({
   );
 }
 
+function providerHref(id: string, periodQuery?: string): string {
+  return periodQuery ? `/doctor/${id}?${periodQuery}` : `/doctor/${id}`;
+}
+
 export function DoctorProviderTable({
   providers,
   productionAvailable = false,
+  periodQuery,
 }: {
   providers: DoctorProviderRow[];
   productionAvailable?: boolean;
+  periodQuery?: string;
 }) {
   return (
     <Card className="overflow-hidden p-0 sm:p-0">
@@ -146,6 +154,7 @@ export function DoctorProviderTable({
             key={p.id}
             provider={p}
             productionAvailable={productionAvailable}
+            periodQuery={periodQuery}
           />
         ))}
       </div>
@@ -193,7 +202,7 @@ export function DoctorProviderTable({
                   <tr key={p.id} className="hover:bg-background/80">
                     <td className="border-b border-line px-1.5 py-2.5 pl-3 text-left">
                       <Link
-                        href={`/doctor/${p.id}`}
+                        href={providerHref(p.id, periodQuery)}
                         className="font-bold text-foreground no-underline hover:text-accent hover:underline"
                       >
                         {p.name}

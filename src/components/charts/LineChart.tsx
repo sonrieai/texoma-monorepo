@@ -52,12 +52,39 @@ function niceMoneyMax(dataMax: number): number {
   return Math.ceil(dataMax / step) * step;
 }
 
+function niceStep(rough: number): number {
+  if (rough <= 0) return 1000;
+  const exp = 10 ** Math.floor(Math.log10(rough));
+  const frac = rough / exp;
+  const niceFrac = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
+  return niceFrac * exp;
+}
+
+/** Lift the money axis to the data so a tight cluster is not drawn against $0. */
+function fittedMoneyBounds(values: number[]): { min: number; max: number; ticks: number[] } {
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  const span = Math.max(dataMax - dataMin, dataMax * 0.05, 1);
+  const pad = span * 0.15;
+  const step = niceStep((span + pad * 2) / TICK_COUNT);
+  let min = Math.floor((dataMin - pad) / step) * step;
+  if (!Number.isFinite(min) || min < 0) min = 0;
+  let max = Math.ceil((dataMax + pad) / step) * step;
+  if (max <= min) max = min + step * TICK_COUNT;
+  const count = Math.max(1, Math.round((max - min) / step));
+  max = min + count * step;
+  const ticks = Array.from({ length: count + 1 }, (_, i) => min + i * step);
+  return { min, max, ticks };
+}
+
 function chartBounds(
   series: LineSeries[],
   money: boolean,
+  fitScale: boolean,
 ): { min: number; max: number; ticks: number[] } {
   const all = series.flatMap((s) => finiteValues(s.values));
   if (money) {
+    if (fitScale && all.length > 0) return fittedMoneyBounds(all);
     const max = niceMoneyMax(all.length ? Math.max(...all) : 0);
     const ticks = Array.from({ length: TICK_COUNT + 1 }, (_, k) => (k / TICK_COUNT) * max);
     return { min: 0, max, ticks };
@@ -108,12 +135,15 @@ export function LineChart({
   width = 860,
   height = 280,
   money = true,
+  fitScale = false,
 }: {
   series: LineSeries[];
   xLabels?: string[];
   width?: number;
   height?: number;
   money?: boolean;
+  /** Start the money axis near the lowest point instead of $0. */
+  fitScale?: boolean;
 }) {
   const year = new Date().getFullYear();
   const series =
@@ -137,7 +167,7 @@ export function LineChart({
           },
         ];
 
-  const { min, max, ticks } = chartBounds(series, money);
+  const { min, max, ticks } = chartBounds(series, money, fitScale);
   const plotW = width - PAD.l - PAD.r;
   const plotH = height - PAD.t - PAD.b;
   const count = series[0]?.values.length ?? 12;

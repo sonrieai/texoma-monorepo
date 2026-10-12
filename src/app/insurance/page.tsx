@@ -1,5 +1,5 @@
 import { InsurancePageContent } from "@/components/analytics/InsurancePageContent";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { EmptyState } from "@/components/ui/States";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
@@ -31,17 +31,17 @@ export default async function InsurancePage({ searchParams }: PageProps) {
 
   if (error || !data) {
     return (
-      <AppShell title="Insurance" subtitle="Live" badge="Error">
+      <DashboardFrame title="Insurance" subtitle="Live" badge="Error">
         <EmptyState
           title="Unable to load insurance metrics"
           description={error ?? "Dashboard data is unavailable. Try again shortly."}
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Insurance"
       subtitle="Claims, collections, AR, and SoonerCare reimbursement."
       badge={practiceStatusBadge({
@@ -51,6 +51,6 @@ export default async function InsurancePage({ searchParams }: PageProps) {
       })}
     >
       <InsurancePageContent data={data} periodLabel={pl} />
-    </AppShell>
+    </DashboardFrame>
   );
 }

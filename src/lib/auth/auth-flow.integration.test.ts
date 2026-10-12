@@ -6,13 +6,16 @@ import { after, before, describe, it } from "node:test";
 import { verifyLogin } from "@/lib/auth/credentials";
 import { hashPassword, verifyPasswordHash } from "@/lib/auth/password";
 import { createSignedResetToken, getResetTokenTtlMs } from "@/lib/auth/reset-token";
+import { updateJsonStore } from "@/lib/store/json-store";
 import {
+  createDashboardUser,
   deleteAuthRecordsByEmail,
   findDashboardUserByEmail,
   findPasswordResetByToken,
   insertPasswordResetRecord,
   markPasswordResetUsed,
   saveDashboardUser,
+  updateDashboardUserAccess,
   updateDashboardUserPassword,
 } from "@/lib/auth/users";
 
@@ -40,6 +43,8 @@ describe("auth flow (JSON store)", () => {
       email: TEST_EMAIL,
       passwordHash: hashPassword(TEST_PASSWORD),
       isActive: true,
+      role: "owner",
+      providerId: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -96,5 +101,88 @@ describe("auth flow (JSON store)", () => {
     assert.ok(user);
     assert.equal(verifyPasswordHash(NEW_PASSWORD, user.passwordHash), true);
     assert.equal(verifyPasswordHash(TEST_PASSWORD, user.passwordHash), false);
+  });
+
+  it("persists role and providerId and protects the last owner", async () => {
+    const missingProvider = await createDashboardUser({
+      username: "No Provider",
+      email: "doctor-missing@example.com",
+      password: "DoctorPass1",
+      role: "doctor",
+      providerId: "  ",
+    });
+    assert.equal(missingProvider.ok, false);
+
+    const unsafeProvider = await createDashboardUser({
+      username: "Unsafe",
+      email: "doctor-unsafe@example.com",
+      password: "DoctorPass1",
+      role: "doctor",
+      providerId: "../overview",
+    });
+    assert.equal(unsafeProvider.ok, false);
+
+    const created = await createDashboardUser({
+      username: "Dr Test",
+      email: "doctor-role@example.com",
+      password: "DoctorPass1",
+      role: "doctor",
+      providerId: " 42 ",
+    });
+    assert.equal(created.ok, true);
+    if (!created.ok) return;
+
+    const doctor = await findDashboardUserByEmail("doctor-role@example.com");
+    assert.equal(doctor?.role, "doctor");
+    assert.equal(doctor?.providerId, "42");
+
+    const blocked = await updateDashboardUserAccess(TEST_USER_ID, {
+      role: "insurance",
+    });
+    assert.equal(blocked.ok, false);
+    if (!blocked.ok) assert.equal(blocked.status, 409);
+
+    const second = await createDashboardUser({
+      username: "Second Owner",
+      email: "second-owner@example.com",
+      password: "OwnerPass1",
+      role: "owner",
+    });
+    assert.equal(second.ok, true);
+    if (!second.ok) return;
+
+    const demoted = await updateDashboardUserAccess(TEST_USER_ID, {
+      role: "insurance",
+    });
+    assert.equal(demoted.ok, true);
+    if (demoted.ok) {
+      assert.equal(demoted.user.role, "insurance");
+      assert.equal(demoted.user.providerId, null);
+    }
+
+    const deactivateLast = await updateDashboardUserAccess(second.user.id, {
+      isActive: false,
+    });
+    assert.equal(deactivateLast.ok, false);
+
+    await updateJsonStore((store) => {
+      store.dashboardUsers.push({
+        id: "legacy-role-user",
+        username: "legacy",
+        email: "legacy-role@example.com",
+        passwordHash: hashPassword("LegacyPass1"),
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    });
+    const legacy = await findDashboardUserByEmail("legacy-role@example.com");
+    assert.equal(legacy?.role, "owner");
+    assert.equal(legacy?.providerId, null);
+
+    await deleteAuthRecordsByEmail("doctor-role@example.com");
+    await deleteAuthRecordsByEmail("doctor-missing@example.com");
+    await deleteAuthRecordsByEmail("second-owner@example.com");
+    await deleteAuthRecordsByEmail("legacy-role@example.com");
   });
 });

@@ -106,7 +106,7 @@ export function TreatmentByTypeSection({
     <>
       <SectionHeading title="Treatment by Type" />
       <div className="mb-4 min-w-0">
-        <Card className="min-w-0 overflow-hidden">
+        <Card className="min-w-0 overflow-visible">
           <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="m-0 text-[13px] font-bold leading-snug">
@@ -151,22 +151,36 @@ export function PaymentAndDentureSection({
   ];
 
   const dw = production.dentureWarranty;
-  const dentureWarrantyRows = [
-    { label: "6-month", value: centsToDollars(dw.m6Cents), count: dw.m6Count ?? 0 },
-    { label: "1-Yr", value: centsToDollars(dw.y1Cents), count: dw.y1Count ?? 0 },
-    { label: "3-Yr", value: centsToDollars(dw.y3Cents), count: dw.y3Count ?? 0 },
-    { label: "5-Yr", value: centsToDollars(dw.y5Cents), count: dw.y5Count ?? 0 },
+  const warrantyTiers = [
+    { label: "6-month", cents: dw.m6Cents, count: dw.m6Count ?? 0 },
+    { label: "1-Yr", cents: dw.y1Cents, count: dw.y1Count ?? 0 },
+    { label: "3-Yr", cents: dw.y3Cents, count: dw.y3Count ?? 0 },
+    { label: "5-Yr", cents: dw.y5Cents, count: dw.y5Count ?? 0 },
   ];
+  const amountRows = warrantyTiers.map((row) => ({
+    label: row.label,
+    value: centsToDollars(row.cents),
+  }));
+  const quantityRows = warrantyTiers.map((row) => ({
+    label: row.label,
+    value: row.count,
+  }));
 
   return (
     <>
       <SectionHeading title="Denture Production & Payments" />
-      <div className="mb-4 grid gap-4 md:grid-cols-2">
+      <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Card
           title="Denture Production by Warranty"
-          subtitle="6-mo · 1-Yr · 3-Yr · 5-Yr"
+          subtitle="Production amount · 6-mo · 1-Yr · 3-Yr · 5-Yr"
         >
-          <HBarChart rows={dentureWarrantyRows} />
+          <HBarChart rows={amountRows} />
+        </Card>
+        <Card
+          title="Denture Quantity by Warranty"
+          subtitle="Count · 6-mo · 1-Yr · 3-Yr · 5-Yr"
+        >
+          <HBarChart rows={quantityRows} money={false} />
         </Card>
         <Card
           title="Payment Mix"
@@ -199,9 +213,9 @@ export function ProductionTrendSection({
         <Card
           title="Production"
           subtitle={`${trend.subtitle} · hover for detail`}
-          className="min-w-0 overflow-hidden"
+          className="min-w-0 overflow-visible"
         >
-          <LineChart series={trend.series} xLabels={trend.xLabels} money />
+          <LineChart series={trend.series} xLabels={trend.xLabels} money fitScale />
         </Card>
       </div>
     </>

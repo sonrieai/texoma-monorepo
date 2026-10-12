@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isAuthEnabled } from "@/lib/auth/config";
-import { isGuestEmail } from "@/lib/auth/guest";
+import { getDashboardAccess } from "@/lib/auth/require-dashboard-session";
 import { SESSION_INACTIVITY_TIMEOUT_MS } from "@/lib/auth/session-constants";
 import {
   getSessionCookieName,
@@ -18,12 +18,15 @@ export async function GET() {
   const cookieStore = await cookies();
   const token = cookieStore.get(getSessionCookieName())?.value;
   const session = await verifySessionToken(token);
+  const access = await getDashboardAccess();
 
   return NextResponse.json({
-    authenticated: Boolean(session),
+    authenticated: Boolean(session && access),
     enabled: true,
     email: session?.email ?? null,
-    guest: isGuestEmail(session?.email),
+    role: access?.role ?? null,
+    providerId: access?.providerId ?? null,
+    homePath: access?.homePath ?? null,
     inactivityTimeoutMs: SESSION_INACTIVITY_TIMEOUT_MS,
     inactivityExpiresAt: session?.inactivityExpiresAt ?? null,
   });

@@ -1,4 +1,4 @@
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { GeoPageContent } from "@/components/geo/GeoPageContent";
 import { EmptyState } from "@/components/ui/States";
 import { loadGeoSummary } from "@/lib/warehouse/geo";
@@ -18,7 +18,7 @@ export default async function GeoPage({ searchParams }: PageProps) {
 
   if (!geo.available) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Patients by Area"
         subtitle="Where your patients and production come from."
       >
@@ -26,16 +26,16 @@ export default async function GeoPage({ searchParams }: PageProps) {
           title="Unable to load geography"
           description={geo.notices[0] ?? "Patient warehouse unavailable."}
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Patients by Area"
       subtitle={`Where your patients and production come from · ${periodNote}`}
     >
       <GeoPageContent geo={geo} />
-    </AppShell>
+    </DashboardFrame>
   );
 }

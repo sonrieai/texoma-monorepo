@@ -1037,9 +1037,12 @@ export function summarizeProductionFromLedger(params: {
   );
   finalize(totals);
   for (const prov of byProvider.values()) finalize(prov);
+  // OD Production & Income: collections ÷ gross production in the same period.
+  // Adjusted production is a separate KPI; using it here pushes the ratio over 100%
+  // whenever write-offs and credits reduce the denominator.
   const collectionRatio =
-    totals.netProductionCents > 0
-      ? totals.collectionsCents / totals.netProductionCents
+    totals.grossProductionCents > 0
+      ? totals.collectionsCents / totals.grossProductionCents
       : null;
 
   if (unmappedCodes.length > 0 && productionByCategory.length > 0) {

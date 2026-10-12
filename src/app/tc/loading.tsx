@@ -1,8 +1,8 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function TcLoading() {
   return (
-    <PageLoading
+    <DashboardLoading
       title="Treatment Coordinator"
       label="Loading coordinator metrics…"
     />

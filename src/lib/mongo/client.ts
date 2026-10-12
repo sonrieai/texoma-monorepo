@@ -5,10 +5,13 @@
 
 import { MongoClient, type Db, type Collection, type Document } from "mongodb";
 
-export const MONGODB_DB_DEFAULT = "texoma";
+export const MONGODB_DB_DEFAULT = "opendental_dev";
 
 export const COLLECTIONS = {
+  dashboardUsers: "dashboardUsers",
+  passwordResets: "passwordResets",
   integrationSettings: "integration_settings",
+  odGhlSyncState: "od_ghl_sync_state",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

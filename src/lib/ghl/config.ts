@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import type { GhlConfig } from "@/lib/ghl/types";
 import {
   decryptGhlApiKey,
@@ -41,7 +42,7 @@ function getGhlConfigFromEnv(): GhlConfig | null {
   };
 }
 
-async function getGhlConfigFromJson(): Promise<GhlConfig | null> {
+const getGhlConfigFromJson = cache(async (): Promise<GhlConfig | null> => {
   const doc = await getGhlIntegrationDoc();
   if (!doc?.apiKeyEncrypted?.trim() || !doc.locationId?.trim()) return null;
   try {
@@ -56,22 +57,24 @@ async function getGhlConfigFromJson(): Promise<GhlConfig | null> {
   } catch {
     return null;
   }
-}
+});
 
-export async function resolveGhlConfigSource(): Promise<GhlConfigSource | null> {
+export const resolveGhlConfigSource = cache(
+  async (): Promise<GhlConfigSource | null> => {
   const saved = await getGhlConfigFromJson();
   if (saved) return "json";
   if (isGhlConfiguredFromEnv()) return "env";
   return null;
-}
+  },
+);
 
-/** True when the JSON settings file or env vars provide GHL credentials. */
-export async function isGhlConfigured(): Promise<boolean> {
+/** True when saved settings or env vars provide GHL credentials. */
+export const isGhlConfigured = cache(async (): Promise<boolean> => {
   return (await resolveGhlConfigSource()) != null;
-}
+});
 
-/** Saved JSON settings first, then env fallback. */
-export async function getGhlConfig(): Promise<GhlConfig> {
+/** Saved settings first, then env fallback. */
+export const getGhlConfig = cache(async (): Promise<GhlConfig> => {
   const saved = await getGhlConfigFromJson();
   if (saved) return saved;
   const env = getGhlConfigFromEnv();
@@ -79,4 +82,4 @@ export async function getGhlConfig(): Promise<GhlConfig> {
   throw new GhlConfigError(
     "GoHighLevel is not configured. Add credentials in Settings → GoHighLevel or set GHL_API_KEY and GHL_LOCATION_ID in .env.local.",
   );
-}
+});

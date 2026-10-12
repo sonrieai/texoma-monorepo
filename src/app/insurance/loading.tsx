@@ -1,7 +1,7 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function InsuranceLoading() {
   return (
-    <PageLoading title="Insurance" label="Loading insurance metrics…" />
+    <DashboardLoading title="Insurance" label="Loading insurance metrics…" />
   );
 }

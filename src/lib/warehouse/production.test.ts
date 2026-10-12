@@ -269,4 +269,48 @@ describe("summarizeProductionFromLedger collections", () => {
     assert.equal(summary.collectionsCents, -15_500);
     assert.ok(summary.collectionRatio != null && summary.collectionRatio < 0);
   });
+
+  it("divides collections by gross production, not adjusted production", () => {
+    const summary = summarizeProductionFromLedger({
+      fromYmd: "2026-01-01",
+      toYmd: "2026-10-10",
+      procedures: [],
+      charges: [
+        charge({
+          id: 1,
+          charged_at: "2026-01-13",
+          fee: { amount: "1000.00" },
+        }),
+      ],
+      payments: [
+        {
+          id: 1,
+          paid_at: "2026-01-15",
+          payment_amount: { amount: "800.00" },
+        },
+      ],
+      adjustments: [
+        {
+          id: 1,
+          adjusted_at: "2026-01-16",
+          adjustment_amount: { amount: "-100.00" },
+        },
+      ],
+      claimProcs: [
+        {
+          id: 1,
+          providerId: null,
+          status: 1,
+          insPay: { amount: "150.00" },
+          writeOff: { amount: "50.00" },
+          dateCp: "2026-01-20",
+        },
+      ],
+    });
+
+    assert.equal(summary.collectionsCents, 95_000);
+    assert.equal(summary.grossProductionCents, 100_000);
+    assert.ok(summary.netProductionCents < summary.grossProductionCents);
+    assert.equal(summary.collectionRatio, 0.95);
+  });
 });

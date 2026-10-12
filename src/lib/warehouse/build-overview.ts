@@ -256,6 +256,7 @@ export function buildOverviewFromSnapshot(
     payments: snapshot.payments,
     conversion,
     cdt,
+    providers: snapshot.providers,
     soonercarePatientIds,
   });
 

@@ -16,6 +16,7 @@ import {
   type AppointmentTypeRecord,
   type PaymentRecord,
   type ProcedureRecord,
+  type ProviderRecord,
   type TreatmentPlanRecord,
 } from "@/lib/warehouse/types";
 import type { ConversionSummary } from "@/lib/warehouse/conversion";
@@ -42,6 +43,7 @@ import {
   type FinancingVendorMix,
 } from "@/lib/warehouse/payment-mix";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
+import { collectPresentedPlans } from "@/lib/tc/presented-plans";
 import {
   coordinatorPatientIds,
   filterPlansForCoordinator,
@@ -272,15 +274,35 @@ export function summarizeTcMetrics(params: {
   conversion: ConversionSummary;
   cdt?: CdtLookup;
   coordinator?: TcCoordinator;
+  providers?: ProviderRecord[];
   soonercarePatientIds?: ReadonlySet<number>;
 }): TcMetrics {
   const notices: string[] = [];
   const coordinator = params.coordinator;
+  const presentedEvents = collectPresentedPlans({
+    procedures: params.procedures,
+    providers: params.providers,
+    fromYmd: params.fromYmd,
+    toYmd: params.toYmd,
+  });
+  const scopedPresented = presentedEvents.filter((event) => {
+    if (event.coordinatorName == null) return false;
+    if (!coordinator) return true;
+    return (
+      event.coordinatorName.toLowerCase() ===
+      coordinator.name.trim().toLowerCase()
+    );
+  });
   const plans = coordinator
     ? filterPlansForCoordinator(params.plans, coordinator)
     : params.plans;
   const patientIds = coordinator
-    ? coordinatorPatientIds(params.plans, coordinator)
+    ? new Set<number>([
+        ...coordinatorPatientIds(params.plans, coordinator),
+        ...scopedPresented.flatMap((event) =>
+          event.patientId != null ? [event.patientId] : [],
+        ),
+      ])
     : null;
   const appointments =
     coordinator && patientIds
@@ -393,10 +415,6 @@ export function summarizeTcMetrics(params: {
       closed && closedYmd != null && inYmdRange(closedYmd, params.fromYmd, params.toYmd);
 
     if (presentedInRange) {
-      tpPresentedCount += 1;
-      tpPresentedCents += sumPlanFees(plan);
-      const patientId = planPatientId(plan);
-      if (patientId != null) presentedPatients.add(patientId);
       const caseType = planCaseType(plan, cdt);
       if (caseType === "implant") implantPresented += 1;
       else if (caseType === "denture") denturePresented += 1;
@@ -438,28 +456,29 @@ export function summarizeTcMetrics(params: {
     }
   }
 
-  if (!coordinator && tpPresentedCount === 0 && params.conversion.npConsultShow > 0) {
-    tpPresentedCount = params.conversion.npConsultShow;
+  tpPresentedCount = scopedPresented.length;
+  tpPresentedCents = scopedPresented.reduce((sum, event) => sum + event.cents, 0);
+  for (const event of scopedPresented) {
+    if (event.patientId != null) presentedPatients.add(event.patientId);
+  }
+  if (tpPresentedCount === 0) {
     notices.push(
-      "TX plans presented uses NP consult shows until treatment-plan presentation dates sync.",
+      "TX plans presented counts completed D7777 procedures, attributed to Ashlie or Brie.",
     );
   }
 
-  const conversionFunnel = buildPatientConversionFunnel({
-    presentedPatients,
-    consultShowPatients,
-    closedPatients,
-  });
-
-  if (
-    presentedPatients.size === 0 &&
-    consultShowPatients.size > 0 &&
-    tpPresentedCount > 0
-  ) {
-    notices.push(
-      "Conversion funnel uses consult shows as presented until treatment-plan patient ids sync.",
-    );
-  }
+  const conversionFunnel =
+    presentedPatients.size > 0
+      ? buildPatientConversionFunnel({
+          presentedPatients,
+          consultShowPatients,
+          closedPatients,
+        })
+      : [
+          { label: "Plans presented", value: 0 },
+          { label: "Showed", value: 0 },
+          { label: "Closed", value: 0 },
+        ];
 
   if (!coordinator && scheduledCount === 0 && tpAcceptedCount > params.conversion.sameDayStarts) {
     scheduledCount = Math.max(
@@ -471,10 +490,6 @@ export function summarizeTcMetrics(params: {
   if (!coordinator && tpAcceptedCount === 0 && params.conversion.tpClosedCount > 0) {
     tpAcceptedCount = params.conversion.tpClosedCount;
     tpAcceptedCents = params.conversion.tpClosedCents;
-  }
-
-  if (!coordinator && tpPresentedCents === 0 && tpAcceptedCents > 0) {
-    tpPresentedCents = tpAcceptedCents;
   }
 
   let cancelledInRange = 0;

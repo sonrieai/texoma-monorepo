@@ -1,5 +1,5 @@
 import { ProcedureCodesPanel } from "@/components/settings/ProcedureCodesPanel";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { NoticeList } from "@/components/ui/Cards";
 import { EmptyState } from "@/components/ui/States";
 import { listProcedureCodes } from "@/lib/cdt/procedure-codes-store";
@@ -23,7 +23,7 @@ export default async function ProcedureCodesSettingsPage() {
 
   if (loadError && codes.length === 0) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Procedure codes"
         subtitle="Settings · live from Open Dental"
       >
@@ -31,12 +31,12 @@ export default async function ProcedureCodesSettingsPage() {
           title="Unable to load procedure codes"
           description={loadError}
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Procedure codes"
         subtitle="Settings · live from Open Dental"
       badge="Admin"
@@ -52,6 +52,6 @@ export default async function ProcedureCodesSettingsPage() {
         feeScheduleNames={feeScheduleNames}
         loadError={loadError}
       />
-    </AppShell>
+    </DashboardFrame>
   );
 }

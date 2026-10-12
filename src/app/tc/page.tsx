@@ -1,5 +1,8 @@
-import { TcPageContent } from "@/components/analytics/TcPageContent";
-import { AppShell } from "@/components/shell/AppShell";
+import {
+  startTcGhlLoad,
+  TcPageContent,
+} from "@/components/analytics/TcPageContent";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { EmptyState } from "@/components/ui/States";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
@@ -20,6 +23,7 @@ export default async function TreatmentCoordinatorPage({
   const period = parsePeriodParams(await searchParams);
   const range = periodToRange(period);
   const pl = periodLabel(period);
+  const ghlPromise = startTcGhlLoad(range);
 
   let error: string | null = null;
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
@@ -32,7 +36,7 @@ export default async function TreatmentCoordinatorPage({
 
   if (error || !data) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Treatment Coordinator"
         subtitle="Treatment acceptance and the funnel."
       >
@@ -40,12 +44,12 @@ export default async function TreatmentCoordinatorPage({
           title="Unable to load TC metrics"
           description="Dashboard data is unavailable. Try again shortly."
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Treatment Coordinator"
       subtitle="Treatment acceptance and the funnel."
     >
@@ -57,7 +61,8 @@ export default async function TreatmentCoordinatorPage({
         tc={data.tcMetrics}
         cockpitTag="treatment coordinator"
         journeySubtitle="Where patients come from and how they move through to paid production"
+        ghl={await ghlPromise}
       />
-    </AppShell>
+    </DashboardFrame>
   );
 }

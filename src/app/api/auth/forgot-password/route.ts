@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         error:
-          "Password reset is not configured. Set AUTH_EMAIL, AUTH_SESSION_SECRET, and MAILGUN_API_KEY.",
+          "Password reset is not configured. Set AUTH_EMAIL, AUTH_SESSION_SECRET, and SMTP credentials.",
       },
       { status: 503 },
     );

@@ -1,8 +1,8 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function MarketingLoading() {
   return (
-    <PageLoading
+    <DashboardLoading
       title="Marketing"
       subtitle="Spend, ROI, and attribution"
       label="Loading marketing data…"

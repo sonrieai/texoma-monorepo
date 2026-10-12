@@ -1,7 +1,9 @@
 /**
  * Shared GoHighLevel opportunity fetch for marketing + TC decline charts.
+ * One download per request is reused by every caller, and pipelines load together.
  */
 
+import { cache } from "react";
 import { getGhlConfig, isGhlConfigured } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
 import type { GhlConfig } from "@/lib/ghl/types";
@@ -12,6 +14,15 @@ import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 const MAX_PAGES_PER_PIPELINE = 20;
 const PAGE_SIZE = 100;
 const LOOKBACK_DAYS = 90;
+const OPPORTUNITY_CACHE_MS = 2 * 60 * 1000;
+
+type OpportunityCache = Map<
+  string,
+  { at: number; rows: GhlOpportunityContext[] }
+>;
+const opportunityCache: OpportunityCache = ((
+  globalThis as { __texomaGhlOpportunities?: OpportunityCache }
+).__texomaGhlOpportunities ??= new Map());
 
 type GhlPipelineStage = { id: string; name?: string; position?: number };
 type GhlPipeline = {
@@ -157,50 +168,67 @@ async function listOpportunitiesForPipeline(
   return out;
 }
 
+const loadOpportunityContexts = cache(
+  async (startYmd: string, endYmd: string): Promise<GhlOpportunityContext[]> => {
+    const cacheKey = `${startYmd}|${endYmd}`;
+    const cached = opportunityCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < OPPORTUNITY_CACHE_MS) {
+      return cached.rows;
+    }
+
+    if (!(await isGhlConfigured())) return [];
+
+    const cfg = await getGhlConfig();
+    const since = startYmd ? ymdToMmDdYyyy(startYmd) : lookbackStartDate();
+    const pipelines = await listPipelines(cfg);
+    if (pipelines.length === 0) return [];
+
+    const stageNameById = new Map<string, string>();
+    for (const pipeline of pipelines) {
+      for (const stage of pipeline.stages ?? []) {
+        if (stage.id) stageNameById.set(stage.id, stage.name ?? "");
+      }
+    }
+
+    const selected = preferMarketingPipelines(pipelines);
+    const batches = await Promise.all(
+      selected.map(async (pipeline) => ({
+        pipeline,
+        opps: await listOpportunitiesForPipeline(cfg, pipeline.id, since),
+      })),
+    );
+
+    const seenOpp = new Set<string>();
+    const out: GhlOpportunityContext[] = [];
+    for (const { pipeline, opps } of batches) {
+      for (const opp of opps) {
+        if (seenOpp.has(opp.id)) continue;
+        if (startYmd && endYmd && !oppInRange(opp, startYmd, endYmd)) continue;
+        seenOpp.add(opp.id);
+        out.push({
+          opp,
+          stageName: stageNameById.get(opp.pipelineStageId ?? "") ?? "",
+          pipelineName: pipeline.name ?? pipeline.id,
+        });
+      }
+    }
+    opportunityCache.set(cacheKey, { at: Date.now(), rows: out });
+    return out;
+  },
+);
+
 export async function listGhlOpportunitiesInRange(
   range?: MarketingRange,
   coordinator?: TcCoordinator,
-  config?: GhlConfig,
 ): Promise<GhlOpportunityContext[]> {
-  if (!(await isGhlConfigured())) return [];
-
-  const cfg = config ?? (await getGhlConfig());
-  const startYmd = range?.startYmd;
-  const endYmd = range?.endYmd;
-  const since = startYmd ? ymdToMmDdYyyy(startYmd) : lookbackStartDate();
-
-  const pipelines = await listPipelines(cfg);
-  if (pipelines.length === 0) return [];
-
-  const stageNameById = new Map<string, string>();
-  for (const p of pipelines) {
-    for (const s of p.stages ?? []) {
-      if (s.id) stageNameById.set(s.id, s.name ?? "");
-    }
-  }
-
-  const selected = preferMarketingPipelines(pipelines);
-  const seenOpp = new Set<string>();
-  const out: GhlOpportunityContext[] = [];
-
-  for (const pipeline of selected) {
-    const opps = await listOpportunitiesForPipeline(cfg, pipeline.id, since);
-    for (const opp of opps) {
-      if (seenOpp.has(opp.id)) continue;
-      if (startYmd && endYmd && !oppInRange(opp, startYmd, endYmd)) continue;
-      if (coordinator && !opportunityBelongsToCoordinator(opp, coordinator)) {
-        continue;
-      }
-      seenOpp.add(opp.id);
-      out.push({
-        opp,
-        stageName: stageNameById.get(opp.pipelineStageId ?? "") ?? "",
-        pipelineName: pipeline.name ?? pipeline.id,
-      });
-    }
-  }
-
-  return out;
+  const all = await loadOpportunityContexts(
+    range?.startYmd ?? "",
+    range?.endYmd ?? "",
+  );
+  if (!coordinator) return all;
+  return all.filter((ctx) =>
+    opportunityBelongsToCoordinator(ctx.opp, coordinator),
+  );
 }
 
 export { preferMarketingPipelines, listPipelines };

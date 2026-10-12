@@ -10,6 +10,12 @@ import {
 } from "@/lib/ui/navigation-pending";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import type { NavProfile } from "@/lib/auth/nav-profile";
+import {
+  canAccess,
+  isDashboardRole,
+  roleLabel,
+} from "@/lib/auth/roles";
 import { LIST_PAGE_SIZE, slicePage } from "@/lib/ui/pagination";
 import { parsePeriodParams, periodToSearchString } from "@/lib/ui/period";
 import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
@@ -23,6 +29,28 @@ const NAV = [
   { href: "/geo", label: "Patients by Area", icon: "⌖" },
   { href: "/settings", label: "Settings", icon: "⚙" },
 ] as const;
+
+const ADMIN_NAV = { href: "/admin", label: "Admin", icon: "☰" };
+
+type NavItem = { href: string; label: string; icon: string };
+
+function navItemsFor(profile: NavProfile): NavItem[] {
+  if (!profile.enabled) return [...NAV, ADMIN_NAV];
+  if (!profile.authenticated) return [];
+
+  const items: NavItem[] = [];
+  for (const item of NAV) {
+    if (profile.role === "doctor" && item.href === "/doctor" && profile.providerId) {
+      items.push({ ...item, href: `/doctor/${profile.providerId}` });
+      continue;
+    }
+    if (profile.role && canAccess(profile.role, item.href, profile.providerId)) {
+      items.push(item);
+    }
+  }
+  if (profile.role === "owner") items.push(ADMIN_NAV);
+  return items;
+}
 
 const SETTINGS_LINKS = [
   { href: "/settings/ghl", label: "GoHighLevel" },
@@ -38,13 +66,18 @@ function navActive(pathname: string, href: string) {
 type Props = {
   open: boolean;
   onClose: () => void;
+  navProfile: NavProfile;
 };
 
 type FrameProps = Props & { periodQs: string };
 
 const PROVIDERS_CLIENT_TTL_MS = 60_000;
 const PROVIDERS_STORAGE_KEY = "texoma.warehouse.providers.v1";
-const COORDINATORS_STORAGE_KEY = "texoma.tc.coordinators.v1";
+const COORDINATORS_STORAGE_KEY = "texoma.tc.coordinators.v2";
+const DEFAULT_COORDINATORS: CoordinatorLink[] = [
+  { slug: "ashlie", name: "Ashlie" },
+  { slug: "brie", name: "Brie" },
+];
 
 type ProviderLink = { id: string; name: string };
 type CoordinatorLink = { slug: string; name: string };
@@ -67,7 +100,10 @@ function readStoredProviders(): ProviderLink[] | null {
     const parsed = JSON.parse(raw) as StoredProviders;
     if (!parsed?.expiresAt || !Array.isArray(parsed.providers)) return null;
     if (parsed.expiresAt <= Date.now()) return null;
-    return parsed.providers.filter((p) => !isExcludedDoctorProvider(p.name));
+    const providers = parsed.providers.filter(
+      (p) => p?.id && p?.name && !isExcludedDoctorProvider(p.name),
+    );
+    return providers.length > 0 ? providers : null;
   } catch {
     return null;
   }
@@ -131,7 +167,7 @@ function SidebarWithPeriod(props: Props) {
   return <SidebarFrame {...props} periodQs={periodQs} />;
 }
 
-function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
+function SidebarFrame({ open, onClose, periodQs, navProfile }: FrameProps) {
   const pathname = usePathname();
   const pendingHref = useSyncExternalStore(
     subscribeNavigationPending,
@@ -146,10 +182,25 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
   const settingsOpen = effectivePath.startsWith("/settings");
   // Start empty so SSR and first client paint match; hydrate from storage in useEffect.
   const [providers, setProviders] = useState<ProviderLink[]>([]);
-  const [coordinators, setCoordinators] = useState<CoordinatorLink[]>([]);
-  const [isGuest, setIsGuest] = useState(false);
+  const [coordinators, setCoordinators] =
+    useState<CoordinatorLink[]>(DEFAULT_COORDINATORS);
+  const [profile, setProfile] = useState<NavProfile>(navProfile);
+  const browseDoctors =
+    !profile.enabled ||
+    profile.role === "owner" ||
+    profile.role === "office_manager";
+  const browseCoordinators =
+    !profile.enabled ||
+    profile.role === "owner" ||
+    profile.role === "office_manager" ||
+    profile.role === "treatment_coordinator";
 
   useEffect(() => {
+    if (!browseDoctors) {
+      setProviders([]);
+      return;
+    }
+
     const cached = readStoredProviders();
     if (cached) {
       setProviders(cached);
@@ -173,9 +224,14 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [browseDoctors]);
 
   useEffect(() => {
+    if (!browseCoordinators) {
+      setCoordinators([]);
+      return;
+    }
+
     const cached = readStoredCoordinators();
     if (cached) {
       setCoordinators(cached);
@@ -187,8 +243,10 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
       .then((r) => r.json())
       .then((j) => {
         if (cancelled || !Array.isArray(j.coordinators)) return;
-        writeStoredCoordinators(j.coordinators);
-        setCoordinators(j.coordinators);
+        const coordinators =
+          j.coordinators.length > 0 ? j.coordinators : DEFAULT_COORDINATORS;
+        writeStoredCoordinators(coordinators);
+        setCoordinators(coordinators);
       })
       .catch(() => {
         if (!cancelled) setCoordinators([]);
@@ -196,17 +254,30 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [browseCoordinators]);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/me")
       .then((r) => r.json())
-      .then((j: { guest?: boolean }) => {
-        if (!cancelled) setIsGuest(j.guest === true);
-      })
+      .then(
+        (j: {
+          enabled?: boolean;
+          authenticated?: boolean;
+          role?: unknown;
+          providerId?: unknown;
+        }) => {
+          if (cancelled) return;
+          setProfile({
+            enabled: j.enabled !== false,
+            authenticated: j.authenticated === true,
+            role: isDashboardRole(j.role) ? j.role : null,
+            providerId: typeof j.providerId === "string" ? j.providerId : null,
+          });
+        },
+      )
       .catch(() => {
-        if (!cancelled) setIsGuest(false);
+        // Keep the server-rendered profile if this refresh fails.
       });
     return () => {
       cancelled = true;
@@ -260,16 +331,67 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
         <div className="px-2 pb-1 pt-2 text-[10px] uppercase tracking-[1px] text-sidebar-muted">
           Views
         </div>
-        <nav className="scrollbar-none flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain">
-          {NAV.filter((item) => !isGuest || item.href !== "/settings").map((item) => {
+        <nav className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain">
+          {navItemsFor(profile).map((item) => {
             const active = navActive(effectivePath, item.href);
-            const showDoctorSubs = item.href === "/doctor" && doctorOpen;
-            const showTcSubs =
-              item.href === "/tc" && tcOpen && coordinators.length > 0;
+            const hoverMenu =
+              (item.href === "/doctor" && providers.length > 0) ||
+              (item.href === "/tc" && coordinators.length > 0);
+            const pinned =
+              (item.href === "/doctor" && doctorOpen) ||
+              (item.href === "/tc" && tcOpen);
             const showSettingsSubs = item.href === "/settings" && settingsOpen;
 
+            const doctorLinks = (
+              <>
+                {providerLinks.map((p) => (
+                  <AppNavLink
+                    key={p.id}
+                    href={withPeriod(`/doctor/${p.id}`, periodQs)}
+                    onNavigate={onClose}
+                    className={`mb-px block truncate rounded-lg py-1.5 pl-9 pr-2.5 text-[12px] no-underline ${
+                      effectivePath === `/doctor/${p.id}`
+                        ? "bg-sidebar-active font-semibold text-white"
+                        : "text-sidebar-muted hover:bg-sidebar-2 hover:text-sidebar-text"
+                    }`}
+                  >
+                    {p.name}
+                  </AppNavLink>
+                ))}
+                {moreProviders ? (
+                  <AppNavLink
+                    href={withPeriod("/doctor", periodQs)}
+                    onNavigate={onClose}
+                    className="mb-px block rounded-lg py-1.5 pl-9 pr-2.5 text-[11.5px] font-semibold text-sidebar-muted no-underline hover:bg-sidebar-2 hover:text-sidebar-text"
+                  >
+                    View all ({providers.length})
+                  </AppNavLink>
+                ) : null}
+              </>
+            );
+
+            const tcLinks = coordinators.map((c) => (
+              <AppNavLink
+                key={c.slug}
+                href={withPeriod(`/tc/${c.slug}`, periodQs)}
+                onNavigate={onClose}
+                className={`mb-px block truncate rounded-lg py-1.5 pl-9 pr-2.5 text-[12px] no-underline ${
+                  effectivePath === `/tc/${c.slug}`
+                    ? "bg-sidebar-active font-semibold text-white"
+                    : "text-sidebar-muted hover:bg-sidebar-2 hover:text-sidebar-text"
+                }`}
+              >
+                {c.name}
+              </AppNavLink>
+            ));
+
             return (
-              <div key={item.href}>
+              <div
+                key={item.href}
+                className={
+                  hoverMenu ? `nav-group${pinned ? " has-active" : ""}` : undefined
+                }
+              >
                 <AppNavLink
                   href={withPeriod(item.href, periodQs)}
                   onNavigate={onClose}
@@ -284,45 +406,11 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
                   </span>
                   <span className="truncate">{item.label}</span>
                 </AppNavLink>
-                {showDoctorSubs &&
-                  providerLinks.map((p) => (
-                    <AppNavLink
-                      key={p.id}
-                      href={withPeriod(`/doctor/${p.id}`, periodQs)}
-                      onNavigate={onClose}
-                      className={`mb-px block truncate rounded-lg py-1.5 pl-9 pr-2.5 text-[12px] no-underline ${
-                        effectivePath === `/doctor/${p.id}`
-                          ? "bg-sidebar-active font-semibold text-white"
-                          : "text-sidebar-muted hover:bg-sidebar-2 hover:text-sidebar-text"
-                      }`}
-                    >
-                      {p.name}
-                    </AppNavLink>
-                  ))}
-                {showDoctorSubs && moreProviders ? (
-                  <AppNavLink
-                    href={withPeriod("/doctor", periodQs)}
-                    onNavigate={onClose}
-                    className="mb-px block rounded-lg py-1.5 pl-9 pr-2.5 text-[11.5px] font-semibold text-sidebar-muted no-underline hover:bg-sidebar-2 hover:text-sidebar-text"
-                  >
-                    View all ({providers.length})
-                  </AppNavLink>
+                {hoverMenu ? (
+                  <div className="nav-subwrap">
+                    {item.href === "/doctor" ? doctorLinks : tcLinks}
+                  </div>
                 ) : null}
-                {showTcSubs &&
-                  coordinators.map((c) => (
-                    <AppNavLink
-                      key={c.slug}
-                      href={withPeriod(`/tc/${c.slug}`, periodQs)}
-                      onNavigate={onClose}
-                      className={`mb-px block truncate rounded-lg py-1.5 pl-9 pr-2.5 text-[12px] no-underline ${
-                        effectivePath === `/tc/${c.slug}`
-                          ? "bg-sidebar-active font-semibold text-white"
-                          : "text-sidebar-muted hover:bg-sidebar-2 hover:text-sidebar-text"
-                      }`}
-                    >
-                      {c.name}
-                    </AppNavLink>
-                  ))}
                 {showSettingsSubs &&
                   SETTINGS_LINKS.map((link) => (
                     <AppNavLink
@@ -352,7 +440,7 @@ function SidebarFrame({ open, onClose, periodQs }: FrameProps) {
           <b className="block text-[12px] font-semibold text-sidebar-text">
             Texoma Dentures & Implants
           </b>
-          {isGuest ? "Signed in as guest" : "Practice dashboard"}
+          {profile?.role ? roleLabel(profile.role) : "Practice dashboard"}
         </div>
       </aside>
     </>

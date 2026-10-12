@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { TcPageContent } from "@/components/analytics/TcPageContent";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { EmptyState } from "@/components/ui/States";
+import { listGhlOpportunitiesInRange } from "@/lib/ghl/opportunities";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import { coordinatorSlug } from "@/lib/tc/coordinators";
 import {
@@ -27,6 +28,10 @@ export default async function TreatmentCoordinatorDetailPage({
   const period = parsePeriodParams(await searchParams);
   const range = periodToRange(period);
   const pl = periodLabel(period);
+  void listGhlOpportunitiesInRange({
+    startYmd: range.start.slice(0, 10),
+    endYmd: range.end.slice(0, 10),
+  });
 
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
   try {
@@ -37,12 +42,12 @@ export default async function TreatmentCoordinatorDetailPage({
 
   if (!data) {
     return (
-      <AppShell title="Treatment coordinator" subtitle="Treatment coordinator metrics">
+      <DashboardFrame title="Treatment coordinator" subtitle="Treatment coordinator metrics">
         <EmptyState
           title="Unable to load coordinator metrics"
           description="Dashboard data is unavailable. Try again shortly."
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
@@ -51,7 +56,7 @@ export default async function TreatmentCoordinatorDetailPage({
   if (!row) notFound();
 
   return (
-    <AppShell
+    <DashboardFrame
       title={row.name}
       subtitle="Treatment coordinator metrics"
     >
@@ -65,6 +70,6 @@ export default async function TreatmentCoordinatorDetailPage({
         cockpitTag={row.name}
         journeySubtitle={`${row.name}'s own leads — from source through to paid production`}
       />
-    </AppShell>
+    </DashboardFrame>
   );
 }

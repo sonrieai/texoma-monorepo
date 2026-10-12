@@ -16,6 +16,12 @@ import type { LiveOverview } from "@/lib/warehouse/live";
 import type { TcMetrics } from "@/lib/warehouse/tc-metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
+type TcGhlBundle = {
+  ghlReady: boolean;
+  marketing: Awaited<ReturnType<typeof loadMarketingSummary>>;
+  ghlDeclines: Awaited<ReturnType<typeof loadGhlDeclineReasons>>;
+};
+
 type TcPageContentProps = {
   data: LiveOverview;
   periodLabel: string;
@@ -25,7 +31,28 @@ type TcPageContentProps = {
   tc: TcMetrics;
   cockpitTag: string;
   journeySubtitle: string;
+  /** Started before the Open Dental read so GoHighLevel overlaps that wait. */
+  ghl?: TcGhlBundle;
 };
+
+export function startTcGhlLoad(
+  range: { start: string; end: string },
+  coordinator?: TcCoordinator,
+): Promise<TcGhlBundle> {
+  const ymd = {
+    startYmd: range.start.slice(0, 10),
+    endYmd: range.end.slice(0, 10),
+  };
+  return Promise.all([
+    isGhlConfigured(),
+    loadMarketingSummary(ymd, coordinator, { funnelOnly: true }),
+    loadGhlDeclineReasons(ymd, coordinator),
+  ]).then(([ghlReady, marketing, ghlDeclines]) => ({
+    ghlReady,
+    marketing,
+    ghlDeclines,
+  }));
+}
 
 export async function TcPageContent({
   data,
@@ -36,18 +63,10 @@ export async function TcPageContent({
   tc,
   cockpitTag,
   journeySubtitle,
+  ghl,
 }: TcPageContentProps) {
-  const startYmd = range.start.slice(0, 10);
-  const endYmd = range.end.slice(0, 10);
-  const ghlReady = await isGhlConfigured();
-  const marketing = await loadMarketingSummary(
-    { startYmd, endYmd },
-    coordinator,
-  );
-  const ghlDeclines = await loadGhlDeclineReasons(
-    { startYmd, endYmd },
-    coordinator,
-  );
+  const loaded = ghl ?? (await startTcGhlLoad(range, coordinator));
+  const { ghlReady, marketing, ghlDeclines } = loaded;
   const declineReasons = mergeDeclineReasons(
     tc.declineReasons,
     ghlDeclines.reasons,

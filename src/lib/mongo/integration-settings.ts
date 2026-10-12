@@ -6,7 +6,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
-import { readJsonStore, updateJsonStore } from "@/lib/store/json-store";
+import { readAppStore, updateAppStore } from "@/lib/store/app-store";
 
 export const GHL_INTEGRATION_ID = "ghl" as const;
 
@@ -80,7 +80,7 @@ export function defaultGhlBaseUrl(): string {
 }
 
 export async function getGhlIntegrationDoc(): Promise<GhlIntegrationDoc | null> {
-  const store = await readJsonStore();
+  const store = await readAppStore();
   return store.ghl;
 }
 
@@ -88,7 +88,7 @@ export async function upsertGhlIntegrationDoc(
   doc: Omit<GhlIntegrationDoc, "_id">,
 ): Promise<void> {
   const saved: GhlIntegrationDoc = { _id: GHL_INTEGRATION_ID, ...doc };
-  await updateJsonStore((store) => {
+  await updateAppStore((store) => {
     store.ghl = saved;
   });
 }
@@ -96,7 +96,7 @@ export async function upsertGhlIntegrationDoc(
 export async function deleteGhlIntegrationDoc(): Promise<boolean> {
   const existing = await getGhlIntegrationDoc();
   if (!existing) return false;
-  await updateJsonStore((store) => {
+  await updateAppStore((store) => {
     store.ghl = null;
   });
   return true;

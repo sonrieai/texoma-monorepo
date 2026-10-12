@@ -6,6 +6,7 @@ import "server-only";
 
 import { copyFile, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { DashboardRole } from "@/lib/auth/roles";
 import type { GhlIntegrationDoc } from "@/lib/mongo/integration-settings";
 
 export type StoredDashboardUser = {
@@ -17,6 +18,9 @@ export type StoredDashboardUser = {
   createdAt: string;
   updatedAt: string;
   lastPasswordReset?: string;
+  /** Missing on older records. Those users are treated as Owner. */
+  role?: DashboardRole;
+  providerId?: string | null;
 };
 
 export type StoredPasswordReset = {

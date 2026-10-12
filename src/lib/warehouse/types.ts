@@ -69,6 +69,7 @@ export type ProcedureRecord = {
   id?: number;
   patient_id?: number | null;
   provider_id?: number | null;
+  appointment_id?: number | null;
   code?: string | null;
   name?: string | null;
   status?: string | null;

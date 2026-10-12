@@ -1,5 +1,5 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function SettingsLoading() {
-  return <PageLoading title="Settings" label="Loading settings…" />;
+  return <DashboardLoading title="Settings" label="Loading settings…" />;
 }

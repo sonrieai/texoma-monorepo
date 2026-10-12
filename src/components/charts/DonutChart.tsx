@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
 import { CHANNEL_COLORS } from "@/lib/types/viz";
 import { formatUsd } from "@/lib/metrics";
@@ -67,7 +68,13 @@ export function DonutChart({
           cy={cy}
           r={r}
           fill={color}
-          className="cursor-pointer transition-opacity hover:opacity-80"
+          className={`cursor-pointer transition-[opacity,filter] duration-150 ${
+            hover == null
+              ? ""
+              : hover.index === i
+                ? "opacity-100 brightness-110"
+                : "opacity-50"
+          }`}
           onMouseEnter={(e) => showTooltip(i, e)}
           onMouseMove={(e) => showTooltip(i, e)}
           onMouseLeave={() => setHover(null)}
@@ -86,7 +93,13 @@ export function DonutChart({
         key={s.label}
         d={d}
         fill={color}
-        className="cursor-pointer transition-opacity hover:opacity-80"
+        className={`cursor-pointer transition-[opacity,filter] duration-150 ${
+          hover == null
+            ? ""
+            : hover.index === i
+              ? "opacity-100 brightness-110"
+              : "opacity-50"
+        }`}
         onMouseEnter={(e) => showTooltip(i, e)}
         onMouseMove={(e) => showTooltip(i, e)}
         onMouseLeave={() => setHover(null)}
@@ -117,10 +130,6 @@ export function DonutChart({
   ) : null;
 
   const hovered = hover != null ? slices[hover.index] : null;
-  const hoveredColor =
-    hover != null
-      ? CHANNEL_COLORS[hover.index % CHANNEL_COLORS.length]
-      : undefined;
 
   return (
     <div
@@ -146,7 +155,7 @@ export function DonutChart({
             x={cx}
             y={centerSub ? cy - 2 : cy + 5}
             textAnchor="middle"
-            className="fill-[var(--ink)] text-[18px] font-extrabold"
+            className="pointer-events-none fill-[var(--ink)] text-[18px] font-extrabold"
           >
             {centerLabel}
           </text>
@@ -156,26 +165,20 @@ export function DonutChart({
             x={cx}
             y={cy + 16}
             textAnchor="middle"
-            className="fill-[var(--muted)] text-[11px]"
+            className="pointer-events-none fill-[var(--muted)] text-[11px]"
           >
             {centerSub}
           </text>
         ) : null}
       </svg>
-      <ChartTooltip position={hover?.position ?? null}>
+      <ChartTooltip position={hover?.position ?? null} tone="dark">
         {hovered ? (
           <>
-            <div className="mb-1.5 text-[12.5px] font-bold">{hovered.label}</div>
-            <ChartTooltipRow
-              color={hoveredColor}
-              label="Amount"
-              value={formatUsd(hovered.value)}
-            />
-            <ChartTooltipRow
-              label="Share"
-              value={`${sum > 0 ? Math.round((100 * hovered.value) / total) : 0}%`}
-              muted
-            />
+            <div className="font-bold">{hovered.label}</div>
+            <div>
+              {formatUsd(hovered.value)} ·{" "}
+              {sum > 0 ? Math.round((100 * hovered.value) / total) : 0}%
+            </div>
           </>
         ) : null}
       </ChartTooltip>
@@ -196,7 +199,13 @@ export function HBarChart({
   width: _width,
   maxWidth: _maxWidth,
 }: {
-  rows: { label: string; value: number; color?: string; count?: number }[];
+  rows: {
+    label: string;
+    value: number;
+    color?: string;
+    count?: number;
+    href?: string;
+  }[];
   money?: boolean;
   /** @deprecated Layout is CSS-driven; kept for call-site compatibility. */
   labelWidth?: number;
@@ -248,12 +257,22 @@ export function HBarChart({
             onMouseLeave={() => setHover(null)}
           >
             <div className="flex min-w-0 items-center justify-between gap-2 sm:contents">
-              <span
-                className="min-w-0 truncate text-[12px] font-semibold leading-tight text-foreground sm:font-normal"
-                title={r.label}
-              >
-                {r.label}
-              </span>
+              {r.href ? (
+                <Link
+                  href={r.href}
+                  className="min-w-0 truncate text-[12px] font-semibold leading-tight text-foreground no-underline hover:text-accent hover:underline sm:font-normal"
+                  title={r.label}
+                >
+                  {r.label}
+                </Link>
+              ) : (
+                <span
+                  className="min-w-0 truncate text-[12px] font-semibold leading-tight text-foreground sm:font-normal"
+                  title={r.label}
+                >
+                  {r.label}
+                </span>
+              )}
               <span className="shrink-0 text-right text-[11.5px] tabular-nums text-muted sm:hidden">
                 {valueLabel}
                 {countLabel != null ? (

@@ -3,7 +3,7 @@ import type { GeoCity } from "@/lib/types/viz";
 
 const BAR_COLORS = [
   "#b06a4f",
-  "#0f3140",
+  "#23281f",
   "#5a8a72",
   "#c49a6c",
   "#3d6b8c",

@@ -45,8 +45,8 @@ function DoctorComboStack({
   children: ReactNode;
 }) {
   return (
-    <Card title={title} className="h-full">
-      <div className="mt-1 grid grid-cols-1 gap-2.5">{children}</div>
+    <Card title={title} className="flex h-full flex-col">
+      <div className="mt-3 grid flex-1 grid-cols-1 gap-3">{children}</div>
     </Card>
   );
 }
@@ -102,26 +102,29 @@ export function DoctorCockpitMetrics({
   return (
     <>
       <SectionHeading title="Cockpit Metrics" tag={provider.name} />
-      <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,480px)_minmax(0,1fr)] md:items-start">
+      <div className="cockpit-top">
         <Card
           title="Production by Category"
           subtitle={`Share of production · ${periodLabel}`}
-          className="min-w-0 w-full"
+          className="cockpit-donut"
         >
-          <ProductionCategoryDonut
-            slices={donutSlices}
-            chartCategories={chartCategories}
-            size={300}
-            centerLabel={
-              productionAvailable
-                ? formatUsdCompact(centsToDollars(categoryTotalCents))
-                : "—"
-            }
-            centerSub="total"
-          />
+          <div className="flex flex-1 items-center justify-center">
+            <ProductionCategoryDonut
+              slices={donutSlices}
+              chartCategories={chartCategories}
+              size={300}
+              showLegend={false}
+              centerLabel={
+                productionAvailable
+                  ? formatUsdCompact(centsToDollars(categoryTotalCents))
+                  : "—"
+              }
+              centerSub="total"
+            />
+          </div>
         </Card>
 
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="cockpit-tiles">
           <DoctorComboStack title="New Patients">
             <ComboStat
               variant="inset"
@@ -304,9 +307,9 @@ export function DoctorProductionTrendSection({
         <Card
           title="Production"
           subtitle={`${providerName} · ${trend.subtitle} · hover for detail`}
-          className="min-w-0 overflow-hidden"
+          className="min-w-0 overflow-visible"
         >
-          <LineChart series={trend.series} xLabels={trend.xLabels} money />
+          <LineChart series={trend.series} xLabels={trend.xLabels} money fitScale />
         </Card>
       </div>
     </>

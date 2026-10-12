@@ -5,6 +5,7 @@
 
 import { copyFile, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { COLLECTIONS, getDb, isMongoConfigured } from "@/lib/mongo/client";
 import {
   NO_SHOW_TAG_LIST,
   type NoShowTag,
@@ -61,7 +62,17 @@ export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
   return { cursor, contacts };
 }
 
+function usesMongoSyncState(): boolean {
+  if (process.env.OD_GHL_SYNC_STATE_PATH?.trim()) return false;
+  return isMongoConfigured();
+}
+
 export async function readOdGhlSyncState(): Promise<OdGhlSyncState> {
+  if (usesMongoSyncState()) {
+    const db = await getDb();
+    const doc = await db.collection(COLLECTIONS.odGhlSyncState).findOne({ _id: "state" });
+    return normalizeOdGhlSyncState(doc);
+  }
   try {
     const raw = await readFile(getOdGhlSyncStatePath(), "utf8");
     return normalizeOdGhlSyncState(JSON.parse(raw) as unknown);
@@ -72,10 +83,20 @@ export async function readOdGhlSyncState(): Promise<OdGhlSyncState> {
 }
 
 export async function writeOdGhlSyncState(state: OdGhlSyncState): Promise<void> {
+  const normalized = normalizeOdGhlSyncState(state);
+  if (usesMongoSyncState()) {
+    const db = await getDb();
+    await db.collection(COLLECTIONS.odGhlSyncState).replaceOne(
+      { _id: "state" },
+      { _id: "state", ...normalized },
+      { upsert: true },
+    );
+    return;
+  }
   const filePath = getOdGhlSyncStatePath();
   await mkdir(path.dirname(filePath), { recursive: true });
   const tmp = `${filePath}.${process.pid}.tmp`;
-  const body = `${JSON.stringify(normalizeOdGhlSyncState(state), null, 2)}\n`;
+  const body = `${JSON.stringify(normalized, null, 2)}\n`;
   await writeFile(tmp, body, "utf8");
   await copyFile(tmp, filePath);
   await unlink(tmp).catch(() => undefined);

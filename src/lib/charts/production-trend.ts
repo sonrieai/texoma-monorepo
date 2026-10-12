@@ -56,7 +56,8 @@ export function lastCompleteMonth(now = new Date()): { year: number; monthIndex:
   return { year, monthIndex: monthIndex - 1 };
 }
 
-const YEAR_LINE_COLORS = [CHANNEL_COLORS[3], CHANNEL_COLORS[2], CHANNEL_COLORS[0]];
+/** Violet, amber, teal — the default blue and teal read as the same line. */
+const YEAR_LINE_COLORS = ["#7c3aed", CHANNEL_COLORS[2], CHANNEL_COLORS[0]];
 
 function yearLineColor(index: number, count: number): string {
   if (count <= YEAR_LINE_COLORS.length) {

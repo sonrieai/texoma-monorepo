@@ -1,4 +1,6 @@
-import { AppShell } from "@/components/shell/AppShell";
+import { redirect } from "next/navigation";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
+import { getDashboardAccess } from "@/lib/auth/require-dashboard-session";
 import { HBarChart } from "@/components/charts/DonutChart";
 import { DoctorProviderTable } from "@/components/providers/DoctorProviderTable";
 import { Card, ComboStat, SectionHeading } from "@/components/ui/Cards";
@@ -12,6 +14,7 @@ import {
   parsePeriodParams,
   periodLabel,
   periodToRange,
+  periodToSearchString,
 } from "@/lib/ui/period";
 
 export const dynamic = "force-dynamic";
@@ -39,9 +42,17 @@ function sumProviderVolume(
 }
 
 export default async function DoctorPage({ searchParams }: PageProps) {
+  const access = await getDashboardAccess();
+  if (access && access.role === "doctor") {
+    redirect(access.homePath);
+  }
+
   const period = parsePeriodParams(await searchParams);
   const range = periodToRange(period);
   const pl = periodLabel(period);
+  const periodQs = periodToSearchString(period);
+  const doctorHref = (id: string) =>
+    periodQs ? `/doctor/${id}?${periodQs}` : `/doctor/${id}`;
 
   let error: string | null = null;
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
@@ -53,7 +64,7 @@ export default async function DoctorPage({ searchParams }: PageProps) {
 
   if (error || !data) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Doctor"
         subtitle="Clinical productivity and surgical volume by provider."
       >
@@ -61,7 +72,7 @@ export default async function DoctorPage({ searchParams }: PageProps) {
           title="Unable to load providers"
           description="Dashboard data is unavailable. Try again shortly or contact your administrator."
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
@@ -96,16 +107,18 @@ export default async function DoctorPage({ searchParams }: PageProps) {
     label: p.name,
     value: centsToDollars(p.production.grossProductionCents),
     color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+    href: doctorHref(p.id),
   }));
 
   const surgicalBars = providers.map((p, i) => ({
     label: p.name,
     value: p.production.procedureVolume.implants,
     color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+    href: doctorHref(p.id),
   }));
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Doctor"
       subtitle="Clinical productivity and surgical volume by provider."
     >
@@ -177,6 +190,7 @@ export default async function DoctorPage({ searchParams }: PageProps) {
           <DoctorProviderTable
             providers={tableRows}
             productionAvailable={prodAvailable}
+            periodQuery={periodQs}
           />
         </div>
       )}
@@ -194,6 +208,6 @@ export default async function DoctorPage({ searchParams }: PageProps) {
           </div>
         </>
       ) : null}
-    </AppShell>
+    </DashboardFrame>
   );
 }

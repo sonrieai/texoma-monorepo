@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { Suspense } from "react";
-import { LogoutButton } from "@/components/auth/LogoutButton";
 import {
   PeriodFilter,
   PeriodFilterFallback,
@@ -54,13 +53,6 @@ export function Topbar({ title, subtitle, badge, onMenuClick }: TopbarProps) {
             <PeriodFilter />
           </Suspense>
         </div>
-
-        <div
-          className="hidden h-7 w-px shrink-0 bg-line sm:block"
-          aria-hidden
-        />
-
-        <LogoutButton variant="topbar" />
       </div>
     </header>
   );

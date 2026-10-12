@@ -8,18 +8,18 @@ import {
   loadAdSpendByChannel,
   mergeSpendIntoChannels,
 } from "@/lib/ghl/ad-spend";
-import { getGhlConfig, isGhlConfigured, type GhlConfig } from "@/lib/ghl/config";
-import { ghlFetch } from "@/lib/ghl/http";
+import { getGhlConfig, isGhlConfigured } from "@/lib/ghl/config";
+import {
+  listGhlOpportunitiesInRange,
+  type GhlOpportunity,
+} from "@/lib/ghl/opportunities";
 import {
   formatResponseMinutes,
   loadMedianResponseMinutes,
 } from "@/lib/ghl/response-time";
 import { safeRate } from "@/lib/metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
-import { opportunityBelongsToCoordinator } from "@/lib/tc/ghl-attribution";
 
-const MAX_PAGES_PER_PIPELINE = 20;
-const PAGE_SIZE = 100;
 /** Lookback for opportunity `date` filter when no dashboard period is passed. */
 const LOOKBACK_DAYS = 90;
 
@@ -103,42 +103,6 @@ export type MarketingSummary = {
   lookbackDays: number;
 };
 
-type GhlPipelineStage = { id: string; name?: string; position?: number };
-type GhlPipeline = {
-  id: string;
-  name?: string;
-  stages?: GhlPipelineStage[];
-};
-
-type GhlAttribution = {
-  utmSessionSource?: string | null;
-  utmSource?: string | null;
-  utmCampaign?: string | null;
-  utmMedium?: string | null;
-  campaign?: string | null;
-  medium?: string | null;
-  isFirst?: boolean;
-};
-
-type GhlOpportunity = {
-  id: string;
-  monetaryValue?: number | null;
-  pipelineId?: string;
-  pipelineStageId?: string;
-  status?: string;
-  source?: string | null;
-  createdAt?: string;
-  assignedTo?: string | null;
-  assigned_to?: string | null;
-  assignedUserId?: string | null;
-  assigned_to_user_id?: string | null;
-  assignedToId?: string | null;
-  userId?: string | null;
-  user?: { id?: string; name?: string | null } | null;
-  assignedUser?: { id?: string; name?: string | null } | null;
-  attributions?: GhlAttribution[];
-};
-
 type FunnelTier = "lead" | "booked" | "showed" | "accepted" | "surgery";
 
 const DEFAULT_GOALS: MarketingGoals = {
@@ -186,38 +150,6 @@ function emptySummary(notices: string[]): MarketingSummary {
     opportunityCount: 0,
     lookbackDays: LOOKBACK_DAYS,
   };
-}
-
-function formatMmDdYyyy(d: Date): string {
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${mm}-${dd}-${yyyy}`;
-}
-
-function lookbackStartDate(days = LOOKBACK_DAYS): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return formatMmDdYyyy(d);
-}
-
-function ymdToMmDdYyyy(ymd: string): string {
-  const [yyyy, mm, dd] = ymd.split("-");
-  return `${mm}-${dd}-${yyyy}`;
-}
-
-function oppCreatedYmd(opp: GhlOpportunity): string | null {
-  return opp.createdAt?.slice(0, 10) ?? null;
-}
-
-function oppInRange(
-  opp: GhlOpportunity,
-  startYmd: string,
-  endYmd: string,
-): boolean {
-  const created = oppCreatedYmd(opp);
-  if (!created) return true;
-  return created >= startYmd && created <= endYmd;
 }
 
 function rangeLookbackDays(startYmd: string, endYmd: string): number {
@@ -296,78 +228,6 @@ function attributionSource(opp: GhlOpportunity): string {
   return "Unknown";
 }
 
-function preferMarketingPipelines(pipelines: GhlPipeline[]): GhlPipeline[] {
-  const scored = pipelines.map((p) => {
-    const name = (p.name ?? "").toLowerCase();
-    let score = 0;
-    if (/call center|appointment system|marketing/.test(name)) score += 10;
-    if (/nurtur|long term/.test(name)) score += 2;
-    if ((p.stages?.length ?? 0) > 5) score += 1;
-    return { p, score };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  const picked = scored.filter((s) => s.score >= 10).map((s) => s.p);
-  return picked.length > 0 ? picked : pipelines.slice(0, 2);
-}
-
-async function listPipelines(config: GhlConfig): Promise<GhlPipeline[]> {
-  const data = await ghlFetch<{ pipelines?: GhlPipeline[] }>(
-    `/opportunities/pipelines?locationId=${encodeURIComponent(config.locationId)}`,
-    {},
-    config,
-  );
-  return data.pipelines ?? [];
-}
-
-function slimGhlOpportunity(raw: GhlOpportunity): GhlOpportunity {
-  const rest = { ...raw };
-  delete (rest as { contact?: unknown }).contact;
-  delete (rest as { name?: unknown }).name;
-  return rest;
-}
-
-async function listOpportunitiesForPipeline(
-  config: GhlConfig,
-  pipelineId: string,
-  sinceMmDdYyyy: string,
-): Promise<GhlOpportunity[]> {
-  const out: GhlOpportunity[] = [];
-  let startAfter: string | undefined;
-  let startAfterId: string | undefined;
-
-  for (let page = 0; page < MAX_PAGES_PER_PIPELINE; page += 1) {
-    const params = new URLSearchParams({
-      location_id: config.locationId,
-      pipeline_id: pipelineId,
-      status: "all",
-      limit: String(PAGE_SIZE),
-      date: sinceMmDdYyyy,
-      order: "added_desc",
-    });
-    if (startAfter) params.set("startAfter", startAfter);
-    if (startAfterId) params.set("startAfterId", startAfterId);
-
-    const data = await ghlFetch<{
-      opportunities?: GhlOpportunity[];
-      meta?: {
-        nextPage?: number | null;
-        startAfter?: number | string;
-        startAfterId?: string;
-      };
-    }>(`/opportunities/search?${params.toString()}`, {}, config);
-
-    const batch = (data.opportunities ?? []).map(slimGhlOpportunity);
-    out.push(...batch);
-    if (batch.length < PAGE_SIZE || !data.meta?.nextPage) break;
-    startAfter =
-      data.meta.startAfter != null ? String(data.meta.startAfter) : undefined;
-    startAfterId = data.meta.startAfterId;
-    if (!startAfter || !startAfterId) break;
-  }
-
-  return out;
-}
-
 function bumpChannel(ch: AdChannel, tier: FunnelTier, productionDollars: number) {
   ch.leads += 1;
   if (TIER_RANK[tier] >= TIER_RANK.booked) ch.booked += 1;
@@ -434,6 +294,7 @@ function buildScorecard(params: {
 export async function loadMarketingSummary(
   range?: MarketingRange,
   coordinator?: TcCoordinator,
+  options?: { funnelOnly?: boolean },
 ): Promise<MarketingSummary> {
   if (!(await isGhlConfigured())) {
     return emptySummary([
@@ -445,25 +306,8 @@ export async function loadMarketingSummary(
   const notices: string[] = [];
 
   try {
-    const pipelines = await listPipelines(config);
-    if (pipelines.length === 0) {
-      return emptySummary(["No marketing pipelines found for this location."]);
-    }
-
-    const stageNameById = new Map<string, string>();
-    for (const p of pipelines) {
-      for (const s of p.stages ?? []) {
-        if (s.id) stageNameById.set(s.id, s.name ?? "");
-      }
-    }
-
-    const selected = preferMarketingPipelines(pipelines);
-
     const startYmd = range?.startYmd;
     const endYmd = range?.endYmd;
-    const since = startYmd
-      ? ymdToMmDdYyyy(startYmd)
-      : lookbackStartDate();
     const lookbackDays = startYmd && endYmd
       ? rangeLookbackDays(startYmd, endYmd)
       : LOOKBACK_DAYS;
@@ -474,42 +318,36 @@ export async function loadMarketingSummary(
         .slice(0, 10);
     const spendEndYmd = endYmd ?? new Date().toISOString().slice(0, 10);
 
-    const seenOpp = new Set<string>();
+    const contexts = await listGhlOpportunitiesInRange(range, coordinator);
     const bySource = new Map<string, AdChannel>();
-
     let opportunityCount = 0;
-    for (const pipeline of selected) {
-      const opps = await listOpportunitiesForPipeline(
-        config,
-        pipeline.id,
-        since,
-      );
-      for (const opp of opps) {
-        if (seenOpp.has(opp.id)) continue;
-        if (startYmd && endYmd && !oppInRange(opp, startYmd, endYmd)) continue;
-        if (coordinator && !opportunityBelongsToCoordinator(opp, coordinator)) {
-          continue;
-        }
-        seenOpp.add(opp.id);
-        opportunityCount += 1;
-
-        const stageName = stageNameById.get(opp.pipelineStageId ?? "") ?? "";
-        const tier = stageTierFromName(stageName);
-        const source = attributionSource(opp);
-        const ch = bySource.get(source) ?? emptyChannel(source);
-        const dollars =
-          typeof opp.monetaryValue === "number" && Number.isFinite(opp.monetaryValue)
-            ? opp.monetaryValue
-            : 0;
-        bumpChannel(ch, tier, dollars);
-        bySource.set(source, ch);
-      }
+    for (const { opp, stageName } of contexts) {
+      opportunityCount += 1;
+      const tier = stageTierFromName(stageName);
+      const source = attributionSource(opp);
+      const ch = bySource.get(source) ?? emptyChannel(source);
+      const dollars =
+        typeof opp.monetaryValue === "number" && Number.isFinite(opp.monetaryValue)
+          ? opp.monetaryValue
+          : 0;
+      bumpChannel(ch, tier, dollars);
+      bySource.set(source, ch);
     }
 
-    const [adSpend, responseMinutes] = await Promise.all([
-      loadAdSpendByChannel(config, spendStartYmd, spendEndYmd),
-      loadMedianResponseMinutes(config, spendStartYmd, spendEndYmd),
-    ]);
+    const [adSpend, responseMinutes] = options?.funnelOnly
+      ? [
+          {
+            byChannel: new Map<string, number>(),
+            total: 0,
+            notices: [] as string[],
+            available: false,
+          },
+          null,
+        ]
+      : await Promise.all([
+          loadAdSpendByChannel(config, spendStartYmd, spendEndYmd),
+          loadMedianResponseMinutes(config, spendStartYmd, spendEndYmd),
+        ]);
     if (adSpend.available) {
       notices.push(
         `Ad spend from GHL Ad Manager (Facebook + Google) · ${spendStartYmd} → ${spendEndYmd}.`,

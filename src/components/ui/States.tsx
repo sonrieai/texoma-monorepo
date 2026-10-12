@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/shell/AppShell";
+import type { NavProfile } from "@/lib/auth/nav-profile";
 
 export function InlineSpinner({
   size = "sm",
@@ -84,13 +85,15 @@ export function PageLoading({
   title,
   subtitle,
   label = "Loading…",
+  navProfile,
 }: {
   title: string;
   subtitle?: string;
   label?: string;
+  navProfile: NavProfile;
 }) {
   return (
-    <AppShell title={title} subtitle={subtitle}>
+    <AppShell title={title} subtitle={subtitle} navProfile={navProfile}>
       <Spinner label={label} />
     </AppShell>
   );

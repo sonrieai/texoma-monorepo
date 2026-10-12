@@ -1,12 +1,12 @@
 import { GhlSettingsPanel } from "@/components/settings/GhlSettingsPanel";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { NoticeList } from "@/components/ui/Cards";
 
 export const dynamic = "force-dynamic";
 
 export default function GhlSettingsPage() {
   return (
-    <AppShell
+    <DashboardFrame
       title="GoHighLevel"
       subtitle="Settings · Marketing CRM"
       badge="Admin"
@@ -19,6 +19,6 @@ export default function GhlSettingsPage() {
         ]}
       />
       <GhlSettingsPanel />
-    </AppShell>
+    </DashboardFrame>
   );
 }

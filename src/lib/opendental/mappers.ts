@@ -191,6 +191,7 @@ export function mapOdProcedure(row: OdProcedureLogRow): ProcedureRecord {
     id: row.ProcNum,
     patient_id: row.PatNum,
     provider_id: row.ProvNum,
+    appointment_id: row.AptNum && row.AptNum > 0 ? row.AptNum : null,
     code,
     name: row.Descript?.trim() || code,
     status: mapOdProcStatus(row.ProcStatus),

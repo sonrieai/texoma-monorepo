@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { HBarChart } from "@/components/charts/DonutChart";
 import { Card, ComboStat, SectionHeading } from "@/components/ui/Cards";
@@ -82,6 +82,13 @@ function Scorecard({ items }: { items: MarketingScoreItem[] }) {
 export default async function MarketingPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = rangeFromSearchParams(params);
+  const ghlPromise = Promise.all([
+    isGhlConfigured(),
+    loadMarketingSummary({
+      startYmd: period.start.slice(0, 10),
+      endYmd: period.end.slice(0, 10),
+    }),
+  ]);
 
   let error: string | null = null;
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
@@ -92,15 +99,11 @@ export default async function MarketingPage({ searchParams }: PageProps) {
     error = e instanceof Error ? e.message : "Failed to load data";
   }
 
-  const ghlReady = await isGhlConfigured();
-  const marketing = await loadMarketingSummary({
-    startYmd: period.start.slice(0, 10),
-    endYmd: period.end.slice(0, 10),
-  });
+  const [ghlReady, marketing] = await ghlPromise;
 
   if ((error || !data) && !ghlReady) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Marketing"
         subtitle="Spend, ROI, and attribution"
         badge={<StatusBadge variant="error">Unable to load</StatusBadge>}
@@ -109,7 +112,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
           title="Unable to load marketing context"
           description={error ?? ""}
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
@@ -122,7 +125,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
   const lookbackNote = `last ${marketing.lookbackDays}d`;
 
   return (
-    <AppShell
+    <DashboardFrame
       title="Marketing"
       subtitle="Spend, ROI, and attribution"
       badge={
@@ -418,6 +421,6 @@ export default async function MarketingPage({ searchParams }: PageProps) {
           {marketing.notices.join(" ")}
         </p>
       ) : null}
-    </AppShell>
+    </DashboardFrame>
   );
 }

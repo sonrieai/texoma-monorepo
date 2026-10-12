@@ -5,7 +5,6 @@ import { CHANNEL_COLORS } from "@/lib/types/viz";
 import { formatUsdCompact } from "@/lib/metrics";
 import {
   ChartTooltip,
-  ChartTooltipRow,
   positionChartTooltip,
   type TooltipPosition,
 } from "@/components/charts/chart-tooltip";
@@ -236,41 +235,33 @@ export function StackedColumnChart({
           );
         })}
       </svg>
-      <ChartTooltip position={hover?.position ?? null}>
-        {hoveredRow ? (
+      <ChartTooltip position={hover?.position ?? null} tone="dark">
+        {hoveredRow && hover?.typeKey ? (
           <>
-            <div className="mb-1.5 text-[12.5px] font-bold">{hoveredRow.label}</div>
-            {types.map((t, ti) => {
+            {types.map((t) => {
               const v = hoveredRow.values[t.key] ?? 0;
-              if (v <= 0) return null;
-              if (hover?.typeKey && hover.typeKey !== t.key) return null;
-              const color =
-                t.color ?? CHANNEL_COLORS[ti % CHANNEL_COLORS.length];
+              if (t.key !== hover.typeKey || v <= 0) return null;
               const pct =
                 hoveredTotal > 0 ? Math.round((100 * v) / hoveredTotal) : 0;
               return (
-                <ChartTooltipRow
-                  key={t.key}
-                  color={color}
-                  label={t.label}
-                  value={
-                    mode === "pct"
-                      ? `${pct}%`
-                      : `${formatUsdCompact(v)} · ${pct}%`
-                  }
-                />
+                <div key={t.key}>
+                  <div className="font-bold">
+                    {t.label}{" "}
+                    {mode === "pct" ? `${pct}%` : formatUsdCompact(v)}
+                  </div>
+                  <div className="opacity-70">
+                    {hoveredRow.label} · {pct}% of period
+                  </div>
+                </div>
               );
             })}
-            {hover?.typeKey == null && hoveredTotal > 0 ? (
-              <>
-                <div className="my-1.5 h-px bg-line" />
-                <ChartTooltipRow
-                  label="Total"
-                  value={formatUsdCompact(hoveredTotal)}
-                  muted
-                />
-              </>
-            ) : null}
+          </>
+        ) : hoveredRow ? (
+          <>
+            <div className="font-bold">{hoveredRow.label}</div>
+            <div className="opacity-70">
+              {mode === "pct" ? "100%" : formatUsdCompact(hoveredTotal)} total
+            </div>
           </>
         ) : null}
       </ChartTooltip>

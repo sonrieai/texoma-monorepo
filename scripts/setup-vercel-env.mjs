@@ -29,6 +29,10 @@ const keys = [
   "AUTH_PASSWORD",
   "AUTH_SESSION_SECRET",
   "RESET_TOKEN_SECRET",
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USER",
+  "SMTP_PASS",
   "MAILGUN_API_KEY",
   "MAILGUN_DOMAIN",
   "SENDER_EMAIL",
@@ -69,6 +73,7 @@ for (const key of keys) {
     "AUTH_PASSWORD",
     "AUTH_SESSION_SECRET",
     "RESET_TOKEN_SECRET",
+    "SMTP_PASS",
     "MAILGUN_API_KEY",
   ].includes(key);
 

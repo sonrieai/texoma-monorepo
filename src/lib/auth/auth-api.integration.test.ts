@@ -47,6 +47,8 @@ describe("auth API (HTTP integration)", () => {
       email: TEST_EMAIL,
       passwordHash: hashPassword(TEST_PASSWORD),
       isActive: true,
+      role: "owner",
+      providerId: null,
       createdAt: now,
       updatedAt: now,
     });

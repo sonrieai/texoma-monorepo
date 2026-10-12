@@ -43,10 +43,15 @@ export function getResetTokenSecret(): string {
 }
 
 export function isPasswordResetConfigured(): boolean {
+  const smtpConfigured = Boolean(
+    process.env.SMTP_HOST?.trim() &&
+      process.env.SMTP_USER?.trim() &&
+      process.env.SMTP_PASS?.trim(),
+  );
   return Boolean(
     isAuthEnabled() &&
       getAuthEmail() &&
-      process.env.MAILGUN_API_KEY?.trim(),
+      (smtpConfigured || process.env.MAILGUN_API_KEY?.trim()),
   );
 }
 

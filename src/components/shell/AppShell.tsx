@@ -8,6 +8,7 @@ import {
   getNavigationPendingHref,
   subscribeNavigationPending,
 } from "@/lib/ui/navigation-pending";
+import type { NavProfile } from "@/lib/auth/nav-profile";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
@@ -15,10 +16,11 @@ type Props = {
   title: string;
   subtitle?: string;
   badge?: ReactNode;
+  navProfile: NavProfile;
   children: React.ReactNode;
 };
 
-export function AppShell({ title, subtitle, badge, children }: Props) {
+export function AppShell({ title, subtitle, badge, navProfile, children }: Props) {
   const [navOpen, setNavOpen] = useState(false);
   const closeNav = useCallback(() => setNavOpen(false), []);
   const openNav = useCallback(() => setNavOpen(true), []);
@@ -41,7 +43,7 @@ export function AppShell({ title, subtitle, badge, children }: Props) {
   return (
     <SessionActivityGuard>
       <div className="flex h-dvh overflow-hidden bg-background">
-        <Sidebar open={navOpen} onClose={closeNav} />
+        <Sidebar open={navOpen} onClose={closeNav} navProfile={navProfile} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Topbar
             title={title}
@@ -60,7 +62,7 @@ export function AppShell({ title, subtitle, badge, children }: Props) {
               />
             ) : null}
             <div
-              className={`mx-auto w-full max-w-[1200px] px-3.5 pb-10 pt-3.5 sm:px-6 sm:pb-12 sm:pt-4 ${isNavigating ? "opacity-60" : ""}`}
+              className={`w-full px-3.5 pb-10 pt-6 sm:px-[30px] sm:pb-[60px] ${isNavigating ? "opacity-60" : ""}`}
             >
               {isNavigating ? (
                 <LoadingBox className="pointer-events-none absolute inset-x-0 top-8 z-20 py-4" />

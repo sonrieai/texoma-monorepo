@@ -8,13 +8,13 @@ export function SectionHeading({
   tag?: string;
 }) {
   return (
-    <div className="mb-2.5 mt-5 flex flex-wrap items-center gap-2 first:mt-0">
-      <h3 className="font-display m-0 text-[17px] font-semibold leading-tight tracking-normal text-foreground sm:text-[19px]">
+    <div className="mb-3 mt-[26px] flex flex-wrap items-center gap-2.5 first:mt-0">
+      <h3 className="font-display m-0 text-[23px] font-semibold leading-tight tracking-normal text-foreground">
         {title}
       </h3>
       <div className="hidden h-px min-w-[1.5rem] flex-1 bg-line sm:block" />
       {tag ? (
-        <span className="max-w-full truncate rounded-full border border-line bg-card px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+        <span className="max-w-full truncate rounded-[20px] border border-line bg-background px-[9px] py-0.5 text-[10.5px] font-semibold text-muted">
           {tag}
         </span>
       ) : null}
@@ -35,13 +35,13 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-line bg-card p-3.5 transition-shadow hover:border-accent/30 hover:shadow-[0_8px_20px_rgba(15,49,64,0.06)] sm:p-4 ${className}`}
+      className={`rounded-[14px] border border-line bg-card p-[18px] ${className}`}
     >
       {title ? (
-        <h3 className="m-0 mb-0.5 text-[13px] font-bold leading-snug">{title}</h3>
+        <h3 className="m-0 mb-[3px] text-[13.5px] font-bold leading-snug">{title}</h3>
       ) : null}
       {subtitle ? (
-        <p className="m-0 mb-2.5 text-[11.5px] leading-snug text-muted">
+        <p className="m-0 mb-3.5 text-[11.5px] leading-snug text-muted">
           {subtitle}
         </p>
       ) : null}
@@ -63,7 +63,7 @@ export function StatusDot({
         : status === "bad"
           ? "bg-bad"
           : "bg-muted";
-  return <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />;
+  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} />;
 }
 
 /** Self-contained KPI tile — use directly in grids (no wrapping Card).
@@ -75,7 +75,7 @@ export function ComboStat({
   target,
   status,
   variant = "tile",
-  size = "default",
+  size: _size = "default",
 }: {
   label: string;
   value: string;
@@ -99,39 +99,45 @@ export function ComboStat({
 
   const shell =
     variant === "tile"
-      ? size === "lg"
-        ? "rounded-[14px] border border-line bg-card px-4 py-4 pl-[18px] min-h-[88px] sm:min-h-[92px]"
-        : "rounded-xl border border-line bg-card px-3 py-2.5 pl-3.5 sm:min-h-[76px] sm:px-3.5 sm:py-3 sm:pl-4 min-h-[72px]"
-      : "rounded-lg bg-background px-2.5 py-2 pl-3 min-h-[56px]";
+      ? "overflow-hidden rounded-[14px] border border-line bg-card px-[17px] py-4"
+      : "rounded-[10px] bg-background px-3.5 py-[9px]";
+
+  const edgeClass =
+    variant === "tile"
+      ? "absolute bottom-0 left-0 top-0 w-1"
+      : "absolute bottom-[9px] left-0 top-[9px] w-1 rounded";
 
   return (
     <div className={`relative flex h-full flex-col justify-center ${shell}`}>
       {showStatus ? (
-        <span
-          className={`absolute bottom-1.5 left-0 top-1.5 w-[3px] rounded-r ${edge}`}
-          aria-hidden
-        />
+        <span className={`${edgeClass} ${edge}`} aria-hidden />
       ) : null}
       <div
         className={
           variant === "inset"
             ? "text-[11px] font-semibold text-muted"
-            : "text-[10.5px] font-semibold uppercase tracking-wide text-muted sm:text-[11px]"
+            : "mb-2 text-[11.5px] font-semibold text-muted"
         }
       >
         {label}
       </div>
       <div
         className={
-          size === "lg"
-            ? "mt-1 text-[22px] font-extrabold leading-none tracking-tight tabular-nums sm:text-[26px]"
-            : "mt-0.5 text-[17px] font-extrabold leading-none tracking-tight tabular-nums sm:text-[19px]"
+          variant === "inset"
+            ? "mt-0.5 text-[21px] font-extrabold leading-none tracking-[-0.5px] tabular-nums"
+            : "text-[26px] font-extrabold leading-none tracking-[-0.5px] tabular-nums"
         }
       >
         {value}
       </div>
       {meta ? (
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] leading-snug text-muted">
+        <div
+          className={
+            variant === "inset"
+              ? "mt-1 flex items-center gap-[5px] text-[11px] leading-snug text-muted"
+              : "mt-1.5 flex items-center gap-1.5 text-[11.5px] leading-snug text-muted"
+          }
+        >
           {showStatus ? <StatusDot status={status} /> : null}
           <span className="line-clamp-2">{meta}</span>
         </div>
@@ -172,7 +178,7 @@ export function ComboDuo({
   items: { label: string; value: string }[];
 }) {
   return (
-    <div className="relative rounded-lg bg-background px-2.5 py-2 sm:px-3.5">
+    <div className="relative rounded-[10px] bg-background px-3.5 py-[9px]">
       <div className="flex flex-col">
         {items.map((item, i) => (
           <div

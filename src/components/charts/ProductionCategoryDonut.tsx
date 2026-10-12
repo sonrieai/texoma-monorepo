@@ -5,7 +5,6 @@ import { formatUsd } from "@/lib/metrics";
 import type { ChartCategoryDef } from "@/lib/charts/category-chart";
 import {
   ChartTooltip,
-  ChartTooltipRow,
   positionChartTooltip,
   type TooltipPosition,
 } from "@/components/charts/chart-tooltip";
@@ -16,6 +15,14 @@ type Hover = {
   index: number;
   position: TooltipPosition;
 };
+
+function sliceClass(hovered: boolean, active: boolean): string {
+  const base = "cursor-pointer transition-[opacity,filter] duration-150";
+  if (!hovered) return base;
+  return active
+    ? `${base} opacity-100 brightness-110 drop-shadow-[0_2px_6px_rgba(20,30,25,0.28)]`
+    : `${base} opacity-50`;
+}
 
 function CategoryLegend({
   chartCategories,
@@ -65,12 +72,15 @@ export function ProductionCategoryDonut({
   size = 300,
   centerLabel,
   centerSub = "total",
+  showLegend = true,
 }: {
   slices: Slice[];
   chartCategories: ChartCategoryDef[];
   size?: number;
   centerLabel?: string;
   centerSub?: string;
+  /** Prototype cockpit donut is hover-only, with no side legend. */
+  showLegend?: boolean;
 }) {
   const drawable = slices.filter((s) => s.value > 0);
   const sum = drawable.reduce((a, s) => a + s.value, 0);
@@ -118,7 +128,7 @@ export function ProductionCategoryDonut({
                 chartCategories[0]?.color
               }
               strokeWidth={outerR - innerR}
-              className="cursor-pointer transition-opacity hover:opacity-85"
+              className={sliceClass(hover != null, true)}
               onMouseEnter={(e) => showTooltip(0, e)}
               onMouseMove={(e) => showTooltip(0, e)}
               onMouseLeave={() => setHover(null)}
@@ -144,7 +154,7 @@ export function ProductionCategoryDonut({
               key={`${s.label}-${i}`}
               d={d}
               fill={color}
-              className="cursor-pointer transition-opacity hover:opacity-85"
+              className={sliceClass(hover != null, hover?.index === i)}
               onMouseEnter={(e) => showTooltip(i, e)}
               onMouseMove={(e) => showTooltip(i, e)}
               onMouseLeave={() => setHover(null)}
@@ -164,7 +174,6 @@ export function ProductionCategoryDonut({
         ];
 
   const hovered = hover != null ? drawable[hover.index] : null;
-  const hoveredColor = hovered?.color;
 
   return (
     <div className="flex w-full min-w-0 flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-center">
@@ -180,7 +189,7 @@ export function ProductionCategoryDonut({
               x={cx}
               y={centerSub ? cy - 2 : cy + 5}
               textAnchor="middle"
-              className="fill-[var(--ink)] text-[26px] font-extrabold"
+              className="pointer-events-none fill-[var(--ink)] text-[26px] font-extrabold"
             >
               {centerLabel}
             </text>
@@ -190,7 +199,7 @@ export function ProductionCategoryDonut({
               x={cx}
               y={cy + 18}
               textAnchor="middle"
-              className="fill-[var(--muted)] text-[11px]"
+              className="pointer-events-none fill-[var(--muted)] text-[11px]"
             >
               {centerSub}
             </text>
@@ -201,25 +210,21 @@ export function ProductionCategoryDonut({
             No production in this period
           </p>
         ) : null}
-        <ChartTooltip position={hover?.position ?? null}>
+        <ChartTooltip position={hover?.position ?? null} tone="dark">
           {hovered ? (
             <>
-              <div className="mb-1.5 text-[12.5px] font-bold">{hovered.label}</div>
-              <ChartTooltipRow
-                color={hoveredColor}
-                label="Amount"
-                value={formatUsd(hovered.value)}
-              />
-              <ChartTooltipRow
-                label="Share"
-                value={`${sum > 0 ? Math.round((100 * hovered.value) / total) : 0}%`}
-                muted
-              />
+              <div className="font-bold">{hovered.label}</div>
+              <div>
+                {formatUsd(hovered.value)} ·{" "}
+                {sum > 0 ? Math.round((100 * hovered.value) / total) : 0}%
+              </div>
             </>
           ) : null}
         </ChartTooltip>
       </div>
-      <CategoryLegend chartCategories={chartCategories} slices={slices} />
+      {showLegend ? (
+        <CategoryLegend chartCategories={chartCategories} slices={slices} />
+      ) : null}
     </div>
   );
 }

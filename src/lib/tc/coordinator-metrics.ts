@@ -13,10 +13,8 @@ import {
   type TcMetrics,
 } from "@/lib/warehouse/tc-metrics";
 import { buildCoordinatorConversion } from "@/lib/tc/coordinator-conversion";
-import {
-  discoverTcCoordinators,
-  type TcCoordinator,
-} from "@/lib/tc/discover-coordinators";
+import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
+import { namedTreatmentCoordinators } from "@/lib/tc/presented-plans";
 
 export type TcCoordinatorRow = {
   slug: string;
@@ -38,14 +36,7 @@ export function buildTcCoordinatorRows(params: {
   cdt?: CdtLookup;
   coordinators?: TcCoordinator[];
 }): TcCoordinatorRow[] {
-  const roster =
-    params.coordinators ??
-    discoverTcCoordinators({
-      plans: params.plans,
-      appointments: params.appointments,
-      appointmentTypes: params.appointmentTypes,
-      providers: params.providers,
-    });
+  const roster = params.coordinators ?? namedTreatmentCoordinators(params.providers);
 
   return roster.map((coordinator) => {
     const conversion = buildCoordinatorConversion({
@@ -69,6 +60,7 @@ export function buildTcCoordinatorRows(params: {
       conversion,
       cdt: params.cdt,
       coordinator,
+      providers: params.providers,
     });
     return {
       slug: coordinator.slug,

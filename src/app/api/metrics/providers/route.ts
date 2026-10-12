@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server";
+import {
+  apiAccessError,
+  getDashboardAccess,
+} from "@/lib/auth/require-dashboard-session";
 import { loadLiveProviders } from "@/lib/warehouse/live";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const providers = await loadLiveProviders();
+    const denied = await apiAccessError("/api/metrics/providers");
+    if (denied) {
+      return NextResponse.json(
+        { error: denied.error, providers: [] },
+        { status: denied.status },
+      );
+    }
+    const access = await getDashboardAccess();
+    let providers = await loadLiveProviders();
+    if (access && access.role === "doctor") {
+      providers = providers.filter((provider) => provider.id === access.providerId);
+    }
     return NextResponse.json(
       { providers },
       {

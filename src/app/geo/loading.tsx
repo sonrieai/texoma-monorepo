@@ -1,10 +1,7 @@
-import { PageLoading } from "@/components/ui/States";
+import { DashboardLoading } from "@/components/shell/DashboardFrame";
 
 export default function GeoLoading() {
   return (
-    <PageLoading
-      title="Patients by Area"
-      label="Loading map data…"
-    />
+    <DashboardLoading title="Patients by Area" label="Loading map data…" />
   );
 }

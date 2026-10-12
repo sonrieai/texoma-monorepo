@@ -1,9 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getDashboardAccess } from "@/lib/auth/require-dashboard-session";
 import {
   DoctorCockpitMetrics,
   DoctorProductionTrendSection,
 } from "@/components/analytics/DoctorCockpitMetrics";
-import { AppShell } from "@/components/shell/AppShell";
+import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { EmptyState } from "@/components/ui/States";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import {
@@ -21,6 +22,15 @@ type Props = {
 
 export default async function DoctorDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const access = await getDashboardAccess();
+  if (
+    access &&
+    access.role === "doctor" &&
+    access.providerId !== id
+  ) {
+    redirect(access.homePath);
+  }
+
   const period = parsePeriodParams(await searchParams);
   const range = periodToRange(period);
   const pl = periodLabel(period);
@@ -34,7 +44,7 @@ export default async function DoctorDetailPage({ params, searchParams }: Props) 
 
   if (!data) {
     return (
-      <AppShell
+      <DashboardFrame
         title="Doctor"
         subtitle="Provider metrics & production"
       >
@@ -42,7 +52,7 @@ export default async function DoctorDetailPage({ params, searchParams }: Props) 
           title="Unable to load provider"
           description="Dashboard data is unavailable. Try again shortly or contact your administrator."
         />
-      </AppShell>
+      </DashboardFrame>
     );
   }
 
@@ -50,7 +60,7 @@ export default async function DoctorDetailPage({ params, searchParams }: Props) 
   if (!provider) notFound();
 
   return (
-    <AppShell title={provider.name} subtitle="Provider metrics & production">
+    <DashboardFrame title={provider.name} subtitle="Provider metrics & production">
       <DoctorCockpitMetrics
         provider={provider}
         periodLabel={pl}
@@ -60,6 +70,6 @@ export default async function DoctorDetailPage({ params, searchParams }: Props) 
         providerName={provider.name}
         monthlyProduction={provider.production.monthlyProduction}
       />
-    </AppShell>
+    </DashboardFrame>
   );
 }

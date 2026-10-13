@@ -41,12 +41,63 @@ const CATEGORY_FROM_DESCRIPTION: {
   { pattern: /\bx-ray|radiograph|bitewing|periapical|panoramic\b/i, category: "Hygiene" },
 ];
 
-const WARRANTY_PATTERNS: { pattern: RegExp; bucket: DentureWarrantyBucket }[] = [
-  { pattern: /\b(6[\s-]?mo|six[\s-]?month|\bm6\b|\.m6\b|6mo)\b/i, bucket: "m6" },
-  { pattern: /\b(1[\s-]?yr|one[\s-]?year|\by1\b|\.y1\b|1yr)\b/i, bucket: "y1" },
-  { pattern: /\b(3[\s-]?yr|three[\s-]?year|\by3\b|\.y3\b|3yr)\b/i, bucket: "y3" },
-  { pattern: /\b(5[\s-]?yr|five[\s-]?year|\by5\b|\.y5\b|5yr)\b/i, bucket: "y5" },
+/** Spelled durations. `month` / `year` come before the short forms so "6-Month" is not cut at "Mo". */
+const WARRANTY_TEXT_PATTERNS: { pattern: RegExp; bucket: DentureWarrantyBucket }[] = [
+  {
+    pattern:
+      /(?:^|[^a-z0-9])(?:6[\s-]*months?|six[\s-]*months?|6[\s-]*mo|m6)(?![a-z0-9])/i,
+    bucket: "m6",
+  },
+  {
+    pattern:
+      /(?:^|[^a-z0-9])(?:1[\s-]*years?|one[\s-]*years?|1[\s-]*yr|y1)(?![a-z0-9])/i,
+    bucket: "y1",
+  },
+  {
+    pattern:
+      /(?:^|[^a-z0-9])(?:3[\s-]*years?|three[\s-]*years?|3[\s-]*yr|y3)(?![a-z0-9])/i,
+    bucket: "y3",
+  },
+  {
+    pattern:
+      /(?:^|[^a-z0-9])(?:5[\s-]*years?|five[\s-]*years?|5[\s-]*yr|y5)(?![a-z0-9])/i,
+    bucket: "y5",
+  },
 ];
+
+/** Chart suffixes on complete / immediate dentures. `.5` is SoonerCare, not a warranty. N8888 is not in this set. */
+const DENTURE_WARRANTY_SUFFIX =
+  /^(?:D)?(?:5110|5120|5130|5140)\.(11|44|22|33|1|4|2|3)$/i;
+
+const WARRANTY_SUFFIX_BUCKET: Record<string, DentureWarrantyBucket> = {
+  "1": "m6",
+  "11": "m6",
+  "4": "y1",
+  "44": "y1",
+  "2": "y3",
+  "22": "y3",
+  "3": "y5",
+  "33": "y5",
+};
+
+function warrantyFromText(text: string): DentureWarrantyBucket | null {
+  const hay = text.trim();
+  if (!hay) return null;
+  for (const row of WARRANTY_TEXT_PATTERNS) {
+    if (row.pattern.test(hay)) return row.bucket;
+  }
+  return null;
+}
+
+function warrantyFromDeliverySuffix(
+  code: string | null | undefined,
+): DentureWarrantyBucket | null {
+  const normalized = normalizedUpperCode(code);
+  if (normalized === "UNKNOWN") return null;
+  const match = DENTURE_WARRANTY_SUFFIX.exec(normalized);
+  if (!match?.[1]) return null;
+  return WARRANTY_SUFFIX_BUCKET[match[1]] ?? null;
+}
 
 function normalizedUpperCode(code: string | null | undefined): string {
   return normalizeProcedureCode(code ?? "").toUpperCase();
@@ -76,17 +127,20 @@ export function inferIsConsultFromCodeAndDescription(
   return inferIsConsultProcedure(description?.trim() || "");
 }
 
-/** Warranty bucket from OD ProcCode / Descript (denture & partial SKUs). */
+/**
+ * Warranty bucket from OD ProcCode / Descript.
+ * Description text wins, then the same wording on the code, then the
+ * D5110–D5140 chart suffix. `.5` and unsuffixed N8888 stay unset.
+ */
 export function inferWarrantyBucket(
   code: string | null | undefined,
   description: string | null | undefined,
 ): DentureWarrantyBucket | null {
-  const hay = `${code ?? ""} ${description ?? ""}`.trim();
-  if (!hay) return null;
-  for (const row of WARRANTY_PATTERNS) {
-    if (row.pattern.test(hay)) return row.bucket;
-  }
-  return null;
+  return (
+    warrantyFromText(description ?? "") ??
+    warrantyFromText(code ?? "") ??
+    warrantyFromDeliverySuffix(code)
+  );
 }
 
 /** Map trial T-codes / uncategorized OD rows from description text. */

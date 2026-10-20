@@ -75,6 +75,29 @@ export type PaymentClassificationOptions = {
   cashPaymentTypeDefNums?: ReadonlySet<number>;
 };
 
+/** Open Dental PayType DefNums per bucket, as loaded on the snapshot. */
+export type PaymentTypeClassification = {
+  insurance: number[];
+  soonercare: number[];
+  financed: number[];
+  cash: number[];
+};
+
+export function paymentClassificationOptionsFrom(
+  payTypes: PaymentTypeClassification | null | undefined,
+  insurancePaymentTypeDefNums?: number[],
+): PaymentClassificationOptions | undefined {
+  if (!payTypes && !insurancePaymentTypeDefNums?.length) return undefined;
+  return {
+    insurancePaymentTypeDefNums: new Set(
+      payTypes?.insurance ?? insurancePaymentTypeDefNums ?? [],
+    ),
+    soonercarePaymentTypeDefNums: new Set(payTypes?.soonercare ?? []),
+    financedPaymentTypeDefNums: new Set(payTypes?.financed ?? []),
+    cashPaymentTypeDefNums: new Set(payTypes?.cash ?? []),
+  };
+}
+
 function bucketFromPayTypeId(
   typeId: number,
   options?: PaymentClassificationOptions,

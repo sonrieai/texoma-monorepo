@@ -16,9 +16,9 @@ import {
   applyClaimProcSoonerCare,
   emptyFinancingVendorMix,
   emptyPaymentMix,
+  paymentClassificationOptionsFrom,
   supplementInsurancePaymentMixFromClaims,
   type FinancingVendorMix,
-  type PaymentClassificationOptions,
   type PaymentMix,
 } from "@/lib/warehouse/payment-mix";
 import {
@@ -931,18 +931,10 @@ export function summarizeProductionFromLedger(params: {
     );
   }
 
-  const payTypes = params.paymentTypeClassification;
-  const paymentClassifyOptions: PaymentClassificationOptions | undefined =
-    payTypes || params.insurancePaymentTypeDefNums?.length
-      ? {
-          insurancePaymentTypeDefNums: new Set(
-            payTypes?.insurance ?? params.insurancePaymentTypeDefNums ?? [],
-          ),
-          soonercarePaymentTypeDefNums: new Set(payTypes?.soonercare ?? []),
-          financedPaymentTypeDefNums: new Set(payTypes?.financed ?? []),
-          cashPaymentTypeDefNums: new Set(payTypes?.cash ?? []),
-        }
-      : undefined;
+  const paymentClassifyOptions = paymentClassificationOptionsFrom(
+    params.paymentTypeClassification,
+    params.insurancePaymentTypeDefNums,
+  );
 
   let paymentMix = paymentsAvailable
     ? aggregatePaymentMix(payments, paymentClassifyOptions)

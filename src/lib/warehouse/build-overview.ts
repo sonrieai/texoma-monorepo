@@ -46,6 +46,7 @@ import {
 } from "@/lib/warehouse/production";
 import { isExcludedDoctorProvider } from "@/lib/warehouse/excluded-doctor-providers";
 import { buildSoonerCarePatientSet } from "@/lib/warehouse/sc-production";
+import { paymentClassificationOptionsFrom } from "@/lib/warehouse/payment-mix";
 import type { OpenDentalSnapshot } from "@/lib/opendental/snapshot";
 import type {
   LiveOverview,
@@ -251,6 +252,11 @@ export function buildOverviewFromSnapshot(
     firstVisits: snapshot.patients.map((patient) => patient.dateFirstVisit),
   });
 
+  const paymentClassifyOptions = paymentClassificationOptionsFrom(
+    snapshot.paymentTypeClassification,
+    snapshot.insurancePaymentTypeDefNums,
+  );
+
   const tcMetrics = summarizeTcMetrics({
     fromYmd,
     toYmd,
@@ -264,6 +270,7 @@ export function buildOverviewFromSnapshot(
     cdt,
     providers: snapshot.providers,
     soonercarePatientIds,
+    paymentClassifyOptions,
   });
 
   const tcCoordinators = buildTcCoordinatorRows({
@@ -278,6 +285,7 @@ export function buildOverviewFromSnapshot(
     appointmentTypeDocs: snapshot.appointmentTypeDocs,
     patients: snapshot.patients,
     soonercarePatientIds,
+    paymentClassifyOptions,
     cdt,
   });
 

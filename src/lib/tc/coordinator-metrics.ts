@@ -9,6 +9,7 @@ import type {
 } from "@/lib/warehouse/types";
 import type { ConversionSummary } from "@/lib/warehouse/conversion";
 import type { NpConsultTypeDoc } from "@/lib/warehouse/kpi-reference";
+import type { PaymentClassificationOptions } from "@/lib/warehouse/payment-mix";
 import {
   summarizeTcMetrics,
   type TcMetrics,
@@ -37,6 +38,7 @@ export function buildTcCoordinatorRows(params: {
   appointmentTypeDocs?: NpConsultTypeDoc[];
   patients?: Array<{ patientId: number; dateFirstVisit: string | null }>;
   soonercarePatientIds?: ReadonlySet<number>;
+  paymentClassifyOptions?: PaymentClassificationOptions;
   cdt?: CdtLookup;
   coordinators?: TcCoordinator[];
 }): TcCoordinatorRow[] {
@@ -63,6 +65,7 @@ export function buildTcCoordinatorRows(params: {
       appointmentTypes: params.appointmentTypes,
       appointmentTypeDocs: params.appointmentTypeDocs,
       soonercarePatientIds: params.soonercarePatientIds,
+      paymentClassifyOptions: params.paymentClassifyOptions,
       plans: params.plans,
       procedures: params.procedures,
       payments: params.payments,

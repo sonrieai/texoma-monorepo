@@ -41,6 +41,7 @@ import {
   aggregateFinancingVendorMix,
   financingVendorDonutSlices,
   type FinancingVendorMix,
+  type PaymentClassificationOptions,
 } from "@/lib/warehouse/payment-mix";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 import { collectPresentedPlans } from "@/lib/tc/presented-plans";
@@ -275,6 +276,8 @@ export function summarizeTcMetrics(params: {
   coordinator?: TcCoordinator;
   providers?: ProviderRecord[];
   soonercarePatientIds?: ReadonlySet<number>;
+  /** Same PayType definitions as the Overview payment mix. */
+  paymentClassifyOptions?: PaymentClassificationOptions;
 }): TcMetrics {
   const notices: string[] = [];
   const coordinator = params.coordinator;
@@ -531,11 +534,13 @@ export function summarizeTcMetrics(params: {
     );
   }
 
-  const paymentsInRange = payments.filter((p) => {
-    const ymd = p.paid_at?.slice(0, 10) ?? p.updated_at?.slice(0, 10) ?? null;
-    return inYmdRange(ymd, params.fromYmd, params.toYmd);
-  });
-  const financingVendorMix = aggregateFinancingVendorMix(paymentsInRange);
+  const paymentsInRange = payments.filter(
+    (p) => !p.deleted_at && inYmdRange(p.paid_at, params.fromYmd, params.toYmd),
+  );
+  const financingVendorMix = aggregateFinancingVendorMix(
+    paymentsInRange,
+    params.paymentClassifyOptions,
+  );
   const financingDonutSlices = financingVendorDonutSlices(financingVendorMix);
 
   const npSuccessRate =

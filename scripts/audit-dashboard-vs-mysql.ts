@@ -272,6 +272,7 @@ async function main() {
       { metric: "New patients (first visit)", dashboard: ov.conversion.newPatients, mysql: s.newPatients, unit: "n" },
       { metric: "TX plans presented (D7777)", dashboard: ov.tcMetrics.tpPresentedCount, mysql: s.presented, unit: "n" },
       { metric: "Presented ($, same-day plan)", dashboard: ov.tcMetrics.tpPresentedCents, mysql: s.presentedCents, unit: "$" },
+      { metric: "$ Financed: TC vs Overview mix", dashboard: ov.tcMetrics.financingVendorMix.totalCents, mysql: p.paymentMix.financed, unit: "$" },
       { metric: "AOX cases (patients)", dashboard: p.procedureVolume.aox, mysql: s.aoxCases, unit: "n" },
       { metric: "Denture remakes", dashboard: p.procedureVolume.remakes, mysql: s.remakes, unit: "n" },
       { metric: "Appointments shown (Complete)", dashboard: ov.appointments.show, mysql: s.apptShow, unit: "n" },

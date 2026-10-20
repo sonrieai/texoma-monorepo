@@ -250,6 +250,35 @@ export async function listOdFutureAppointmentsForPatients(
   return out;
 }
 
+/** Every Scheduled appointment with AptDateTime in the future (backfill source). */
+export async function listOdFutureScheduledAppointments(): Promise<
+  OdGhlFutureAppointmentRow[]
+> {
+  const hasPattern = await odHasColumn("appointment", "Pattern");
+  const patternSelect = hasPattern ? "a.Pattern," : "NULL AS Pattern,";
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT a.AptNum, a.PatNum, a.AptStatus,
+            DATE_FORMAT(a.AptDateTime, '%Y-%m-%d %H:%i:%s') AS AptDateTime,
+            ${patternSelect}
+            atype.AppointmentTypeName AS AppointmentTypeName
+     FROM appointment a
+     LEFT JOIN appointmenttype atype
+       ON atype.AppointmentTypeNum = a.AppointmentTypeNum
+     WHERE a.AptStatus = ?
+       AND a.AptDateTime > NOW()
+     ORDER BY a.AptDateTime, a.AptNum`,
+    [OdAptStatus.Scheduled],
+  );
+  return asRows<OdGhlFutureAppointmentRow>(rows).map((row) => ({
+    AptNum: Number(row.AptNum),
+    PatNum: Number(row.PatNum),
+    AptStatus: Number(row.AptStatus),
+    AptDateTime: row.AptDateTime ?? null,
+    Pattern: row.Pattern ?? null,
+    AppointmentTypeName: row.AppointmentTypeName ?? null,
+  }));
+}
+
 export async function listOdAppointmentProcedureCodes(
   aptNums: number[],
 ): Promise<OdGhlProcCodeRow[]> {

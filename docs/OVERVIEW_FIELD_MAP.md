@@ -253,7 +253,7 @@ Production Trend is that provider’s completed `ProcFee` by month, same three-y
 | Cancellations | 3 | No-Shows | `appointment.AptStatus`, `D9986`, confirm 69 | No-shows ÷ (shows + no-shows) for every visit in the period, not only consults. |
 | Cancellations | 4 | No-Shows Rebooked | `appointment` | No-shows with a later non-cancelled visit ÷ no-shows. |
 
-$ Financed is the sum of `paysplit.SplitAmt` in the period whose PayType is a financing type (CareCredit, Cherry, Sunbit, Proceed, and the other financing names). The donut splits that sum in this order: Care Credit, Cherry, Sunbit, Proceed, Other.
+$ Financed is the sum of `paysplit.SplitAmt` in the period whose PayType is a financing type (CareCredit, Cherry, Sunbit, Proceed, and the other financing names). It uses the same PayType classification and payment-date filter as the Overview Payment Mix, so it equals the Overview Financed slice. The donut splits that sum in this order: Care Credit, Cherry, Sunbit, Proceed, Other.
 
 ### Patient Journey by Channel
 

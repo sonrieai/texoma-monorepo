@@ -12,8 +12,7 @@ describe("contact resolve precedence", () => {
   });
 
   it("treats phone≠email as unclear (no create)", () => {
-    const phoneId = "contact-a";
-    const emailId = "contact-b";
+    const [phoneId, emailId]: string[] = ["contact-a", "contact-b"];
     const unclear = phoneId !== emailId;
     assert.equal(unclear, true);
   });

@@ -37,6 +37,8 @@ export type OdGhlSyncState = {
   lastSuccessfulRunAt?: string | null;
 };
 
+type SyncStateDoc = OdGhlSyncState & { _id: "state" };
+
 function emptyState(): OdGhlSyncState {
   return { cursor: null, contacts: {}, lastSuccessfulRunAt: null };
 }
@@ -128,7 +130,9 @@ function usesMongoSyncState(): boolean {
 export async function readOdGhlSyncState(): Promise<OdGhlSyncState> {
   if (usesMongoSyncState()) {
     const db = await getDb();
-    const doc = await db.collection(COLLECTIONS.odGhlSyncState).findOne({ _id: "state" });
+    const doc = await db
+      .collection<SyncStateDoc>(COLLECTIONS.odGhlSyncState)
+      .findOne({ _id: "state" });
     return normalizeOdGhlSyncState(doc);
   }
   try {
@@ -144,9 +148,9 @@ export async function writeOdGhlSyncState(state: OdGhlSyncState): Promise<void> 
   const normalized = normalizeOdGhlSyncState(state);
   if (usesMongoSyncState()) {
     const db = await getDb();
-    await db.collection(COLLECTIONS.odGhlSyncState).replaceOne(
+    await db.collection<SyncStateDoc>(COLLECTIONS.odGhlSyncState).replaceOne(
       { _id: "state" },
-      { _id: "state", ...normalized },
+      normalized,
       { upsert: true },
     );
     return;

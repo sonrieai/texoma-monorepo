@@ -107,7 +107,7 @@ async function writeMongo(store: JsonStoreData): Promise<void> {
   const db = await getDb();
   const users = db.collection(COLLECTIONS.dashboardUsers);
   const resets = db.collection(COLLECTIONS.passwordResets);
-  const settings = db.collection(COLLECTIONS.integrationSettings);
+  const settings = db.collection<GhlIntegrationDoc>(COLLECTIONS.integrationSettings);
 
   await users.deleteMany({});
   if (store.dashboardUsers.length > 0) {

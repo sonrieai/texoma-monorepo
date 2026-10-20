@@ -116,6 +116,26 @@ npm run sync:od-ghl -- --dry-run
 
 Or: `GHL_OD_SYNC_DRY_RUN=1 npm run sync:od-ghl`
 
+### One-time `od_consult_date` backfill
+
+Consults booked before the cutover never change `DateTStamp`, so the poll never
+fills their `od_consult_date` and they never reach **Consults Today**. The
+backfill fills them using the same consult rule as the sync (`N9310` consult
+line, or `D0150`, `D0120`, `D0150.2`).
+
+```bash
+npx tsx --env-file=.env.local --require ./scripts/register-server-only-stub.cjs scripts/backfill-od-consult-date.ts
+# dry run: PatNums and counts only
+npx tsx --env-file=.env.local --require ./scripts/register-server-only-stub.cjs scripts/backfill-od-consult-date.ts --apply
+```
+
+- Writes only `od_consult_date`: no tags, sequences, appointments, or new contacts
+- Contact = sync-state link, else lookup by `od_patnum` → phone → email; unclear
+  phone/email splits are skipped
+- Clears the field only for contacts already linked by the sync that no longer
+  have a future consult
+- Safe to re-run; contacts already correct are not written
+
 ### Required env (Texoma)
 
 | Variable | Purpose |

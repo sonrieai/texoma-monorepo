@@ -98,7 +98,7 @@ export type OdGhlSyncResult = {
 type TimedEffect = { at: string; effect: TagEffect };
 
 /** OD sync always uses the Texoma sub-account (env preferred over Settings). */
-async function getTexomaGhlConfigForSync(): Promise<GhlConfig> {
+export async function getTexomaGhlConfigForSync(): Promise<GhlConfig> {
   if (isGhlConfiguredFromEnv()) {
     const locationId = process.env.GHL_LOCATION_ID!.trim();
     const apiKey = process.env.GHL_API_KEY!.trim();

@@ -310,6 +310,29 @@ export async function setActiveSequence(
   );
 }
 
+/** Write only od_consult_date; empty string clears it. */
+export async function setContactConsultDate(
+  contactId: string,
+  ymd: string,
+  config?: GhlConfig,
+): Promise<void> {
+  const customFields = [
+    fieldEntry(
+      OD_CONSULT_DATE_FIELD_KEY,
+      ymd,
+      process.env.GHL_OD_CONSULT_DATE_FIELD_ID,
+    ),
+  ];
+  await ghlFetch(
+    `/contacts/${encodeURIComponent(contactId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ customFields }),
+    },
+    config,
+  );
+}
+
 async function postTags(
   contactId: string,
   method: "POST" | "DELETE",

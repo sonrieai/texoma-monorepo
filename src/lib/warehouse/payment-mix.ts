@@ -1,4 +1,4 @@
-import type { ClaimRecord, PaymentRecord } from "@/lib/warehouse/types";
+import type { ClaimRecord, MoneyAmount, PaymentRecord } from "@/lib/warehouse/types";
 import { moneyToCents } from "@/lib/warehouse/types";
 import { inYmdRange } from "@/lib/warehouse/conversion";
 import { isSoonerCareCarrier } from "@/lib/warehouse/sc-production";
@@ -212,7 +212,7 @@ export function supplementInsurancePaymentMixFromClaims(
 /** Insurance dollars from claimproc.InsPayAmt (Status Received or Supplemental). */
 export function applyClaimProcInsurance(
   mix: PaymentMix,
-  lines: Array<{ status: number; insPay: { amount: string }; dateCp: string | null }>,
+  lines: Array<{ status: number; insPay: MoneyAmount; dateCp: string | null }>,
   fromYmd: string,
   toYmd: string,
 ): PaymentMix {
@@ -240,7 +240,7 @@ export function applyClaimProcSoonerCare(
   mix: PaymentMix,
   lines: Array<{
     status: number;
-    insPay: { amount: string };
+    insPay: MoneyAmount;
     dateCp: string | null;
     carrierName?: string | null;
   }>,

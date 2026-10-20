@@ -8,6 +8,7 @@ import { getGhlConfig, isGhlConfigured } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
 import type { GhlConfig } from "@/lib/ghl/types";
 import type { MarketingRange } from "@/lib/ghl/marketing";
+import { resolveTcPipelineId } from "@/lib/ghl/tc-stage-tiers";
 import { opportunityBelongsToCoordinator } from "@/lib/tc/ghl-attribution";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
@@ -62,6 +63,7 @@ export type GhlOpportunityContext = {
   opp: GhlOpportunity;
   stageName: string;
   pipelineName: string;
+  pipelineId: string;
 };
 
 function formatMmDdYyyy(d: Date): string {
@@ -108,6 +110,18 @@ function preferMarketingPipelines(pipelines: GhlPipeline[]): GhlPipeline[] {
   scored.sort((a, b) => b.score - a.score);
   const picked = scored.filter((s) => s.score >= 10).map((s) => s.p);
   return picked.length > 0 ? picked : pipelines.slice(0, 2);
+}
+
+/** Marketing pipelines by name, plus Treatment Coordinator by env/id. */
+function selectPipelinesForFunnel(pipelines: GhlPipeline[]): GhlPipeline[] {
+  const byId = new Map<string, GhlPipeline>();
+  for (const p of preferMarketingPipelines(pipelines)) {
+    byId.set(p.id, p);
+  }
+  const tcId = resolveTcPipelineId();
+  const tc = pipelines.find((p) => p.id === tcId);
+  if (tc) byId.set(tc.id, tc);
+  return [...byId.values()];
 }
 
 async function listPipelines(config: GhlConfig): Promise<GhlPipeline[]> {
@@ -190,7 +204,7 @@ const loadOpportunityContexts = cache(
       }
     }
 
-    const selected = preferMarketingPipelines(pipelines);
+    const selected = selectPipelinesForFunnel(pipelines);
     const batches = await Promise.all(
       selected.map(async (pipeline) => ({
         pipeline,
@@ -209,6 +223,7 @@ const loadOpportunityContexts = cache(
           opp,
           stageName: stageNameById.get(opp.pipelineStageId ?? "") ?? "",
           pipelineName: pipeline.name ?? pipeline.id,
+          pipelineId: pipeline.id,
         });
       }
     }

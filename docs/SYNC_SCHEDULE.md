@@ -67,12 +67,42 @@ On no-show/cancel, sets `od_missed_appt_date` / `od_next_appt_date` and moves th
 opportunity to No-Show / Cancelled. Successful runs write `lastSuccessfulRunAt` and
 location custom value `od_sync_last_success` (workflows can stop texting if stale ~24h).
 
+### Sync flow
+
+```mermaid
+flowchart TB
+  SCH["Windows task every 5 min"] --> CMD["run-od-ghl-sync.cmd"]
+  CMD --> RUN["runOdGhlSync"]
+  RUN --> CUR{"Cursor set?"}
+  CUR -->|No| INIT["Set cursor to OD NOW — no GHL writes"]
+  CUR -->|Yes| POLL["Poll OD DateTStamp greater than cursor"]
+  POLL --> LOOP["For each changed PatNum"]
+  LOOP --> C1["1 Contact upsert"]
+  C1 --> C2["2 Appointment upsert toNotify false"]
+  C2 --> C3["3 Active Sequence last"]
+  C3 --> OK{"failed equals 0?"}
+  OK -->|Yes| ADV["Advance cursor and heartbeat od_sync_last_success"]
+  OK -->|No| KEEP["Keep cursor — retry next run"]
+```
+
+### Timezone (America/Chicago)
+
+Open Dental appointment times are **practice wall time in `America/Chicago`**,
+not “whatever timezone the MySQL or Node host happens to use.”
+
+- `od_consult_date`, `od_missed_appt_date`, `od_next_appt_date`, and `od_last_sync`
+  are **YYYY-MM-DD in America/Chicago**
+- GHL calendar `startTime` / `endTime` are absolute ISO, converted from that
+  Chicago wall time (DST-aware)
+- Do not rely on the office server’s OS timezone for correctness
+
 ### Go-live filter (Arthur)
 
 Cutover watermark on Open Dental `DateTStamp` (cursor in
-`data/od-ghl-sync.json`). The first live run only sets the cursor — **no
-historical backfill**. Confirm the cutover time with Arthur, then dry-run before
-production writes.
+`data/od-ghl-sync.json`). Polls use `DateTStamp > cursor` so the last-synced
+row is not re-processed every run. The first live run only sets the cursor —
+**no historical backfill**. Confirm the cutover time with Arthur, then dry-run
+before production writes.
 
 ```bash
 npm run sync:od-ghl -- --dry-run
@@ -95,7 +125,7 @@ Or: `GHL_OD_SYNC_DRY_RUN=1 npm run sync:od-ghl`
 | `GHL_OD_MISSED_APPT_DATE_FIELD_ID` | No-show/cancel date just detected |
 | `GHL_OD_NEXT_APPT_DATE_FIELD_ID` | Next scheduled appt after a miss |
 | `GHL_ACTIVE_SEQUENCE_FIELD_ID` | Custom field Active Sequence |
-| `GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` | Location custom value `od_sync_last_success` |
+| `GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` | **Required.** Location custom value `od_sync_last_success` id (sync PUTs only; never creates) |
 | `GHL_TC_PIPELINE_ID` | Treatment Coordinator pipeline (stage moves) |
 
 Plus `OD_MYSQL_*`. On the office host set
@@ -103,15 +133,33 @@ Plus `OD_MYSQL_*`. On the office host set
 the cursor on disk (not Mongo). Names, phones, and emails are not stored —
 only PatNum, GHL contact/event ids, tags, and `lastSuccessfulRunAt`.
 
+Create or repair OD custom fields / the heartbeat value id with
+`npx tsx --env-file=.env.local scripts/ensure-ghl-od-fields.ts`, then put
+`GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` in `.env.local`. If duplicates already exist
+in GHL, delete extras manually — sync will not create new custom values.
+
 ### Schedule (every 5 minutes)
+
+Enable only after this checklist passes (daytime, someone watching SMS workflows):
+
+1. `GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` is set (heartbeat must not create values)
+2. `npm run sync:od-ghl -- --dry-run` looks sane (`patients` not stuck looping)
+3. One live `npm run sync:od-ghl` shows `failed 0` and updates `od_sync_last_success`
+4. Confirm no duplicate `od_sync_last_success` custom values in Texoma GHL
 
 ```bat
 schtasks /Create /SC MINUTE /MO 5 /TN "Texoma OD to GHL" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd" /F
+schtasks /Change /TN "Texoma OD to GHL" /ENABLE
+```
+
+Disable / query:
+
+```bat
+schtasks /Change /TN "Texoma OD to GHL" /DISABLE
+schtasks /Query /TN "Texoma OD to GHL"
 ```
 
 `scripts/run-od-ghl-sync.cmd` cds into the app and appends to `data/od-ghl-sync.log`.
-If a run fails at 2am, check that log and
-`schtasks /Query /TN "Texoma OD to GHL"`.
 
 ### End-to-end cases (OD mutate → sync → assert GHL)
 
@@ -120,10 +168,15 @@ npm run test:od-ghl-e2e
 # or keep OD fixtures: npm run test:od-ghl-e2e -- --keep
 ```
 
+Point writes at a **restored OD copy** (required once the live dashboard user is
+SELECT-only): set `OD_GHL_E2E_MYSQL_HOST`, `OD_GHL_E2E_MYSQL_USER`,
+`OD_GHL_E2E_MYSQL_PASS`, `OD_GHL_E2E_MYSQL_DB` (and optional `PORT`) in
+`.env.local`. The e2e script remaps those onto `OD_MYSQL_*` for that process only.
+
 | Case | Open Dental change | Expected in Texoma GHL |
 |---|---|---|
 | A | New patient, no appointment | Source Open Dental, `NEW PATIENT`, Active Sequence **New Inquiries**, no `od-appt-booked` |
-| B | New patient + future Scheduled consult | `od-appt-booked`, Sequence **None**, `od_consult_date` set (Central), calendar appt, `NEW PATIENT AOX` when AOX consult type |
+| B | New patient + future Scheduled consult | `od-appt-booked`, Sequence **None**, `od_consult_date` set (America/Chicago), calendar appt, `NEW PATIENT AOX` when AOX consult type |
 | C | Sync unbooked, then book future appt | Flips to `od-appt-booked` + Sequence **None** + calendar appt |
 | D | Confirm **69 AOX NO SHOW** | Tag `NO SHOWED AOX`, `od_missed_appt_date`, TC No-Show stage |
 | E | After no-show, confirm **68 AOX RESCH** | Clears `NO SHOWED AOX` |

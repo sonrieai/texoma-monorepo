@@ -89,10 +89,10 @@ describe("dashboard role access", () => {
     assert.equal(landingPath("treatment_coordinator"), "/tc");
   });
 
-  it("treats a missing stored role as owner", () => {
-    assert.equal(normalizeDashboardRole(undefined), "owner");
+  it("treats a missing stored role as insurance (least privilege)", () => {
+    assert.equal(normalizeDashboardRole(undefined), "insurance");
     assert.equal(normalizeDashboardRole("doctor"), "doctor");
-    assert.equal(normalizeDashboardRole("nope"), "owner");
+    assert.equal(normalizeDashboardRole("nope"), "insurance");
   });
 
   it("sends login to the role home when the callback is closed", () => {

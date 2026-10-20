@@ -53,6 +53,7 @@ import {
   normalizeUsPhone,
   resolveActiveSequence,
   smsConsentAction,
+  todayCentralYmd,
   toCentralYmd,
 } from "@/lib/ghl/od-ghl-sync-plan";
 import { ensureNoShowCancelledOpportunity } from "@/lib/ghl/opportunity-stage";
@@ -120,9 +121,7 @@ function laterCursor(current: string, stamp: string | null): string {
 }
 
 function todayYmd(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  return todayCentralYmd();
 }
 
 export function patientContactInput(

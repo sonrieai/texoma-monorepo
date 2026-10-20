@@ -73,7 +73,13 @@ function chunks<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-/** MySQL DATETIME string for a DateTStamp cursor (`YYYY-MM-DD HH:mm:ss`). */
+/**
+ * MySQL DATETIME string for a DateTStamp cursor (`YYYY-MM-DD HH:mm:ss`).
+ *
+ * Polls use `DateTStamp > cursor` (not `>=`). After a successful run the cursor
+ * is set to the max stamp seen; `>` prevents that boundary row from syncing
+ * forever on every subsequent poll.
+ */
 export function toOdCursor(value: string): string {
   return value.replace("T", " ").replace("Z", "").slice(0, 19);
 }
@@ -141,7 +147,7 @@ export async function listOdPatientsForGhlSync(
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT ${select}
      FROM patient
-     WHERE DateTStamp >= ?
+     WHERE DateTStamp > ?
      ORDER BY PatNum`,
     [toOdCursor(updatedSince)],
   );
@@ -198,7 +204,7 @@ export async function listOdAppointmentsForGhlSync(
        ON atype.AppointmentTypeNum = a.AppointmentTypeNum
      LEFT JOIN definition def
        ON def.DefNum = a.Confirmed AND def.Category = ?
-     WHERE a.DateTStamp >= ?
+     WHERE a.DateTStamp > ?
      ORDER BY a.DateTStamp, a.AptNum`,
     [OD_DEF_CAT_APPT_CONFIRMED, toOdCursor(updatedSince)],
   );
@@ -279,7 +285,7 @@ export async function listOdSoldProceduresForGhlSync(
             DATE_FORMAT(pl.DateTStamp, '%Y-%m-%d %H:%i:%s') AS DateTStamp
      FROM procedurelog pl
      INNER JOIN procedurecode pc ON pc.CodeNum = pl.CodeNum
-     WHERE pl.DateTStamp >= ?
+     WHERE pl.DateTStamp > ?
        AND pl.ProcStatus = ?
        AND pc.ProcCode IN (${placeholders})
      ORDER BY pl.DateTStamp, pl.ProcNum`,

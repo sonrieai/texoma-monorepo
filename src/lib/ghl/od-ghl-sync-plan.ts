@@ -6,6 +6,13 @@
 import type { ActiveSequenceValue } from "@/lib/ghl/contacts";
 import type { NoShowTag, TagEffect } from "@/lib/ghl/od-disposition-tags";
 import type { OdGhlContactLink } from "@/lib/ghl/od-ghl-sync-state";
+import { toCentralYmd } from "@/lib/ghl/practice-time";
+
+export {
+  PRACTICE_TIME_ZONE,
+  toCentralYmd,
+  todayCentralYmd,
+} from "@/lib/ghl/practice-time";
 
 /** Open Dental patient.TxtMsgOk (YN enum). */
 export const OdTxtMsgOk = {
@@ -94,26 +101,6 @@ export function syncAlreadyAppliedLegacy(
   if (effect === "leave") return true;
   if (effect === "clear") return previous.noShowTag == null;
   return previous.noShowTag === effect;
-}
-
-/** YYYY-MM-DD in America/Chicago from an OD datetime string or Date. */
-export function toCentralYmd(value: Date | string | null | undefined): string | null {
-  if (value == null || value === "") return null;
-  const text =
-    value instanceof Date
-      ? value.toISOString()
-      : String(value).trim().replace(" ", "T");
-  if (!text || text.startsWith("0000-00-00")) return null;
-  const d = value instanceof Date ? value : new Date(text);
-  if (Number.isNaN(d.getTime())) return null;
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Chicago",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  // en-CA gives YYYY-MM-DD
-  return fmt.format(d);
 }
 
 export type MissedApptSignal = {

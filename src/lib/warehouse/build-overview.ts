@@ -228,6 +228,7 @@ export function buildOverviewFromSnapshot(
     claimProcs: snapshot.claimProcs,
     insurancePaymentTypeDefNums: snapshot.insurancePaymentTypeDefNums,
     paymentTypeClassification: snapshot.paymentTypeClassification,
+    dailyProductionByYmd: snapshot.dailyProductionByYmd,
   });
 
   const soonercarePatientIds = buildSoonerCarePatientSet(

@@ -25,11 +25,20 @@ describe("od appointment → ghl mapping", () => {
     assert.equal(odPatternDurationMinutes(""), 30);
   });
 
-  it("builds ISO start/end times", () => {
+  it("builds ISO start/end times from Chicago wall time", () => {
+    // 2026-10-20 is CDT (UTC-5): 14:00 Chicago → 19:00Z
     const start = odAptDateTimeToIso("2026-10-20 14:00:00");
-    assert.ok(start);
+    assert.equal(start, "2026-10-20T19:00:00.000Z");
     const end = appointmentEndIso(start!, "//////");
     assert.equal(new Date(end).getTime() - new Date(start!).getTime(), 30 * 60_000);
+  });
+
+  it("uses CST offset in winter", () => {
+    // 2026-01-15 is CST (UTC-6): 14:00 Chicago → 20:00Z
+    assert.equal(
+      odAptDateTimeToIso("2026-01-15 14:00:00"),
+      "2026-01-15T20:00:00.000Z",
+    );
   });
 });
 

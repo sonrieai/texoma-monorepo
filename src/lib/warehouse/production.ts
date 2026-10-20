@@ -660,6 +660,8 @@ export function summarizeProductionFromLedger(params: {
     financed: number[];
     cash: number[];
   };
+  /** Prefer SQL day aggregates for multi-year monthly trend when present. */
+  dailyProductionByYmd?: Array<{ ymd: string; cents: number }>;
 }): ProductionSummary {
   const notices = [...(params.notices ?? [])];
   const { fromYmd, toYmd } = params;
@@ -981,14 +983,20 @@ export function summarizeProductionFromLedger(params: {
   }
 
   const trendRange = productionTrendRange();
-  const trendChargeDates = collectTrendChargeDates(
-    params.procedures,
-    params.charges,
-    trendRange.fromYmd,
-    trendRange.toYmd,
-    chargesAvailable,
-    proceduresAvailable,
-  );
+  const trendChargeDates =
+    params.dailyProductionByYmd && params.dailyProductionByYmd.length > 0
+      ? params.dailyProductionByYmd.filter(
+          (row) =>
+            row.ymd >= trendRange.fromYmd && row.ymd <= trendRange.toYmd,
+        )
+      : collectTrendChargeDates(
+          params.procedures,
+          params.charges,
+          trendRange.fromYmd,
+          trendRange.toYmd,
+          chargesAvailable,
+          proceduresAvailable,
+        );
   const periodChargeDates = collectTrendChargeDates(
     params.procedures,
     params.charges,

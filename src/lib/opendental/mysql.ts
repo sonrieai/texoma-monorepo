@@ -6,7 +6,8 @@ import {
   requireOpenDentalMysqlConfig,
 } from "@/lib/opendental/config";
 
-const POOL_SIZE = 16;
+/** Cap parallel OD reads so dashboard refreshes do not swamp MariaDB. */
+const POOL_SIZE = 8;
 const CONNECT_TIMEOUT_MS = 15_000;
 
 let pool: Pool | null = null;

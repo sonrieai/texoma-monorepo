@@ -12,7 +12,7 @@ const NEEDED = [
   {
     name: "od_consult_date",
     dataType: "DATE",
-    placeholder: "Next OD consult (Central)",
+    placeholder: "Next OD consult (America/Chicago)",
   },
   {
     name: "od_missed_appt_date",

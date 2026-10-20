@@ -119,9 +119,11 @@ export async function listOdPatientGeoRows(): Promise<
     PatStatus: number;
   }[]
 > {
+  // Exclude Deleted (4); still geo-scoped without pulling every historical row purpose.
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT PatNum, City, State, Zip, PatStatus
-     FROM patient`,
+     FROM patient
+     WHERE PatStatus IN (0, 1, 2)`,
   );
   return asRows<{
     PatNum: number;
@@ -182,6 +184,99 @@ export async function listOdPatients(
     params,
   );
   return asRows<OdPatientRow>(rows);
+}
+
+/**
+ * Patients with appointments, completed procedures, or first visit in the
+ * dashboard windows — not the full ~14k patient table.
+ */
+export async function listOdPatientsForDashboard(params: {
+  appointment: OdDateWindow;
+  ledger: OdDateWindow;
+}): Promise<OdPatientRow[]> {
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT p.PatNum, p.Guarantor, p.City, p.State, p.Zip, p.Birthdate,
+            p.PatStatus, p.ClinicNum, p.DateTStamp, p.PriProv, p.DateFirstVisit
+     FROM patient p
+     WHERE p.PatNum IN (
+       SELECT a.PatNum FROM appointment a
+       WHERE a.AptDateTime >= ? AND a.AptDateTime < DATE_ADD(?, INTERVAL 1 DAY)
+       UNION
+       SELECT pl.PatNum FROM procedurelog pl
+       WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
+         AND pl.ProcStatus = ${OdProcStatus.Complete}
+       UNION
+       SELECT p2.PatNum FROM patient p2
+       WHERE p2.DateFirstVisit >= ? AND p2.DateFirstVisit <= ?
+     )`,
+    [
+      `${params.appointment.startYmd} 00:00:00`,
+      params.appointment.endYmd,
+      params.ledger.startYmd,
+      params.ledger.endYmd,
+      params.ledger.startYmd,
+      params.ledger.endYmd,
+    ],
+  );
+  return asRows<OdPatientRow>(rows);
+}
+
+export type OdDailyLedgerTotal = {
+  ymd: string;
+  cents: number;
+};
+
+/** Production by ProcDate (completed fees) — MariaDB aggregates, not TS. */
+export async function listOdDailyProcedureProductionCents(
+  window: OdDateWindow,
+  clinicNums?: number[],
+): Promise<OdDailyLedgerTotal[]> {
+  const params: unknown[] = [window.startYmd, window.endYmd];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0) {
+    clinicClause = ` AND pl.ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT DATE_FORMAT(pl.ProcDate, '%Y-%m-%d') AS ymd,
+            ROUND(SUM(pl.ProcFee) * 100) AS cents
+     FROM procedurelog pl
+     WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
+       AND pl.ProcStatus = ${OdProcStatus.Complete}${clinicClause}
+     GROUP BY DATE_FORMAT(pl.ProcDate, '%Y-%m-%d')
+     ORDER BY ymd`,
+    params,
+  );
+  return rows.map((row) => ({
+    ymd: String(row.ymd),
+    cents: Number(row.cents) || 0,
+  }));
+}
+
+/** Collections by DatePay — MariaDB aggregates. */
+export async function listOdDailyPaySplitCollectionsCents(
+  window: OdDateWindow,
+  clinicNums?: number[],
+): Promise<OdDailyLedgerTotal[]> {
+  const params: unknown[] = [window.startYmd, window.endYmd];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0) {
+    clinicClause = ` AND ps.ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT DATE_FORMAT(ps.DatePay, '%Y-%m-%d') AS ymd,
+            ROUND(SUM(ps.SplitAmt) * 100) AS cents
+     FROM paysplit ps
+     WHERE ps.DatePay >= ? AND ps.DatePay <= ?${clinicClause}
+     GROUP BY DATE_FORMAT(ps.DatePay, '%Y-%m-%d')
+     ORDER BY ymd`,
+    params,
+  );
+  return rows.map((row) => ({
+    ymd: String(row.ymd),
+    cents: Number(row.cents) || 0,
+  }));
 }
 
 export async function listOdProcedureCodes(): Promise<OdProcedureCodeRow[]> {

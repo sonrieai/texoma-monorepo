@@ -17,6 +17,12 @@ import {
   formatResponseMinutes,
   loadMedianResponseMinutes,
 } from "@/lib/ghl/response-time";
+import {
+  stageTierFromStageId,
+  TC_STAGE_TIER_BY_ID,
+  TIER_RANK,
+  type FunnelTier,
+} from "@/lib/ghl/tc-stage-tiers";
 import { safeRate } from "@/lib/metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
@@ -105,8 +111,6 @@ export type MarketingSummary = {
   responseMinutes: number | null;
 };
 
-type FunnelTier = "lead" | "booked" | "showed" | "accepted" | "surgery";
-
 const DEFAULT_GOALS: MarketingGoals = {
   costPerArch: 700,
   showRate: 0.75,
@@ -162,26 +166,30 @@ function rangeLookbackDays(startYmd: string, endYmd: string): number {
   return Math.min(Math.max(days, 1), 365);
 }
 
-/** Map pipeline stage name → furthest funnel tier reached. */
+/** Map pipeline stage name → funnel tier. Unknown names are unmapped (not lead). */
 export function stageTierFromName(raw: string | null | undefined): FunnelTier {
   const n = (raw ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-  if (!n) return "lead";
+  if (!n) return "unmapped";
   if (/\blost\b|\bdeclin/.test(n)) return "lead";
   if (/\bno-?show\b|\bcancel/.test(n)) return "booked";
   if (/\bsold\b|\bsurgery\b|\bclosed\b|\bwon\b/.test(n)) return "surgery";
   if (/accepted treatment|accepted\b/.test(n)) return "accepted";
   if (/\bshowed\b/.test(n)) return "showed";
   if (/\bbooked\b/.test(n)) return "booked";
-  return "lead";
+  return "unmapped";
 }
 
-const TIER_RANK: Record<FunnelTier, number> = {
-  lead: 0,
-  booked: 1,
-  showed: 2,
-  accepted: 3,
-  surgery: 4,
-};
+/** Prefer TC stage-ID map; otherwise name heuristics. */
+export function resolveOpportunityTier(params: {
+  pipelineStageId?: string | null;
+  stageName?: string | null;
+}): FunnelTier {
+  const id = (params.pipelineStageId ?? "").trim();
+  if (id && id in TC_STAGE_TIER_BY_ID) {
+    return stageTierFromStageId(id);
+  }
+  return stageTierFromName(params.stageName);
+}
 
 function normalizeSourceLabel(raw: string | null | undefined): string {
   const s = (raw ?? "").trim();
@@ -232,6 +240,7 @@ function attributionSource(opp: GhlOpportunity): string {
 }
 
 function bumpChannel(ch: AdChannel, tier: FunnelTier, productionDollars: number) {
+  if (tier === "unmapped") return;
   ch.leads += 1;
   if (TIER_RANK[tier] >= TIER_RANK.booked) ch.booked += 1;
   if (TIER_RANK[tier] >= TIER_RANK.showed) ch.showed += 1;
@@ -326,7 +335,10 @@ export async function loadMarketingSummary(
     let opportunityCount = 0;
     for (const { opp, stageName } of contexts) {
       opportunityCount += 1;
-      const tier = stageTierFromName(stageName);
+      const tier = resolveOpportunityTier({
+        pipelineStageId: opp.pipelineStageId,
+        stageName,
+      });
       const source = attributionSource(opp);
       const ch = bySource.get(source) ?? emptyChannel(source);
       const dollars =

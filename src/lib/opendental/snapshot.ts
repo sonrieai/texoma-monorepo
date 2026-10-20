@@ -76,7 +76,8 @@ import {
   listOdClaims,
   listOdGuarantorBalances,
   listOdInsPlans,
-  listOdPatients,
+  listOdDailyProcedureProductionCents,
+  listOdPatientsForDashboard,
   listOdPaySplits,
   listOdPaymentTypeDefinitions,
   listOdPrimaryPatPlans,
@@ -88,6 +89,7 @@ import {
   listOdReferralAttaches,
   listOdTreatPlans,
   type OdDateWindow,
+  type OdDailyLedgerTotal,
 } from "@/lib/opendental/queries";
 import type { ReferralAttach } from "@/lib/warehouse/marketing-sources";
 import {
@@ -137,6 +139,11 @@ export type OpenDentalSnapshot = {
   referrals: ReferralAttach[];
   /** First appointment day included in this snapshot. */
   appointmentsLoadedFromYmd: string;
+  /**
+   * SQL GROUP BY day production (cents) over the 3-year trend window.
+   * Row-level procedures cover the shorter detail window only.
+   */
+  dailyProductionByYmd: OdDailyLedgerTotal[];
 };
 
 function ymdDaysAgo(days: number): string {
@@ -162,11 +169,23 @@ function appointmentWindow(): OdDateWindow {
   };
 }
 
-function ledgerWindow(): OdDateWindow {
+/** Full trend span for SQL day aggregates only (not row-level ledger). */
+function trendWindow(): OdDateWindow {
   const trend = productionTrendRange();
   return {
     startYmd: trend.fromYmd,
     endYmd: trend.toYmd,
+  };
+}
+
+/**
+ * Row-level procedures/paysplits/claims — match appointment lookback (±365d)
+ * so MariaDB is not asked for three years of ledger rows every page load.
+ */
+function detailLedgerWindow(appt: OdDateWindow): OdDateWindow {
+  return {
+    startYmd: appt.startYmd,
+    endYmd: appt.endYmd < trendWindow().endYmd ? appt.endYmd : trendWindow().endYmd,
   };
 }
 
@@ -180,7 +199,8 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
 
   const clinicNums = getOdClinicNums();
   const apptWindow = appointmentWindow();
-  const ledger = ledgerWindow();
+  const ledger = detailLedgerWindow(apptWindow);
+  const trend = trendWindow();
   const treatPlanSince = isoDaysAgo(TREATPLAN_LOOKBACK_DAYS);
 
   const [
@@ -202,6 +222,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     procCatRows,
     paymentTypeDefs,
     referralRows,
+    dailyProductionByYmd,
   ] = await Promise.all([
     listOdProviders(),
     listOdAppointmentTypes(),
@@ -215,12 +236,13 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     listOdClaims(ledger, clinicNums),
     listOdClaimProcs(ledger, clinicNums),
     listOdInsPlans(),
-    listOdPatients(),
+    listOdPatientsForDashboard({ appointment: apptWindow, ledger }),
     listOdPrimaryPatPlans(),
     listOdProcedureCodes(),
     listOdProcCatDefinitions(),
     listOdPaymentTypeDefinitions(),
     listOdReferralAttaches(),
+    listOdDailyProcedureProductionCents(trend, clinicNums),
   ]);
 
   const paymentTypeMaps = buildPaymentTypeDefMaps(paymentTypeDefs);
@@ -349,12 +371,13 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
       firstName: row.FName?.trim() ?? "",
     })),
     appointmentsLoadedFromYmd: apptWindow.startYmd,
+    dailyProductionByYmd,
   };
 }
 
-/** Reuse one mapped snapshot across navigations. Empty OD dates are dropped before this cache is filled. */
-export const SNAPSHOT_FRESH_MS = 2 * 60 * 1000;
-export const SNAPSHOT_STALE_MS = 15 * 60 * 1000;
+/** Longer TTL: expensive OD reads should not re-hit MariaDB every navigation. */
+export const SNAPSHOT_FRESH_MS = 10 * 60 * 1000;
+export const SNAPSHOT_STALE_MS = 30 * 60 * 1000;
 
 export function snapshotCacheAction(
   ageMs: number | null,

@@ -39,9 +39,12 @@ export function isDashboardRole(value: unknown): value is DashboardRole {
   );
 }
 
-/** Older stored users have no role and keep full Owner access. */
+/**
+ * Missing/invalid stored roles get the least privilege (insurance = one page).
+ * Never default to owner.
+ */
 export function normalizeDashboardRole(value: unknown): DashboardRole {
-  return isDashboardRole(value) ? value : "owner";
+  return isDashboardRole(value) ? value : "insurance";
 }
 
 export function roleLabel(role: DashboardRole): string {

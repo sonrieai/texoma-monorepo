@@ -56,10 +56,17 @@ describe("smsConsentAction (Text OK → DND)", () => {
 });
 
 describe("toCentralYmd / consult / next dates", () => {
-  it("formats America/Chicago calendar date", () => {
-    // 2026-03-15 05:00 UTC is still 2026-03-14 evening Central (CDT).
-    const ymd = toCentralYmd("2026-03-15 05:00:00");
-    assert.ok(ymd === "2026-03-14" || ymd === "2026-03-15");
+  it("uses OD naive wall date as America/Chicago calendar date", () => {
+    // Naive OD strings are practice wall time — not host/UTC reinterpreted.
+    assert.equal(toCentralYmd("2026-03-15 05:00:00"), "2026-03-15");
+    assert.equal(toCentralYmd("2026-11-05 14:00:00"), "2026-11-05");
+  });
+
+  it("formats zoned instants in America/Chicago", () => {
+    // CDT = UTC-5: 04:30Z is still 2026-03-14 23:30 Chicago.
+    assert.equal(toCentralYmd("2026-03-15T04:30:00Z"), "2026-03-14");
+    // 05:00Z is 2026-03-15 00:00 Chicago.
+    assert.equal(toCentralYmd("2026-03-15T05:00:00Z"), "2026-03-15");
   });
 
   it("picks next consult and clears when none", () => {
@@ -68,7 +75,7 @@ describe("toCentralYmd / consult / next dates", () => {
         { AptDateTime: "2026-11-01 10:00:00", isConsult: false },
         { AptDateTime: "2026-11-05 14:00:00", isConsult: true },
       ]),
-      toCentralYmd("2026-11-05 14:00:00"),
+      "2026-11-05",
     );
     assert.equal(nextConsultDateYmd([]), null);
     assert.equal(
@@ -79,10 +86,8 @@ describe("toCentralYmd / consult / next dates", () => {
 
   it("picks next scheduled appt date", () => {
     assert.equal(
-      nextScheduledApptDateYmd([
-        { AptDateTime: "2026-12-01 09:00:00" },
-      ]),
-      toCentralYmd("2026-12-01 09:00:00"),
+      nextScheduledApptDateYmd([{ AptDateTime: "2026-12-01 09:00:00" }]),
+      "2026-12-01",
     );
   });
 });
@@ -97,6 +102,7 @@ describe("missedSignalFromAppointment", () => {
     });
     assert.ok(broken);
     assert.equal(broken!.reason, "broken");
+    assert.equal(broken!.missedDateYmd, "2026-10-10");
 
     const noshow = missedSignalFromAppointment({
       aptStatus: OdAptStatus.Scheduled,

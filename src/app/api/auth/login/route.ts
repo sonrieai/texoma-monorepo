@@ -106,7 +106,7 @@ export async function POST(request: Request) {
   cookieStore.set(getSessionCookieName(), token, sessionCookieOptions(expiresAt));
 
   const user = await findDashboardUserById(verified.userId);
-  const role = user?.role ?? "owner";
+  const role = user?.role ?? "insurance";
   const providerId = user?.providerId ?? null;
 
   const homePath = landingPath(role, providerId);

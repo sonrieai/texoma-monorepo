@@ -2,6 +2,9 @@
  * End-to-end OD → Texoma GHL cases from the integration spec.
  * Mutates Open Dental with SYNCTEST_* rows, runs sync, asserts GHL.
  *
+ * Prefer a restored OD copy (writes fail on SELECT-only live tomorrow):
+ *   set OD_GHL_E2E_MYSQL_HOST / PORT / USER / PASS / DB in .env.local
+ *
  * Usage:
  *   npx tsx --env-file=.env.local --require ./scripts/register-server-only-stub.cjs scripts/e2e-od-ghl-sync-cases.ts
  *   ... -- --keep   (leave OD fixtures; default cleans appointments + marks patients inactive)
@@ -25,6 +28,35 @@ import { OdAptStatus } from "../src/lib/opendental/types";
 import type { RowDataPacket } from "mysql2";
 
 loadEnvLocal();
+
+/** Point OD writes at a restore DB when OD_GHL_E2E_MYSQL_* is set. */
+function applyE2eMysqlOverride(): void {
+  const host = process.env.OD_GHL_E2E_MYSQL_HOST?.trim();
+  if (!host) {
+    console.warn(
+      "OD_GHL_E2E_MYSQL_HOST unset — e2e writes to OD_MYSQL_* (use a restore copy once SELECT-only is live).",
+    );
+    return;
+  }
+  process.env.OD_MYSQL_HOST = host;
+  if (process.env.OD_GHL_E2E_MYSQL_PORT?.trim()) {
+    process.env.OD_MYSQL_PORT = process.env.OD_GHL_E2E_MYSQL_PORT.trim();
+  }
+  if (process.env.OD_GHL_E2E_MYSQL_USER?.trim()) {
+    process.env.OD_MYSQL_USER = process.env.OD_GHL_E2E_MYSQL_USER.trim();
+  }
+  if (process.env.OD_GHL_E2E_MYSQL_PASS?.trim()) {
+    process.env.OD_MYSQL_PASS = process.env.OD_GHL_E2E_MYSQL_PASS.trim();
+  }
+  if (process.env.OD_GHL_E2E_MYSQL_DB?.trim()) {
+    process.env.OD_MYSQL_DB = process.env.OD_GHL_E2E_MYSQL_DB.trim();
+  }
+  console.log(
+    `E2E OD MySQL override → ${process.env.OD_MYSQL_USER}@${process.env.OD_MYSQL_HOST}/${process.env.OD_MYSQL_DB}`,
+  );
+}
+
+applyE2eMysqlOverride();
 
 const KEEP = process.argv.includes("--keep");
 const TEMPLATE_PATNUM = 14675;

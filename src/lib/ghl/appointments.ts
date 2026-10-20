@@ -5,6 +5,7 @@
 
 import { getGhlConfig } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
+import { odWallDateTimeToIso } from "@/lib/ghl/practice-time";
 import type { GhlConfig } from "@/lib/ghl/types";
 import { OdAptStatus } from "@/lib/opendental/types";
 
@@ -47,23 +48,11 @@ export function mapOdAptStatusToGhl(aptStatus: number): GhlAppointmentStatus {
   return "cancelled";
 }
 
+/** Naive OD DATETIME → absolute ISO (America/Chicago wall time). */
 export function odAptDateTimeToIso(
   value: Date | string | null | undefined,
 ): string | null {
-  if (value == null || value === "") return null;
-  if (value instanceof Date) {
-    if (Number.isNaN(value.getTime())) return null;
-    return value.toISOString();
-  }
-  const text = String(value).trim();
-  if (!text || text.startsWith("0000-00-00")) return null;
-  const normalized = text.includes("T") ? text : text.replace(" ", "T");
-  const withZone = /Z$|[+-]\d{2}:\d{2}$/.test(normalized)
-    ? normalized
-    : `${normalized}`;
-  const parsed = new Date(withZone);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
+  return odWallDateTimeToIso(value);
 }
 
 export function appointmentEndIso(

@@ -7,8 +7,10 @@ import {
   TREATMENT_COORDINATORS,
   appointmentTagEffect,
   classifyConfirmName,
+  consultLineForAppointment,
   consultLineFromText,
   foldTagEffects,
+  isConsultAppointment,
   pendingNewPatientTags,
   soldLine,
   tagsForNewPatientSend,
@@ -19,6 +21,48 @@ import {
   normalizeUsPhone,
   syncAlreadyApplied,
 } from "@/lib/ghl/od-ghl-sync-plan";
+
+describe("consult appointments for od_consult_date", () => {
+  it("counts D0150, D0120, and D0150.2 as consults", () => {
+    for (const code of ["D0150", "D0120", "D0150.2", " d0150 "]) {
+      assert.equal(
+        isConsultAppointment({ appointmentTypeName: null, procedureCodes: [code] }),
+        true,
+        code,
+      );
+    }
+  });
+
+  it("does not count other D0150 variants or unrelated codes", () => {
+    for (const code of ["D0150.1", "D0150.3", "D1110"]) {
+      assert.equal(
+        isConsultAppointment({ appointmentTypeName: null, procedureCodes: [code] }),
+        false,
+        code,
+      );
+    }
+  });
+
+  it("still counts N9310 consult lines", () => {
+    assert.equal(
+      isConsultAppointment({
+        appointmentTypeName: null,
+        procedureCodes: ["N9310 AOX Consult"],
+      }),
+      true,
+    );
+  });
+
+  it("exam codes add no consult line tag", () => {
+    assert.equal(
+      consultLineForAppointment({
+        appointmentTypeName: null,
+        procedureCodes: ["D0150", "D0120", "D0150.2"],
+      }),
+      null,
+    );
+  });
+});
 
 describe("consult lines", () => {
   it("maps the five consult names", () => {

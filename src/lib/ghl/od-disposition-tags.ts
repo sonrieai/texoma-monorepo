@@ -77,6 +77,15 @@ export const CONSULT_APPOINTMENTS = [
   },
 ] as const;
 
+/**
+ * Exam codes that also count as a consult for `od_consult_date` (Consults Today).
+ * Exact match only: D0150.1 / D0150.3 (Soonercare) are not consults.
+ * They carry no consult line, so they never add line tags.
+ */
+export const CONSULT_EXAM_PROCEDURE_CODES = ["D0150", "D0120", "D0150.2"] as const;
+
+const CONSULT_EXAM_CODE_SET = new Set<string>(CONSULT_EXAM_PROCEDURE_CODES);
+
 /** Confirmation definition names. Patient cancel has no denture code. */
 export const CONFIRM_DEFINITIONS = [
   { family: "team_cancel", line: null, name: "66" },
@@ -198,6 +207,17 @@ export function consultLineForAppointment(input: {
   return (
     consultLineFromText(input.appointmentTypeName) ??
     consultLineFromProcedures(input.procedureCodes)
+  );
+}
+
+/** Consult for `od_consult_date`: an N9310 consult line or a consult exam code. */
+export function isConsultAppointment(input: {
+  appointmentTypeName: string | null;
+  procedureCodes: readonly string[];
+}): boolean {
+  if (consultLineForAppointment(input)) return true;
+  return input.procedureCodes.some((code) =>
+    CONSULT_EXAM_CODE_SET.has(code.trim().toUpperCase()),
   );
 }
 

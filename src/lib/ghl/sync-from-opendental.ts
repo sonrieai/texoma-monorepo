@@ -32,6 +32,7 @@ import {
   classifyConfirmName,
   consultLineForAppointment,
   foldTagEffects,
+  isConsultAppointment,
   isSoldProcedureCode,
   pendingNewPatientTags,
   type ConsultLine,
@@ -231,12 +232,10 @@ async function applyPatient(params: {
   const consultDate = nextConsultDateYmd(
     params.futureAppts.map((row) => ({
       AptDateTime: row.AptDateTime,
-      isConsult: Boolean(
-        consultLineForAppointment({
-          appointmentTypeName: row.AppointmentTypeName,
-          procedureCodes: params.codesByApt.get(row.AptNum) ?? [],
-        }),
-      ),
+      isConsult: isConsultAppointment({
+        appointmentTypeName: row.AppointmentTypeName,
+        procedureCodes: params.codesByApt.get(row.AptNum) ?? [],
+      }),
     })),
   );
   const missed = detectMissedSignal(params.changedAppts);

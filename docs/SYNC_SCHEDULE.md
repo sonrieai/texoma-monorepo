@@ -67,6 +67,11 @@ On no-show/cancel, sets `od_missed_appt_date` / `od_next_appt_date` and moves th
 opportunity to No-Show / Cancelled. Successful runs write `lastSuccessfulRunAt` and
 location custom value `od_sync_last_success` (workflows can stop texting if stale ~24h).
 
+`od_consult_date` (which drives the TC **Consults Today** stage workflow) is the
+next future Scheduled appointment that is a consult: an `N9310` consult line
+(AOX / IMP / OTN / UTN / DENT) or a procedure coded exactly `D0150`, `D0120`,
+or `D0150.2`. The exam codes do not add `NEW PATIENT <line>` or no-show line tags.
+
 ### Sync flow
 
 ```mermaid

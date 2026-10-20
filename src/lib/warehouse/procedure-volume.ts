@@ -33,7 +33,20 @@ const IMPLANT_PLACEMENT_PATTERN = /^D6010|^D6011|^D6040|^D6050/;
 /** Partial denture CDT range (D5211–D5286, including office suffixes). */
 const PARTIAL_PROCEDURE_PATTERN = /^D521[1-4]|^D522[1-6]|^D528/;
 
-const AOX_TEXT_PATTERN = /\ball[\s-]?on|\baox\b/i;
+/**
+ * Full-arch prosthesis codes: D6114/D6115 (fixed, per arch), the office
+ * D1414 PMMA and D1313 zirconia AOX deliveries, and the U-AOXS/U-AOXD sold
+ * markers. One case per patient.
+ */
+export const AOX_CASE_PROCEDURE_CODES = [
+  "D6114",
+  "D6115",
+  "D1414",
+  "D1313",
+  "U-AOXS",
+  "U-AOXD",
+] as const;
+const AOX_CASE_CODE_SET = new Set<string>(AOX_CASE_PROCEDURE_CODES);
 
 export function isExtractionProcedureCode(
   code: string | null | undefined,
@@ -59,16 +72,11 @@ export function isPartialProcedureCode(
   return PARTIAL_PROCEDURE_PATTERN.test(normalized);
 }
 
-export function isAoxProcedure(
-  code: string | null | undefined,
-  description: string | null | undefined,
-): boolean {
-  const normalized = normalizeProcedureCode(code);
-  if (normalized !== "UNKNOWN" && AOX_TEXT_PATTERN.test(normalized)) return true;
-  return AOX_TEXT_PATTERN.test(`${code ?? ""} ${description ?? ""}`);
+export function isAoxCaseProcedureCode(code: string | null | undefined): boolean {
+  return AOX_CASE_CODE_SET.has((code ?? "").trim().toUpperCase());
 }
 
-/** Remake / repair denture procedures (Formulas tab — D5511+ family). */
+/** Remake / repair denture procedures (D5511+ family). Rebases and relines are not remakes. */
 export function isRemakeProcedureCode(
   code: string | null | undefined,
   description: string | null | undefined,
@@ -78,9 +86,7 @@ export function isRemakeProcedureCode(
     return true;
   }
   const hay = `${code ?? ""} ${description ?? ""}`.trim();
-  return /\b(remake|repair broken complete denture|rebase complete)\b/i.test(
-    hay,
-  );
+  return /\b(remake|repair broken complete denture)\b/i.test(hay);
 }
 
 type VolumeCounts = Record<ProcedureVolumeBucket, number>;
@@ -95,7 +101,7 @@ function volumeBucketFromProcedureCode(
   if (isPartialProcedureCode(code)) return "partials";
   if (isImplantPlacementProcedureCode(code)) return "implants";
   if (isExtractionProcedureCode(code)) return "extractions";
-  if (isAoxProcedure(code, description)) return "aox";
+  if (isAoxCaseProcedureCode(code)) return "aox";
   return null;
 }
 
@@ -117,7 +123,7 @@ export function filterCompletedProceduresInRange(
   });
 }
 
-/** Count volume buckets from chart-mapped completed procedures (not charges). */
+/** Count volume buckets from completed procedures (not charges). AOX counts once per patient. */
 export function accumulateProcedureVolume(params: {
   cdt: CdtLookup;
   procedures: ProcedureRecord[];
@@ -129,6 +135,8 @@ export function accumulateProcedureVolume(params: {
     bucket: ProcedureVolumeBucket,
   ) => void;
 }): void {
+  const aoxPatients = new Set<string>();
+  const aoxProviderPatients = new Set<string>();
   for (const proc of filterCompletedProceduresInRange(
     params.procedures,
     params.fromYmd,
@@ -138,13 +146,25 @@ export function accumulateProcedureVolume(params: {
     if (!code) continue;
     const procName = proc.name?.trim() || "";
 
-    const codedBucket = volumeBucketFromProcedureCode(code, procName);
-    const bucket: ProcedureVolumeBucket | null =
-      codedBucket ??
-      (params.cdt.volumeBucket(code) === "aox" || params.cdt.isAoxCode(code)
-        ? "aox"
-        : null);
+    const bucket = volumeBucketFromProcedureCode(code, procName);
     if (!bucket) continue;
+
+    if (bucket === "aox") {
+      const patientKey = proc.patient_id != null ? String(proc.patient_id) : `proc:${proc.id}`;
+      if (!aoxPatients.has(patientKey)) {
+        aoxPatients.add(patientKey);
+        params.volume.aox += 1;
+      }
+      if (params.onProviderVolume && proc.provider_id != null) {
+        const providerKey = `${proc.provider_id}:${patientKey}`;
+        if (!aoxProviderPatients.has(providerKey)) {
+          aoxProviderPatients.add(providerKey);
+          params.onProviderVolume(proc.provider_id, bucket);
+        }
+      }
+      continue;
+    }
+
     params.volume[bucket] += 1;
     if (params.onProviderVolume && proc.provider_id != null) {
       params.onProviderVolume(proc.provider_id, bucket);

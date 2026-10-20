@@ -21,6 +21,7 @@ import {
   procedurePatientId,
   procedureYmd,
 } from "@/lib/warehouse/procedure-status";
+import { isAoxCaseProcedureCode } from "@/lib/warehouse/procedure-volume";
 import {
   moneyToCents,
   type AppointmentRecord,
@@ -107,10 +108,21 @@ function rangeLookbackDays(startYmd: string, endYmd: string): number {
   return Math.min(days, 365);
 }
 
-function isAoxSold(code: string | null | undefined, cdt: CdtLookup): boolean {
-  if (cdt.isAoxSoldCode(code)) return true;
+function isAoxSurgery(code: string | null | undefined, cdt: CdtLookup): boolean {
+  if (isAoxCaseProcedureCode(code) || cdt.isAoxSoldCode(code)) return true;
   const normalized = (code ?? "").trim().toUpperCase();
   return normalized === "U-AOXS" || normalized === "U-AOXD";
+}
+
+/**
+ * Accepted treatment: a completed, billed procedure that is not diagnostic
+ * (D0xxx), a consult, or an office N-code marker.
+ */
+function isAcceptedTreatment(proc: ProcedureRecord, cdt: CdtLookup): boolean {
+  const code = (proc.code ?? "").trim().toUpperCase();
+  if (!code || code.startsWith("D0") || code.startsWith("N")) return false;
+  if (cdt.isConsultCode(code)) return false;
+  return moneyToCents(proc.fee) > 0;
 }
 
 function scorecard(params: {
@@ -309,8 +321,8 @@ export function summarizeOdMarketing(params: {
     const source = sourceOf.get(patientId) ?? UNKNOWN_SOURCE;
     if (dollars !== 0) ensure(source).production += dollars;
     if (!newPatientIds.has(patientId)) continue;
-    if (isAoxSold(proc.code, params.cdt)) surgery.add(patientId);
-    if (showed.has(patientId) && !params.cdt.isConsultCode(proc.code)) {
+    if (isAoxSurgery(proc.code, params.cdt)) surgery.add(patientId);
+    if (showed.has(patientId) && isAcceptedTreatment(proc, params.cdt)) {
       accepted.add(patientId);
     }
   }

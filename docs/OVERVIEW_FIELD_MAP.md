@@ -45,10 +45,11 @@ A visit is a consult when its `appointment.AppointmentTypeNum` is a consult type
 Attendance, in this order:
 
 1. `appointment.AptStatus = 2` (Complete) → show.
-2. `appointment.AptStatus = 5` (Broken) → no-show.
-3. While the visit is still open, `appointment.Confirmed` definition **66** or **67** → cancelled. Cancelled visits are left out of the rate.
-4. While the visit is still open, definition **69** → no-show.
-5. Anything else → unknown. Unknown visits are booked, and they are not in the rate.
+2. `appointment.AptStatus = 5` (Broken) or `3` (Unscheduled list) with a completed `D9987` for the same patient → cancelled; with a `D9986` → no-show. The front desk does not link these codes to the visit, so the nearest one posted from 30 days before to 7 days after the visit wins. On a tie, the code posted on or before the visit wins, then `D9986`.
+3. Any other `AptStatus = 5` (Broken) → no-show.
+4. While the visit is still open, `appointment.Confirmed` definition **66** or **67** → cancelled. Cancelled visits are left out of the rate.
+5. While the visit is still open, definition **69** → no-show.
+6. Anything else → unknown. Unknown visits are booked, and they are not in the rate.
 
 `Confirmed` is the DefNum. Definitions 66, 67, and 69 are read as those numbers.
 
@@ -93,13 +94,13 @@ SC production uses the same completed fees. The patient is included when primary
 
 ## Procedure Volume
 
-Counts are completed procedures in the period (`ProcStatus = 2`). `ProcDate`, then `DateComplete`, must fall in the period. The code decides the bucket. Description text is used only for All-on-X when the code itself does not match.
+Counts are completed procedures in the period (`ProcStatus = 2`). `ProcDate`, then `DateComplete`, must fall in the period. The code decides the bucket.
 
 | Order | Tile | Codes | Calculation |
 |------:|------|-------|-------------|
 | 1 | Extractions | `D7140`, `D7210`, `D7220`, `D7230`, `D7240`, `D7241`, `D7250` | Count of completed procedures. Prefix match. `N` codes and `D73xx` alveoloplasty are not counted. |
 | 2 | Implants placed | `D6010`, `D6011`, `D6040`, `D6050` | Count of completed procedures. Crowns and abutments are not counted. |
-| 3 | AOX cases | Code or description contains `AOX` or `all on`, or the code is on the sold list (`U-AOXS`, `U-AOXD`) | Count of completed procedures. One row is one case. |
+| 3 | AOX cases | `D6114`, `D6115` (fixed full-arch prosthesis), `D1414` (PMMA AOX delivery), `D1313` (zirconia AOX delivery), `U-AOXS`, `U-AOXD` | Distinct patients with one of these completed in the period. AOX consults (`N9310 AOX Cons`), pre-ops (`Z9998`), and warranties (`N9898`) are not cases. |
 | 4 | Dentures delivered | `D5110`, `D5120`, `D5130`, `D5140` | Count of completed procedures. `N` codes, including `N4120`, are not counted. |
 
 ## Collections & AR
@@ -179,7 +180,7 @@ A provider’s new patient seen is a Complete visit (`AptStatus = 2`) on that `P
 
 A same-day NP start is one of those shows with more than $250 collected that calendar day. The rate is those starts ÷ new patients seen.
 
-Remakes are completed procedures matching `D5510`–`D5650`, `D6090`, or a description that says remake or repair of a complete denture.
+Remakes are completed procedures matching `D5510`–`D5650`, `D6090`, or a description that says remake (`N6789`, `N6790`) or repair broken complete denture. Rebases (`D5710`, `D5711`) and relines are not remakes.
 
 ### By Provider
 
@@ -243,13 +244,13 @@ Production Trend is that provider’s completed `ProcFee` by month, same three-y
 | New Patients | 2 | NP's Seen | `appointment.AptStatus` | Those visits with `AptStatus = 2`. |
 | New Patients | 3 | SC NP's | `carrier.CarrierName` | NP shows whose patient has a SoonerCare or OHCA primary carrier. When `IsNewPatient` is absent, a consult show whose type or note matches SoonerCare. |
 | New Patients | 4 | Same-Day NP Close | `paysplit.SplitAmt` | Same rate as Overview same-day starts. The TC target is ≥ 75%. |
-| Treatment | 1 | TX Plans Presented | `procedurelog` code `D7777` | Count of completed `D7777` procedures in the period. Coordinator is `N9210-Ashlie`, `N9410-Brie`, the same patient-day marker, or the `D7777` provider name. |
+| Treatment | 1 | TX Plans Presented | `procedurelog` code `D7777` | Count of completed `D7777` procedures in the period, attributed or not. Coordinator is a same-visit `N9210` (Ashlie) or `N9410` (Brie), the same patient-day marker, or the `D7777` provider name; per-coordinator views count only their attributed rows. |
 | Treatment | 2 | TX Closed/Paid | `treatplan`, `proctp`, `procedurelog.ProcStatus` | Closed plans ÷ presented plans. Target 60–75%. A plan is closed when every planned procedure is Complete. |
 | Treatment | 3 | Conversions/Week | same closed plans | Closed plans ÷ weeks in the selected period. A week is 7 days, and the period is at least 1 week. |
 | Treatment | 4 | Implants | `treatplan` procedures | Implant plans closed in the period ÷ implant plans presented in the period. Target ≥ 60%. |
-| Cancellations | 1 | Cancellations | `appointment` | Visits in the period whose attendance is cancelled (confirm 66 or 67 while still open). |
+| Cancellations | 1 | Cancellations | `appointment` | Visits in the period whose attendance is cancelled (nearest `D9987`, or confirm 66 or 67 while still open). |
 | Cancellations | 2 | Cancellations Re-Booked | `appointment` | Cancelled visits that have a later non-cancelled visit for the same patient, ÷ cancellations. |
-| Cancellations | 3 | No-Shows | `appointment.AptStatus`, confirm 69 | No-shows ÷ (shows + no-shows) for every visit in the period, not only consults. |
+| Cancellations | 3 | No-Shows | `appointment.AptStatus`, `D9986`, confirm 69 | No-shows ÷ (shows + no-shows) for every visit in the period, not only consults. |
 | Cancellations | 4 | No-Shows Rebooked | `appointment` | No-shows with a later non-cancelled visit ÷ no-shows. |
 
 $ Financed is the sum of `paysplit.SplitAmt` in the period whose PayType is a financing type (CareCredit, Cherry, Sunbit, Proceed, and the other financing names). The donut splits that sum in this order: Care Credit, Cherry, Sunbit, Proceed, Other.
@@ -280,7 +281,7 @@ Left table, then right table.
 |------:|------|-------------|
 | 1 | Plans presented | Completed `D7777` count. |
 | 2 | Plans closed | Closed treatment plans in the period. |
-| 3 | Presented ($) | Fees on the presented `D7777` events. |
+| 3 | Presented ($) | `D7777` carries no fee, so each presented event takes the largest treatment plan saved for that patient on that day (`treatplan.DateTP`; completed lines use `ProcFee`, others `proctp.FeeAmt`). |
 | 4 | Closed ($) | Sum of procedure fees on closed plans. |
 | 5 | Close rate | Closed dollars ÷ presented dollars. When presented dollars are 0, closed count ÷ presented count. |
 | 6 | $ financed | Same financing total as the donut. |
@@ -311,7 +312,7 @@ Claim rows are `claim`. Status letters: `U` unsent (draft, skipped), `S` sent, `
 | Claims | 4 | Denial rate | (Hold + waiting + canceled) ÷ submitted. Target ≤ 5%. |
 | Collections & AR | 1 | Collection ratio | When claims exist: `claimproc.InsPayAmt` ÷ estimated insurance payment. Otherwise the Overview ratio, collections ÷ gross production. Target ≥ 98%. |
 | Collections & AR | 2 | Insurance collected | Sum of `claimproc.InsPayAmt` for status Received or Supplemental with `DateCP` in the period. Without claim lines, the Insurance slice of Payment Mix. |
-| Collections & AR | 3 | Patient AR | Sum of guarantor `EstBalance`, floored at 0. Snapshot, not the selected period. |
+| Collections & AR | 3 | Patient AR | Sum over guarantors of `BalTotal` − `InsEst`, each floored at 0. Snapshot, not the selected period. |
 | Collections & AR | 4 | Insurance AR | Sum of guarantor `InsEst` aging. If that is 0, outstanding sent-claim dollars. |
 | Collections & AR | 5 | SC AR | Outstanding sent claims whose plan name is SoonerCare or Medicaid. |
 | Collections & AR | 6 | Days in AR | Aging dollars weighted by midpoints 15, 45, 75, and 105, ÷ total aging dollars. Target ≤ 30 days. |
@@ -387,7 +388,7 @@ GoHighLevel is not used on this page. Ad spend, marketing ROI, cost per arch, $/
 
 One row per Open Dental referral source, then a Total row.
 
-Leads, booked, showed, accepted, and surgery are new patients (`patient.DateFirstVisit` in the period). Booked is a non-cancelled visit. Showed is a complete visit. Accepted is a showed new patient with a completed non-consult procedure. Surgery is a completed `U-AOXS` or `U-AOXD`. Production is completed `ProcFee` in the period for every patient of that source, including patients whose first visit was earlier.
+Leads, booked, showed, accepted, and surgery are new patients (`patient.DateFirstVisit` in the period). Booked is a non-cancelled visit. Showed is a complete visit. Accepted is a showed new patient with a completed procedure that has a fee and is not diagnostic (`D0xxx`), a consult, or an `N` office code. Surgery is a completed AOX case code (same list as AOX cases). Production is completed `ProcFee` in the period for every patient of that source, including patients whose first visit was earlier.
 
 | Order | Column | Calculation |
 |------:|--------|-------------|
@@ -396,14 +397,14 @@ Leads, booked, showed, accepted, and surgery are new patients (`patient.DateFirs
 | 3 | Leads | New patients from that source. |
 | 4 | Booked | Those new patients with a non-cancelled visit. |
 | 5 | Showed | Those new patients with a complete visit. |
-| 6 | Accepted | Showed new patients with a completed non-consult procedure. |
-| 7 | Surgery | New patients with a completed AOX sold code. |
+| 6 | Accepted | Showed new patients with completed billed treatment (not diagnostic, consult, or `N` codes). |
+| 7 | Surgery | New patients with a completed AOX case code. |
 | 8 | Production | Completed `ProcFee` for patients of that source. |
 | 9 | $/lead | Needs spend. The cell stays —. |
 | 10 | $/arch | Needs spend. The cell stays —. |
 | 11 | ROI | Needs spend. The cell stays —. |
 
-Appointments on the snapshot go back about 365 days. When the selected period starts earlier, booked and showed stop at that window.
+Appointments on the snapshot go back to January 1 of last year (or 365 days, whichever is earlier). When the selected period starts earlier, booked and showed stop at that window.
 
 ### Where we win & lose
 

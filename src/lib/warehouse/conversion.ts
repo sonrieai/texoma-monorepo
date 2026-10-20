@@ -154,7 +154,8 @@ function extractOdConfirmCode(appt: AppointmentRecord): number | null {
 
 /**
  * Consult and new-patient attendance from Open Dental AptStatus.
- * Complete is a show and Broken is a no-show.
+ * Complete is a show. Broken is a cancellation when a nearby D9987 was posted,
+ * otherwise a no-show. An Unscheduled-list visit counts only with a D9986/D9987.
  * Confirm defs 66/67 (cancel) and 69 (no-show) apply only while status is still open.
  * A confirmed or checked-in visit that is not Complete is not a show.
  */
@@ -167,6 +168,8 @@ export function mapConversionAttendance(
     .trim()
     .toLowerCase();
   if (/\bcomplete(d)?\b/.test(aptStatus)) return "show";
+  if (appt.broken_reason === "cancelled") return "cancelled";
+  if (appt.broken_reason === "missed") return "no_show";
   if (/\bbroken\b/.test(aptStatus)) return "no_show";
 
   const od = extractOdConfirmCode(appt);

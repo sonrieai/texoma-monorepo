@@ -127,9 +127,9 @@ export const SOLD_PROCEDURES = [
 
 /** Stay on the procedure in Open Dental. Not sent as GoHighLevel tags. */
 export const TREATMENT_COORDINATORS = [
-  { code: "N9210-Ashlie", name: "Ashlie" },
-  { code: "N9410-Brie", name: "Brie" },
-  { code: "N9510-Asst/Other", name: "Asst/Other" },
+  { code: "N9210", name: "Ashlie" },
+  { code: "N9410", name: "Brie" },
+  { code: "N9510", name: "Asst/Other" },
 ] as const;
 
 export type TagEffect = NoShowTag | "clear" | "leave";

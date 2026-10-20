@@ -1,6 +1,7 @@
 /**
  * Treatment plans presented are completed D7777 procedures.
- * Each one is attributed to Ashlie or Brie — the only treatment coordinators.
+ * Each one is attributed to Ashlie or Brie — the only treatment coordinators —
+ * when a same-visit coordinator marker exists; otherwise it stays unattributed.
  */
 
 import { coordinatorSlug } from "@/lib/tc/coordinators";
@@ -15,13 +16,14 @@ import {
   moneyToCents,
   type ProcedureRecord,
   type ProviderRecord,
+  type TreatmentPlanRecord,
 } from "@/lib/warehouse/types";
 
 export const TREATMENT_PLAN_PRESENTED_CODE = "D7777";
 
 export const NAMED_TREATMENT_COORDINATORS = [
-  { name: "Ashlie", procedureCode: "N9210-Ashlie" },
-  { name: "Brie", procedureCode: "N9410-Brie" },
+  { name: "Ashlie", procedureCode: "N9210" },
+  { name: "Brie", procedureCode: "N9410" },
 ] as const;
 
 export type TreatmentCoordinatorName =
@@ -90,18 +92,30 @@ export function namedTreatmentCoordinators(
 
 /**
  * Completed D7777 rows in range.
- * Coordinator comes from a same-visit N9210-Ashlie / N9410-Brie procedure,
+ * Coordinator comes from a same-visit N9210 (Ashlie) / N9410 (Brie) procedure,
  * the same patient-day marker, or the D7777 provider name.
  */
 export function collectPresentedPlans(params: {
   procedures: ProcedureRecord[];
   providers?: ProviderRecord[];
+  /** D7777 carries no fee; dollars come from the largest plan saved that patient-day. */
+  plans?: TreatmentPlanRecord[];
   fromYmd: string;
   toYmd: string;
 }): PresentedPlan[] {
   const providerNames = new Map<number, string>();
   for (const provider of params.providers ?? []) {
     if (provider.name) providerNames.set(provider.id, provider.name);
+  }
+
+  const planCentsByPatientDay = new Map<string, number>();
+  for (const plan of params.plans ?? []) {
+    const patientId = typeof plan.patient_id === "number" ? plan.patient_id : null;
+    if (patientId == null || !plan.plan_date) continue;
+    let cents = 0;
+    for (const proc of plan.procedures ?? []) cents += moneyToCents(proc.fee);
+    const key = `${patientId}:${plan.plan_date}`;
+    if (cents > (planCentsByPatientDay.get(key) ?? 0)) planCentsByPatientDay.set(key, cents);
   }
 
   const byAppointment = new Map<number, TreatmentCoordinatorName>();
@@ -139,11 +153,15 @@ export function collectPresentedPlans(params: {
       coordinatorNameFromProviderName(providerName) ??
       null;
 
+    const feeCents = moneyToCents(proc.fee);
     presented.push({
       patientId,
       ymd,
       coordinatorName,
-      cents: moneyToCents(proc.fee),
+      cents:
+        feeCents > 0 || patientId == null
+          ? feeCents
+          : planCentsByPatientDay.get(`${patientId}:${ymd}`) ?? 0,
     });
   }
 

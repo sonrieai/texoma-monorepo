@@ -275,6 +275,9 @@ export function buildOverviewFromSnapshot(
     procedures: snapshot.procedures,
     payments: snapshot.payments,
     providers: snapshot.providers,
+    appointmentTypeDocs: snapshot.appointmentTypeDocs,
+    patients: snapshot.patients,
+    soonercarePatientIds,
     cdt,
   });
 

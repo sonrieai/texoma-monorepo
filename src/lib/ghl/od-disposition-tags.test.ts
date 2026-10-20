@@ -211,7 +211,7 @@ describe("sold codes and coordinators", () => {
   it("keeps coordinator codes off the tag list", () => {
     assert.deepEqual(
       TREATMENT_COORDINATORS.map((row) => row.code),
-      ["N9210-Ashlie", "N9410-Brie", "N9510-Asst/Other"],
+      ["N9210", "N9410", "N9510"],
     );
   });
 });

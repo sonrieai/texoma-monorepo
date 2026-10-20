@@ -46,7 +46,6 @@ import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 import { collectPresentedPlans } from "@/lib/tc/presented-plans";
 import {
   coordinatorPatientIds,
-  filterPlansForCoordinator,
   planPatientId,
 } from "@/lib/tc/plan-attribution";
 import {
@@ -282,20 +281,17 @@ export function summarizeTcMetrics(params: {
   const presentedEvents = collectPresentedPlans({
     procedures: params.procedures,
     providers: params.providers,
+    plans: params.plans,
     fromYmd: params.fromYmd,
     toYmd: params.toYmd,
   });
   const scopedPresented = presentedEvents.filter((event) => {
-    if (event.coordinatorName == null) return false;
     if (!coordinator) return true;
     return (
-      event.coordinatorName.toLowerCase() ===
+      event.coordinatorName?.toLowerCase() ===
       coordinator.name.trim().toLowerCase()
     );
   });
-  const plans = coordinator
-    ? filterPlansForCoordinator(params.plans, coordinator)
-    : params.plans;
   const patientIds = coordinator
     ? new Set<number>([
         ...coordinatorPatientIds(params.plans, coordinator),
@@ -304,6 +300,13 @@ export function summarizeTcMetrics(params: {
         ),
       ])
     : null;
+  const plans =
+    coordinator && patientIds
+      ? params.plans.filter((plan) => {
+          const pid = planPatientId(plan);
+          return pid != null && patientIds.has(pid);
+        })
+      : params.plans;
   const appointments =
     coordinator && patientIds
       ? params.appointments.filter(
@@ -320,9 +323,9 @@ export function summarizeTcMetrics(params: {
         })
       : params.payments;
 
-  if (coordinator && plans.length === 0) {
+  if (coordinator && patientIds?.size === 0) {
     notices.push(
-      `${coordinator.name}: no attributed treatment plans in this period — confirm OD sends presenter / coordinator on treatment plans in warehouse data.`,
+      `${coordinator.name}: no patients in this period — a D7777 counts for her only with her coordinator code (N9210 Ashlie, N9410 Brie) on the same visit.`,
     );
   }
 
@@ -463,7 +466,7 @@ export function summarizeTcMetrics(params: {
   }
   if (tpPresentedCount === 0) {
     notices.push(
-      "TX plans presented counts completed D7777 procedures, attributed to Ashlie or Brie.",
+      "TX plans presented counts completed D7777 procedures; per-coordinator views need a same-visit N9210 (Ashlie) or N9410 (Brie).",
     );
   }
 

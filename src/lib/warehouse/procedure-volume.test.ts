@@ -17,6 +17,10 @@ describe("isRemakeProcedureCode", () => {
       true,
     );
     assert.equal(isRemakeProcedureCode("D5110", "Complete denture"), false);
+    assert.equal(
+      isRemakeProcedureCode("D5710", "rebase complete maxillary denture"),
+      false,
+    );
   });
 });
 
@@ -78,6 +82,26 @@ describe("accumulateProcedureVolume", () => {
     accumulateProcedureVolume({
       cdt,
       procedures,
+      fromYmd: "2026-01-01",
+      toYmd: "2026-12-31",
+      volume,
+    });
+    assert.equal(volume.aox, 2);
+  });
+
+  it("counts one AOX case per patient and skips consult / pre-op / warranty text", () => {
+    const volume = emptyProcedureVolume();
+    accumulateProcedureVolume({
+      cdt,
+      procedures: [
+        { id: 1, patient_id: 7, code: "D1414", status: "completed", start_date: "2026-06-01" },
+        { id: 2, patient_id: 7, code: "D1414", status: "completed", start_date: "2026-06-01" },
+        { id: 3, patient_id: 7, code: "D1313", status: "completed", start_date: "2026-08-01" },
+        { id: 4, patient_id: 8, code: "D6115", status: "completed", start_date: "2026-06-03" },
+        { id: 5, patient_id: 9, code: "N9310 AOX Cons", name: "AOX Consult", status: "completed", start_date: "2026-06-03" },
+        { id: 6, patient_id: 9, code: "Z9998", name: "All-On-4 PRE-OP", status: "completed", start_date: "2026-06-03" },
+        { id: 7, patient_id: 9, code: "N9898", name: "AOX Warranty", status: "completed", start_date: "2026-06-03" },
+      ],
       fromYmd: "2026-01-01",
       toYmd: "2026-12-31",
       volume,

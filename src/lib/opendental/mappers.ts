@@ -322,6 +322,7 @@ export function mapOdTreatPlan(
     name: row.Heading?.trim() || `TP ${row.TreatPlanNum}`,
     patient_id: row.PatNum,
     updated_at: odDateToIso(row.DateTStamp) ?? undefined,
+    plan_date: odDateToYmd(row.DateTP) ?? undefined,
     status: mapTpStatus(row.TPStatus),
     procedures,
     foreign_id: String(row.TreatPlanNum),
@@ -412,17 +413,21 @@ export function resolveGuarantorTotalBalanceDollars(
 }
 
 export function mapOdGuarantorBalance(row: OdGuarantorBalanceRow): GuarantorBalanceRecord {
+  const total = resolveGuarantorTotalBalanceDollars(row);
   return {
     id: row.PatNum,
     guarantor_id: row.PatNum,
-    total_balance: money(resolveGuarantorTotalBalanceDollars(row)),
+    total_balance: money(total),
     total_balance_under_30: money(Number(row.Bal_0_30)),
     total_balance_31_60: money(Number(row.Bal_31_60)),
     total_balance_61_90: money(Number(row.Bal_61_90)),
     total_balance_over_90: money(Number(row.BalOver90)),
     insurance_estimate: money(Number(row.InsEst)),
-    /** Patient-responsible balance. Credits are not subtracted from AR. */
-    guarantor_portion: money(Math.max(0, Number(row.EstBalance) || 0)),
+    /**
+     * Family patient portion: BalTotal minus insurance estimate. EstBalance is the
+     * guarantor's own balance only, so summing it overstates the family share.
+     */
+    guarantor_portion: money(Math.max(0, total - (Number(row.InsEst) || 0))),
     updated_at: undefined,
   };
 }

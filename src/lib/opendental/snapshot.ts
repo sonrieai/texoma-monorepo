@@ -22,6 +22,11 @@ import {
 import { inferNpConsultAppointmentTypeFromName } from "@/lib/opendental/infer-np-consult-appointment-type";
 import { buildPaymentTypeDefMaps } from "@/lib/opendental/payment-type-classifier";
 import { productionTrendRange } from "@/lib/warehouse/production";
+import { todayCentralYmd } from "@/lib/ghl/practice-time";
+import {
+  annotateBrokenReasons,
+  BROKEN_REASON_DAYS_BEFORE,
+} from "@/lib/warehouse/broken-appointment-reason";
 import type {
   AdjustmentRecord,
   AppointmentRecord,
@@ -162,9 +167,18 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+/** Jan 1 of last year, or 365 days back if that is earlier, so the "Last year" preset is complete. */
+export function detailWindowStartYmd(todayYmd: string, rollingStartYmd: string): string {
+  const lastYearStart = `${Number(todayYmd.slice(0, 4)) - 1}-01-01`;
+  return lastYearStart < rollingStartYmd ? lastYearStart : rollingStartYmd;
+}
+
 function appointmentWindow(): OdDateWindow {
   return {
-    startYmd: ymdDaysAgo(APPOINTMENT_LOOKBACK_DAYS),
+    startYmd: detailWindowStartYmd(
+      todayCentralYmd(),
+      ymdDaysAgo(APPOINTMENT_LOOKBACK_DAYS),
+    ),
     endYmd: ymdDaysAhead(APPOINTMENT_LOOKAHEAD_DAYS),
   };
 }
@@ -179,12 +193,15 @@ function trendWindow(): OdDateWindow {
 }
 
 /**
- * Row-level procedures/paysplits/claims — match appointment lookback (±365d)
+ * Row-level procedures/paysplits/claims — the appointment window, starting early
+ * enough to see D9986/D9987 posted before the first loaded visit,
  * so MariaDB is not asked for three years of ledger rows every page load.
  */
 function detailLedgerWindow(appt: OdDateWindow): OdDateWindow {
+  const start = new Date(`${appt.startYmd}T12:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - BROKEN_REASON_DAYS_BEFORE);
   return {
-    startYmd: appt.startYmd,
+    startYmd: start.toISOString().slice(0, 10),
     endYmd: appt.endYmd < trendWindow().endYmd ? appt.endYmd : trendWindow().endYmd,
   };
 }
@@ -286,8 +303,11 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
   const cdt =
     cdtRows.length > 0 ? createCdtLookupFromDocs(cdtRows) : emptyCdtLookup;
 
-  const appointments = appointmentRows.map(mapOdAppointment);
   const procedures = procedureRows.map(mapOdProcedure);
+  const appointments = annotateBrokenReasons(
+    appointmentRows.map(mapOdAppointment),
+    procedures,
+  );
   const charges: ChargeRecord[] = [];
   for (const row of procedureRows) {
     const charge = mapOdProcedureToCharge(row);

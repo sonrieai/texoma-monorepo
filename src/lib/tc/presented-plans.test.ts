@@ -23,7 +23,7 @@ describe("collectPresentedPlans", () => {
           patient_id: 10,
           provider_id: 2,
           appointment_id: 100,
-          code: "N9210-Ashlie",
+          code: "N9210",
           status: "Complete",
           start_date: "2026-08-10",
         },
@@ -84,7 +84,7 @@ describe("collectPresentedPlans", () => {
       procedures: [
         {
           patient_id: 20,
-          code: "N9410-Brie",
+          code: "N9410",
           status: "Complete",
           start_date: "2026-08-04",
         },
@@ -98,6 +98,38 @@ describe("collectPresentedPlans", () => {
     });
     assert.equal(presented.length, 1);
     assert.equal(presented[0]?.coordinatorName, "Brie");
+  });
+
+  it("takes dollars from the largest same-day plan when D7777 has no fee", () => {
+    const presented = collectPresentedPlans({
+      fromYmd: "2026-08-01",
+      toYmd: "2026-08-31",
+      procedures: [
+        { patient_id: 40, code: "D7777", status: "Complete", start_date: "2026-08-05" },
+        { patient_id: 41, code: "D7777", status: "Complete", start_date: "2026-08-05" },
+      ],
+      plans: [
+        { patient_id: 40, plan_date: "2026-08-05", procedures: [{ fee: { amount: "900.00" } }] },
+        { patient_id: 40, plan_date: "2026-08-05", procedures: [{ fee: { amount: "1500.00" } }] },
+        { patient_id: 41, plan_date: "2026-08-04", procedures: [{ fee: { amount: "700.00" } }] },
+      ],
+    });
+    assert.deepEqual(
+      presented.map((row) => row.cents),
+      [150000, 0],
+    );
+  });
+
+  it("keeps D7777 with no coordinator marker as unattributed", () => {
+    const presented = collectPresentedPlans({
+      fromYmd: "2026-08-01",
+      toYmd: "2026-08-31",
+      procedures: [
+        { patient_id: 30, code: "D7777", status: "Complete", start_date: "2026-08-05" },
+      ],
+    });
+    assert.equal(presented.length, 1);
+    assert.equal(presented[0]?.coordinatorName, null);
   });
 });
 

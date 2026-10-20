@@ -23,6 +23,8 @@ export type AppointmentRecord = {
   patient_missed?: boolean;
   checked_out?: boolean;
   checkin_at?: string | null;
+  /** From a nearby D9986 (missed) or D9987 (cancelled) on a Broken / Unscheduled visit. */
+  broken_reason?: "missed" | "cancelled";
   [key: string]: unknown;
 };
 
@@ -168,6 +170,8 @@ export type TreatmentPlanRecord = {
   name?: string | null;
   patient_id?: number | null;
   updated_at?: string;
+  /** Open Dental treatplan.DateTP (YYYY-MM-DD). */
+  plan_date?: string;
   status?: TreatmentPlanStatus | null;
   procedures?: ProcedureRecord[];
   [key: string]: unknown;

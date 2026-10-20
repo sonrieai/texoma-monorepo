@@ -116,7 +116,7 @@ describe("summarizeTcMetrics conversionFunnel", () => {
         {
           id: 9,
           patient_id: 1,
-          code: "N9210-Ashlie",
+          code: "N9210",
           status: "Complete",
           start_date: "2026-08-10",
         },
@@ -131,7 +131,7 @@ describe("summarizeTcMetrics conversionFunnel", () => {
         {
           id: 11,
           patient_id: 2,
-          code: "N9410-Brie",
+          code: "N9410",
           status: "Complete",
           start_date: "2026-08-11",
         },

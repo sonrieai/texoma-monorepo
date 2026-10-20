@@ -267,7 +267,11 @@ async function applyPatient(params: {
     try {
       await updateGhlContact(contactId, baseInput, params.config);
     } catch (err) {
-      if (err instanceof GhlApiError && err.status === 404) contactId = undefined;
+      const missing =
+        err instanceof GhlApiError &&
+        (err.status === 404 ||
+          (err.status === 400 && /contact not found/i.test(err.message)));
+      if (missing) contactId = undefined;
       else throw err;
     }
   }

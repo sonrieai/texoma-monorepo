@@ -3,7 +3,7 @@
  * WF-11/12/13 fire when a card enters No-Show / Cancelled — not from GHL appointments.
  */
 
-import { ghlFetch } from "@/lib/ghl/http";
+import { ghlFetch, GhlApiError } from "@/lib/ghl/http";
 import type { GhlConfig } from "@/lib/ghl/types";
 
 /** Consults Today stage (field-driven workflow fills from od_consult_date). */
@@ -23,17 +23,37 @@ export async function findOpportunityForContact(params: {
   pipelineId: string;
   config: GhlConfig;
 }): Promise<OppHit | null> {
-  const body = {
-    locationId: params.config.locationId,
-    pipelineId: params.pipelineId,
-    contactId: params.contactId,
-    status: "open",
-    limit: 5,
-  };
+  const q = new URLSearchParams({
+    location_id: params.config.locationId,
+    pipeline_id: params.pipelineId,
+    contact_id: params.contactId,
+    status: "all",
+    limit: "5",
+  });
+  try {
+    const data = await ghlFetch<{ opportunities?: OppHit[] }>(
+      `/opportunities/search?${q.toString()}`,
+      {},
+      params.config,
+    );
+    const hit = data.opportunities?.[0];
+    if (hit?.id) return hit;
+  } catch {
+    // Fall through to POST body search.
+  }
   try {
     const data = await ghlFetch<{ opportunities?: OppHit[] }>(
       "/opportunities/search",
-      { method: "POST", body: JSON.stringify(body) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          locationId: params.config.locationId,
+          pipelineId: params.pipelineId,
+          contactId: params.contactId,
+          status: "all",
+          limit: 5,
+        }),
+      },
       params.config,
     );
     return data.opportunities?.[0] ?? null;
@@ -110,11 +130,23 @@ export async function ensureNoShowCancelledOpportunity(params: {
     });
     return;
   }
-  await createOpportunityAtStage({
-    contactId: params.contactId,
-    pipelineId,
-    pipelineStageId: TC_STAGE_NO_SHOW_CANCELLED,
-    name: params.contactName || "OD patient",
-    config: params.config,
-  });
+  try {
+    await createOpportunityAtStage({
+      contactId: params.contactId,
+      pipelineId,
+      pipelineStageId: TC_STAGE_NO_SHOW_CANCELLED,
+      name: params.contactName || "OD patient",
+      config: params.config,
+    });
+  } catch (err) {
+    // GHL allows one open opportunity per contact/pipeline — already there is fine.
+    if (
+      err instanceof GhlApiError &&
+      err.status === 400 &&
+      /duplicate opportunity/i.test(err.message)
+    ) {
+      return;
+    }
+    throw err;
+  }
 }

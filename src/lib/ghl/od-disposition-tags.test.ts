@@ -236,6 +236,11 @@ describe("sync state", () => {
     assert.equal("phone" in (state.contacts["42"] ?? {}), false);
     assert.equal(normalizeUsPhone("(580) 555-0100"), "+15805550100");
     assert.equal(normalizeEmail(" Ada@Clinic.com "), "ada@clinic.com");
+    assert.equal(normalizeEmail("ada123@clinic.com,"), "ada123@clinic.com");
+    assert.equal(normalizeEmail("ada lovelace@clinic.com"), null);
+    assert.equal(normalizeEmail("ada123 @clinic.com"), null);
+    assert.equal(normalizeEmail("ada@clinic"), null);
+    assert.equal(normalizeEmail("a@b.com, c@d.com"), null);
     assert.equal(
       syncAlreadyApplied(
         {

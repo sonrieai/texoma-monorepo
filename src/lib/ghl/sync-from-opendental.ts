@@ -52,6 +52,7 @@ import {
   nextScheduledApptDateYmd,
   normalizeEmail,
   normalizeUsPhone,
+  patNumsByContact,
   resolveActiveSequence,
   smsConsentAction,
   todayCentralYmd,
@@ -208,6 +209,8 @@ async function applyPatient(params: {
   previous: OdGhlContactLink | null;
   hasFutureAppt: boolean;
   futureAppts: readonly OdGhlFutureAppointmentRow[];
+  /** Future appts of every PatNum on the same GHL contact, by AptDateTime. */
+  contactFutureAppts: readonly OdGhlFutureAppointmentRow[];
   changedAppts: readonly OdGhlAppointmentRow[];
   codesByApt: Map<number, string[]>;
   config: GhlConfig;
@@ -230,7 +233,7 @@ async function applyPatient(params: {
   );
 
   const consultDate = nextConsultDateYmd(
-    params.futureAppts.map((row) => ({
+    params.contactFutureAppts.map((row) => ({
       AptDateTime: row.AptDateTime,
       isConsult: isConsultAppointment({
         appointmentTypeName: row.AppointmentTypeName,
@@ -578,7 +581,10 @@ export async function runOdGhlSync(
     patientsById.set(row.PatNum, row);
   }
 
-  const futureRows = await listOdFutureAppointmentsForPatients([...events.keys()]);
+  const sharedPatNums = patNumsByContact(state.contacts);
+  const futureRows = await listOdFutureAppointmentsForPatients([
+    ...new Set([...events.keys()].flatMap((patNum) => sharedPatNums(patNum))),
+  ]);
   const futureByPatient = new Map<number, OdGhlFutureAppointmentRow[]>();
   for (const row of futureRows) {
     const list = futureByPatient.get(row.PatNum) ?? [];
@@ -630,6 +636,11 @@ export async function runOdGhlSync(
     const previous = state.contacts[key] ?? null;
     const lines = linesByPatient.get(patNum) ?? [];
     const futureAppts = futureByPatient.get(patNum) ?? [];
+    const contactFutureAppts = sharedPatNums(patNum)
+      .flatMap((id) => futureByPatient.get(id) ?? [])
+      .sort((a, b) =>
+        String(a.AptDateTime ?? "").localeCompare(String(b.AptDateTime ?? "")),
+      );
     const hasFutureAppt = futureAppts.length > 0;
     // Always process event patients so Text OK→DND and date fields refresh every run.
     const row = patientsById.get(patNum) ?? null;
@@ -644,6 +655,7 @@ export async function runOdGhlSync(
         previous,
         hasFutureAppt,
         futureAppts,
+        contactFutureAppts,
         changedAppts: changedApptsByPatient.get(patNum) ?? [],
         codesByApt,
         config,

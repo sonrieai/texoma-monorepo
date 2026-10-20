@@ -2,9 +2,24 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   consultDateBackfillAction,
+  earliestYmd,
   ghlDateFieldYmd,
   nextConsultDateByPatient,
 } from "@/lib/ghl/consult-date-backfill";
+import { patNumsByContact } from "@/lib/ghl/od-ghl-sync-plan";
+
+describe("patNumsByContact", () => {
+  it("returns every PatNum on the same GHL contact", () => {
+    const shared = patNumsByContact({
+      "14864": { ghlContactId: "c1" },
+      "14933": { ghlContactId: "c1" },
+      "4005": { ghlContactId: "c2" },
+    });
+    assert.deepEqual(shared(14933).sort(), [14864, 14933]);
+    assert.deepEqual(shared(4005), [4005]);
+    assert.deepEqual(shared(99), [99]);
+  });
+});
 
 describe("nextConsultDateByPatient", () => {
   const appts = [
@@ -27,6 +42,13 @@ describe("nextConsultDateByPatient", () => {
     assert.equal(out.get(20), "2026-11-02");
     assert.equal(out.has(30), false);
     assert.equal(out.get(40), "2026-11-04");
+  });
+});
+
+describe("earliestYmd", () => {
+  it("picks the earliest date across a contact's PatNums", () => {
+    assert.equal(earliestYmd([undefined, "2026-11-05", "2026-10-22", null]), "2026-10-22");
+    assert.equal(earliestYmd([undefined, null]), null);
   });
 });
 

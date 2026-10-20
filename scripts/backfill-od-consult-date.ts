@@ -13,6 +13,7 @@
 import { loadEnvLocal } from "../src/lib/env/load-env-local";
 import {
   consultDateBackfillAction,
+  earliestYmd,
   ghlDateFieldYmd,
   nextConsultDateByPatient,
   type ConsultBackfillAction,
@@ -82,17 +83,20 @@ async function main() {
   const unclear: number[] = [];
   const failed: number[] = [];
 
+  // od_consult_date lives on the contact; several PatNums can share one contact.
+  const contacts = new Map<string, { patNums: number[]; linked: boolean }>();
   for (const patNum of candidates) {
-    try {
-      const link = state.contacts[String(patNum)];
-      let contactId = link?.ghlContactId ?? null;
-      if (!contactId) {
+    const link = state.contacts[String(patNum)];
+    let contactId = link?.ghlContactId ?? null;
+    if (!contactId) {
+      try {
         const row = patients.get(patNum);
         const input = row ? patientContactInput(row) : null;
         const resolved = await resolveGhlContact(
           { patNum, phone: input?.phone ?? null, email: input?.email ?? null },
           config,
         );
+        await sleep(PAUSE_MS);
         if (resolved.kind === "unclear") {
           unclear.push(patNum);
           continue;
@@ -102,8 +106,21 @@ async function main() {
           continue;
         }
         contactId = resolved.contactId;
+      } catch (err) {
+        failed.push(patNum);
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`PatNum ${patNum}: ${message.slice(0, 160)}`);
+        continue;
       }
+    }
+    const entry = contacts.get(contactId) ?? { patNums: [], linked: false };
+    entry.patNums.push(patNum);
+    entry.linked ||= Boolean(link);
+    contacts.set(contactId, entry);
+  }
 
+  for (const [contactId, entry] of contacts) {
+    try {
       const view = await ghlFetch<ContactView>(
         `/contacts/${encodeURIComponent(contactId)}`,
         {},
@@ -111,31 +128,35 @@ async function main() {
       );
       const field = view.contact?.customFields?.find((f) => f.id === fieldId);
       const current = ghlDateFieldYmd(field?.value);
-      const next = consultByPat.get(patNum) ?? null;
+      const next = earliestYmd(entry.patNums.map((p) => consultByPat.get(p)));
       const action = consultDateBackfillAction({
         current,
         next,
-        linked: Boolean(link),
+        linked: entry.linked,
       });
-      byAction[action].push(patNum);
+      byAction[action].push(...entry.patNums);
 
       if (APPLY && action !== "unchanged") {
-        await setContactConsultDate(contactId, next ?? "", config);
+        await setContactConsultDate(contactId, next, config);
       }
     } catch (err) {
-      failed.push(patNum);
+      failed.push(...entry.patNums);
       const message = err instanceof Error ? err.message : String(err);
-      console.error(`PatNum ${patNum}: ${message.slice(0, 160)}`);
+      console.error(`PatNums ${entry.patNums.join("/")}: ${message.slice(0, 160)}`);
     }
     await sleep(PAUSE_MS);
   }
+  const shared = [...contacts.values()].filter((c) => c.patNums.length > 1);
 
   const list = (ids: number[]) => (ids.length ? ids.join(", ") : "-");
   console.log(APPLY ? "od_consult_date backfill APPLIED" : "od_consult_date backfill DRY RUN");
   console.log(`future scheduled appts ${future.length}`);
   console.log(`patients with a future consult ${consultByPat.size}`);
   console.log(`linked contacts in sync state ${linkedPatNums.length}`);
-  console.log(`candidates ${candidates.length}`);
+  console.log(`candidates ${candidates.length} on ${contacts.size} GHL contacts`);
+  console.log(
+    `contacts shared by several PatNums ${shared.length}: ${shared.map((c) => c.patNums.join("/")).join(", ") || "-"}`,
+  );
   console.log(`set (empty -> date) ${byAction.set.length}: ${list(byAction.set)}`);
   console.log(`change (wrong date) ${byAction.change.length}: ${list(byAction.change)}`);
   console.log(`clear (linked, no future consult) ${byAction.clear.length}: ${list(byAction.clear)}`);

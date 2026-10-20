@@ -45,6 +45,13 @@ export function nextConsultDateByPatient(
   return out;
 }
 
+export function earliestYmd(
+  dates: readonly (string | null | undefined)[],
+): string | null {
+  const present = dates.filter((d): d is string => Boolean(d));
+  return present.length > 0 ? present.sort()[0] : null;
+}
+
 /**
  * GHL date custom fields come back as YYYY-MM-DD, an ISO string, or epoch ms
  * (midnight UTC of the stored date).

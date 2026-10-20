@@ -45,7 +45,7 @@ export type GhlContactInput = {
   missedApptDateYmd?: string | null;
   /** Patient’s next scheduled appt after a miss (empty if none). */
   nextApptDateYmd?: string | null;
-  /** When true, write empty string to clear consult/missed/next as specified. */
+  /** When true, write null to clear consult/missed/next as specified. */
   clearConsultDate?: boolean;
   clearMissedApptDate?: boolean;
   clearNextApptDate?: boolean;
@@ -61,12 +61,15 @@ function contactIdFrom(payload: ContactPayload | null): string | null {
   return typeof id === "string" && id.trim() ? id.trim() : null;
 }
 
+type CustomFieldEntry = Record<string, string | null>;
+
+/** `null` clears a field; GHL ignores an empty string on date fields. */
 function fieldEntry(
   key: string,
-  value: string,
+  value: string | null,
   envId: string | undefined,
-): Record<string, string> {
-  const field: Record<string, string> = { key, field_value: value };
+): CustomFieldEntry {
+  const field: CustomFieldEntry = { key, field_value: value };
   const id = envId?.trim();
   if (id) field.id = id;
   return field;
@@ -74,8 +77,8 @@ function fieldEntry(
 
 export function contactCustomFields(
   input: GhlContactInput,
-): Array<Record<string, string>> {
-  const fields: Array<Record<string, string>> = [
+): CustomFieldEntry[] {
+  const fields: CustomFieldEntry[] = [
     fieldEntry(
       OD_PATNUM_FIELD_KEY,
       String(input.patNum),
@@ -113,7 +116,7 @@ export function contactCustomFields(
     fields.push(
       fieldEntry(
         OD_CONSULT_DATE_FIELD_KEY,
-        "",
+        null,
         process.env.GHL_OD_CONSULT_DATE_FIELD_ID,
       ),
     );
@@ -130,7 +133,7 @@ export function contactCustomFields(
     fields.push(
       fieldEntry(
         OD_MISSED_APPT_DATE_FIELD_KEY,
-        "",
+        null,
         process.env.GHL_OD_MISSED_APPT_DATE_FIELD_ID,
       ),
     );
@@ -147,7 +150,7 @@ export function contactCustomFields(
     fields.push(
       fieldEntry(
         OD_NEXT_APPT_DATE_FIELD_KEY,
-        "",
+        null,
         process.env.GHL_OD_NEXT_APPT_DATE_FIELD_ID,
       ),
     );
@@ -310,10 +313,10 @@ export async function setActiveSequence(
   );
 }
 
-/** Write only od_consult_date; empty string clears it. */
+/** Write only od_consult_date; null clears it. */
 export async function setContactConsultDate(
   contactId: string,
-  ymd: string,
+  ymd: string | null,
   config?: GhlConfig,
 ): Promise<void> {
   const customFields = [

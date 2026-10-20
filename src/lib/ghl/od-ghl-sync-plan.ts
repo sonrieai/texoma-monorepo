@@ -30,12 +30,18 @@ export function normalizeUsPhone(raw: string | null | undefined): string | null 
   return null;
 }
 
+const EMAIL_SHAPE = /^[^\s@,;]+@[^\s@,;]+\.[a-z]{2,}$/;
+
+/**
+ * GHL rejects the whole contact write (422) on a malformed email, which would
+ * block the sync cursor; anything still invalid after trimming is dropped.
+ */
 export function normalizeEmail(raw: string | null | undefined): string | null {
-  const email = (raw ?? "").trim().toLowerCase();
-  if (!email.includes("@")) return null;
-  const [local, domain] = email.split("@");
-  if (!local || !domain || !domain.includes(".")) return null;
-  return email;
+  const email = (raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^[,;.]+|[,;.]+$/g, "");
+  return EMAIL_SHAPE.test(email) ? email : null;
 }
 
 /**
@@ -145,6 +151,26 @@ export function nextConsultDateYmd(
     if (ymd) return ymd;
   }
   return null;
+}
+
+/**
+ * PatNums that share a GHL contact (duplicate OD patients with one phone).
+ * od_consult_date is per contact, so it must consider every PatNum on it.
+ */
+export function patNumsByContact(
+  contacts: Readonly<Record<string, { ghlContactId: string }>>,
+): (patNum: number) => number[] {
+  const byContact = new Map<string, number[]>();
+  for (const [key, link] of Object.entries(contacts)) {
+    const list = byContact.get(link.ghlContactId) ?? [];
+    list.push(Number(key));
+    byContact.set(link.ghlContactId, list);
+  }
+  return (patNum) => {
+    const id = contacts[String(patNum)]?.ghlContactId;
+    const shared = id ? (byContact.get(id) ?? []) : [];
+    return [...new Set([patNum, ...shared])];
+  };
 }
 
 export function nextScheduledApptDateYmd(

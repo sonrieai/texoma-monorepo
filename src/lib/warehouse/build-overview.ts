@@ -31,6 +31,10 @@ import {
   type AppointmentRecord,
   type AppointmentTypeRecord,
 } from "@/lib/warehouse/types";
+import {
+  emptyMarketingSummary,
+  summarizeOdMarketing,
+} from "@/lib/warehouse/marketing-sources";
 import { emptyArSummary, summarizeArFromBalances } from "@/lib/warehouse/ar";
 import {
   emptyInsuranceMetrics,
@@ -172,6 +176,7 @@ function emptyOverview(
     tcCoordinators: [],
     accountsReceivable: emptyArSummary(),
     insurance: emptyInsuranceMetrics(),
+    marketing: emptyMarketingSummary(),
   };
 }
 
@@ -425,6 +430,21 @@ export function buildOverviewFromSnapshot(
     if (row) row.npClosedDeferred = count;
   }
 
+  const marketing = summarizeOdMarketing({
+    fromYmd,
+    toYmd,
+    referrals: snapshot.referrals,
+    patients: snapshot.patients.map((patient) => ({
+      patientId: patient.patientId,
+      dateFirstVisit: patient.dateFirstVisit,
+    })),
+    appointments: apptRawsAll,
+    procedures: snapshot.procedures,
+    cdt,
+    appointmentsLoadedFromYmd: snapshot.appointmentsLoadedFromYmd,
+    consultShowRate: conversion.npConsultShowRate,
+  });
+
   const denom = show + noShow;
   const showRate = denom > 0 ? show / denom : 0;
 
@@ -483,5 +503,6 @@ export function buildOverviewFromSnapshot(
     tcCoordinators,
     accountsReceivable,
     insurance,
+    marketing,
   };
 }

@@ -21,6 +21,7 @@ import {
   type OdInsPlanRow,
   type OdPatPlanJoinRow,
   type OdPatientRow,
+  type OdReferralAttachRow,
   type OdPaySplitRow,
   type OdProcedureCodeRow,
   type OdProcedureLogRow,
@@ -152,6 +153,16 @@ export async function listOdProductionCentsByPatient(
     params,
   );
   return asRows<{ PatNum: number; Cents: number }>(rows);
+}
+
+/** How the patient heard about the practice. This office stores sources as RefType 1. */
+export async function listOdReferralAttaches(): Promise<OdReferralAttachRow[]> {
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT ra.RefAttachNum, ra.PatNum, ra.RefDate, ra.ItemOrder, r.LName, r.FName
+     FROM refattach ra
+     INNER JOIN referral r ON r.ReferralNum = ra.ReferralNum`,
+  );
+  return asRows<OdReferralAttachRow>(rows);
 }
 
 export async function listOdPatients(

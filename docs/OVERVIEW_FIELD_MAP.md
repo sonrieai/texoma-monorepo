@@ -372,32 +372,38 @@ SC Pre-Authorizations, when any exist: Submitted, Approved, Pending, Approval ra
 
 ## Marketing
 
-GoHighLevel opportunities and ad spend. Open Dental is used only when the CRM has no show rate: the tile then uses the Overview consult show rate.
+Open Dental only. The source is `refattach` joined to `referral`. This office stores those sources with `RefType = 1`. A referral with no first name keeps its last name (`Google`, `Facebook or Instagram`, `TV`). A referral with a first name is one bucket, `Patient referral`. A patient with no referral is `Unknown`. One source per patient: earliest ref date, then item order, then attach id.
+
+GoHighLevel is not used on this page. Ad spend, marketing ROI, cost per arch, $/lead, $/arch, and lead response time stay — because Open Dental does not store them. The Treatment Coordinator journey still uses GoHighLevel opportunities.
 
 | Order | Tile | Calculation |
 |------:|------|-------------|
-| 1 | Total ad spend | Sum of ad spend on paid channels for the lookback window. |
-| 2 | Marketing ROI | Opportunity production dollars ÷ ad spend. Target ≥ 10x. |
-| 3 | Cost / arch | Ad spend ÷ surgery-stage opportunities. Goal under $700. |
-| 4 | Consult show rate | Showed ÷ booked from the CRM. If the CRM has no show rate, Overview consult show rate. |
+| 1 | Total ad spend | Not stored in Open Dental. The tile stays —. |
+| 2 | Marketing ROI | Needs ad spend. The tile stays —. |
+| 3 | Cost / arch | Needs ad spend. The tile stays —. |
+| 4 | Consult show rate | Open Dental consult shows ÷ (shows + no-shows). |
 
 ### Channel performance
 
-One row per channel, then a Total row. Columns:
+One row per Open Dental referral source, then a Total row.
+
+Leads, booked, showed, accepted, and surgery are new patients (`patient.DateFirstVisit` in the period). Booked is a non-cancelled visit. Showed is a complete visit. Accepted is a showed new patient with a completed non-consult procedure. Surgery is a completed `U-AOXS` or `U-AOXD`. Production is completed `ProcFee` in the period for every patient of that source, including patients whose first visit was earlier.
 
 | Order | Column | Calculation |
 |------:|--------|-------------|
-| 1 | Channel | Attribution source. |
-| 2 | Spend | That channel’s ad spend. |
-| 3 | Leads | Opportunities created in the window. |
-| 4 | Booked | Opportunities that reached booked. |
-| 5 | Showed | Opportunities that reached showed. |
-| 6 | Accepted | Opportunities that reached accepted. |
-| 7 | Surgery | Opportunities that reached surgery. |
-| 8 | Production | Sum of opportunity monetary value. |
-| 9 | $/lead | Spend ÷ leads. |
-| 10 | $/arch | Spend ÷ surgery. |
-| 11 | ROI | Production ÷ spend. |
+| 1 | Channel | Open Dental referral name. |
+| 2 | Spend | Not stored. The cell stays —. |
+| 3 | Leads | New patients from that source. |
+| 4 | Booked | Those new patients with a non-cancelled visit. |
+| 5 | Showed | Those new patients with a complete visit. |
+| 6 | Accepted | Showed new patients with a completed non-consult procedure. |
+| 7 | Surgery | New patients with a completed AOX sold code. |
+| 8 | Production | Completed `ProcFee` for patients of that source. |
+| 9 | $/lead | Needs spend. The cell stays —. |
+| 10 | $/arch | Needs spend. The cell stays —. |
+| 11 | ROI | Needs spend. The cell stays —. |
+
+Appointments on the snapshot go back about 365 days. When the selected period starts earlier, booked and showed stop at that window.
 
 ### Where we win & lose
 
@@ -410,13 +416,13 @@ One row per channel, then a Total row. Columns:
 
 | Order | Table column | Calculation |
 |------:|--------------|-------------|
-| 1 | Referral source | Channel name. |
+| 1 | Referral source | Open Dental referral name. |
 | 2 | Leads | Showed, or leads when showed is 0. |
-| 3 | Production | Opportunity dollars. |
+| 3 | Production | Completed `ProcFee` for that source. |
 
 The first ten sources are shown.
 
-Marketing scorecard, top to bottom: Cost per arch, Show rate, Treatment acceptance (accepted ÷ showed), Lead response time, Marketing ROI. Each row is the live value next to its goal. Lead response time is not stored in MySQL.
+Marketing scorecard, top to bottom: Cost per arch, Show rate, Treatment acceptance (accepted ÷ showed), Lead response time, Marketing ROI. Show rate and treatment acceptance come from Open Dental. Cost per arch, lead response time, and marketing ROI stay — .
 
 ## Patients by Area
 

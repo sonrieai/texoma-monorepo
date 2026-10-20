@@ -19,6 +19,7 @@ import type {
 import type { PaymentMix, FinancingVendorMix } from "@/lib/warehouse/payment-mix";
 import type { TcMetrics } from "@/lib/warehouse/tc-metrics";
 import type { TcCoordinatorRow } from "@/lib/tc/coordinator-metrics";
+import type { MarketingSummary } from "@/lib/ghl/marketing";
 
 export type LiveProviderRow = {
   id: string;
@@ -106,6 +107,7 @@ export type LiveOverview = {
   tcCoordinators: TcCoordinatorRow[];
   accountsReceivable: ArSummary;
   insurance: InsuranceMetrics;
+  marketing: MarketingSummary;
   lastSyncedAt: string | null;
   warehouseEmpty: boolean;
 };

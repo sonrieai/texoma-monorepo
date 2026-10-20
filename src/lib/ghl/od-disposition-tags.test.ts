@@ -194,14 +194,42 @@ describe("sync state", () => {
     assert.equal(normalizeEmail(" Ada@Clinic.com "), "ada@clinic.com");
     assert.equal(
       syncAlreadyApplied(
-        { ghlContactId: "abc", noShowTag: "NO SHOWED AOX" },
+        {
+          ghlContactId: "abc",
+          noShowTag: "NO SHOWED AOX",
+          hasFutureAppt: false,
+          activeSequence: "New Inquiries",
+        },
         "NO SHOWED AOX",
+        false,
       ),
       true,
     );
     assert.equal(
-      syncAlreadyApplied({ ghlContactId: "abc", noShowTag: null }, "clear"),
+      syncAlreadyApplied(
+        {
+          ghlContactId: "abc",
+          noShowTag: null,
+          hasFutureAppt: true,
+          activeSequence: "None",
+        },
+        "clear",
+        true,
+      ),
       true,
+    );
+    assert.equal(
+      syncAlreadyApplied(
+        {
+          ghlContactId: "abc",
+          noShowTag: null,
+          hasFutureAppt: false,
+          activeSequence: "New Inquiries",
+        },
+        "leave",
+        true,
+      ),
+      false,
     );
   });
 });

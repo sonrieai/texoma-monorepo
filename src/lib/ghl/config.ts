@@ -19,8 +19,21 @@ export class GhlConfigError extends Error {
 
 export type GhlConfigSource = "json" | "env";
 
+/** Texoma Dentures & Implants sub-account — OD → GHL sync is locked to this location. */
+export const TEXOMA_GHL_LOCATION_ID = "m7Fk4S7LR8eTebuM3QPh";
+
 function normalizeBaseUrl(raw: string | undefined | null): string {
   return (raw?.trim() || defaultGhlBaseUrl()).replace(/\/$/, "");
+}
+
+/** Reject any GHL config that is not the Texoma location. */
+export function assertTexomaGhlLocation(config: GhlConfig): GhlConfig {
+  if (config.locationId !== TEXOMA_GHL_LOCATION_ID) {
+    throw new GhlConfigError(
+      `GoHighLevel location ${config.locationId} is not Texoma (${TEXOMA_GHL_LOCATION_ID}). OD sync only writes to the Texoma sub-account.`,
+    );
+  }
+  return config;
 }
 
 export function isGhlConfiguredFromEnv(): boolean {

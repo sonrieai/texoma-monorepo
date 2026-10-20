@@ -34,6 +34,15 @@ export type OdAppointmentRow = {
   IsNewPatient?: number | boolean | null;
 };
 
+export type OdReferralAttachRow = {
+  RefAttachNum: number;
+  PatNum: number;
+  RefDate: Date | string | null;
+  ItemOrder: number;
+  LName: string | null;
+  FName: string | null;
+};
+
 export type OdPatientRow = {
   PatNum: number;
   Guarantor: number;

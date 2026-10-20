@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { DashboardFrame } from "@/components/shell/DashboardFrame";
 import { FunnelChart } from "@/components/charts/FunnelChart";
 import { HBarChart } from "@/components/charts/DonutChart";
@@ -6,13 +5,9 @@ import { Card, ComboStat, SectionHeading } from "@/components/ui/Cards";
 import { EmptyState } from "@/components/ui/States";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatPct, formatUsd } from "@/lib/metrics";
-import {
-  isGhlConfigured,
-  loadMarketingSummary,
-  type AdChannel,
-  type MarketingScoreItem,
-} from "@/lib/ghl/client";
+import type { AdChannel, MarketingScoreItem } from "@/lib/ghl/marketing";
 import { loadLiveOverview } from "@/lib/warehouse/live";
+import { emptyMarketingSummary } from "@/lib/warehouse/marketing-sources";
 import { rangeFromSearchParams } from "@/lib/ui/period";
 
 export const dynamic = "force-dynamic";
@@ -82,13 +77,6 @@ function Scorecard({ items }: { items: MarketingScoreItem[] }) {
 export default async function MarketingPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const period = rangeFromSearchParams(params);
-  const ghlPromise = Promise.all([
-    isGhlConfigured(),
-    loadMarketingSummary({
-      startYmd: period.start.slice(0, 10),
-      endYmd: period.end.slice(0, 10),
-    }),
-  ]);
 
   let error: string | null = null;
   let data: Awaited<ReturnType<typeof loadLiveOverview>> | null = null;
@@ -99,59 +87,44 @@ export default async function MarketingPage({ searchParams }: PageProps) {
     error = e instanceof Error ? e.message : "Failed to load data";
   }
 
-  const [ghlReady, marketing] = await ghlPromise;
-
-  if ((error || !data) && !ghlReady) {
+  if (error || !data) {
     return (
       <DashboardFrame
         title="Marketing"
-        subtitle="Spend, ROI, and attribution"
+        subtitle="Referral sources and production"
         badge={<StatusBadge variant="error">Unable to load</StatusBadge>}
       >
         <EmptyState
-          title="Unable to load marketing context"
+          title="Unable to load Open Dental"
           description={error ?? ""}
         />
       </DashboardFrame>
     );
   }
 
-  const conv = data?.conversion;
-  const consultShowRate =
-    conv?.npConsultShowRate != null
-      ? conv.npConsultShowRate
-      : (data?.showRate ?? 0);
+  const marketing = data.marketing ?? emptyMarketingSummary();
   const t = marketing.totals;
   const lookbackNote = `last ${marketing.lookbackDays}d`;
+  const showRate = marketing.showRate;
 
   return (
     <DashboardFrame
       title="Marketing"
-      subtitle="Spend, ROI, and attribution"
+      subtitle="Referral sources and production"
       badge={
-        ghlReady ? (
-          <StatusBadge variant="live">CRM connected</StatusBadge>
+        marketing.available ? (
+          <StatusBadge variant="live">Open Dental</StatusBadge>
         ) : (
-          <StatusBadge variant="offline">CRM not connected</StatusBadge>
+          <StatusBadge variant="offline">No marketing data</StatusBadge>
         )
       }
     >
-      {error ? (
-        <p className="mb-4 text-[12px] text-warn">
-          Practice totals from Open Dental did not load ({error}). Channel
-          numbers below are live from GoHighLevel.
-        </p>
-      ) : null}
       <SectionHeading title="Cockpit" />
       <div className="mb-4 grid grid-cols-2 items-stretch gap-2.5 md:grid-cols-4">
         <ComboStat
           label="Total ad spend"
           value={t.spend > 0 ? formatUsd(t.spend) : "—"}
-          note={
-            t.spend > 0
-              ? `paid channels · ${lookbackNote}`
-              : "ad spend not connected yet"
-          }
+          note="not stored in Open Dental"
         />
         <ComboStat
           label="Marketing ROI"
@@ -187,50 +160,31 @@ export default async function MarketingPage({ searchParams }: PageProps) {
         />
         <ComboStat
           label="Consult show rate"
-          value={formatPct(
-            marketing.showRate != null ? marketing.showRate : consultShowRate,
-          )}
-          note={
-            marketing.showRate != null
-              ? `Booked → showed · ${lookbackNote}`
-              : "Booked → showed"
-          }
+          value={showRate != null ? formatPct(showRate) : "—"}
+          note="Consult shows"
           status={
-            (marketing.showRate ?? consultShowRate) >= 0.75
-              ? "good"
-              : (marketing.showRate ?? consultShowRate) >= 0.65
-                ? "warn"
-                : "neutral"
+            showRate == null
+              ? "neutral"
+              : showRate >= 0.75
+                ? "good"
+                : showRate >= 0.65
+                  ? "warn"
+                  : "neutral"
           }
         />
       </div>
 
       <SectionHeading title="Spend & funnel by channel" />
-      {!ghlReady ? (
+      {!marketing.available && marketing.channels.length === 0 ? (
         <EmptyState
-          title="Marketing channels not connected"
-          description="Add your GoHighLevel API key and Location ID in Settings to show leads, funnel, and referral sources."
-        >
-          <Link
-            href="/settings/ghl"
-            className="inline-flex min-h-9 items-center rounded-lg bg-accent2 px-4 py-2 text-[12.5px] font-semibold text-white transition hover:opacity-95"
-          >
-            Configure GoHighLevel
-          </Link>
-        </EmptyState>
-      ) : !marketing.available && marketing.channels.length === 0 ? (
-        <EmptyState
-          title="No opportunities in range"
-          description={
-            marketing.notices[0] ??
-            `No Marketing Pipeline opportunities in this period (${marketing.lookbackDays} days).`
-          }
+          title="No marketing activity in this period"
+          description="Open Dental had no referred patients or production in this period."
         />
       ) : (
         <>
           <Card
             title="Channel performance"
-            subtitle={`${marketing.opportunityCount} opportunities · ${lookbackNote}${t.spend > 0 ? "" : " · connect GHL Ad Manager for spend"}`}
+            subtitle={`${marketing.opportunityCount} new patients · ${lookbackNote}`}
             className="mb-4 overflow-x-auto"
           >
             <table className="w-full min-w-[880px] border-collapse text-[12.5px]">
@@ -354,7 +308,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
             </Card>
             <Card
               title="Production by source"
-              subtitle="Opportunity monetary value by attribution"
+              subtitle="Completed fees by referral source"
             >
               {marketing.channels.some((c) => c.production > 0) ? (
                 <HBarChart
@@ -366,8 +320,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
                 />
               ) : (
                 <p className="m-0 text-[12px] text-muted">
-                  No monetary values on opportunities yet — production bars fill
-                  when deals have dollar amounts in the CRM.
+                  No production on these sources in this period.
                 </p>
               )}
             </Card>
@@ -416,7 +369,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
         </>
       )}
 
-      {marketing.notices.length > 0 && ghlReady ? (
+      {marketing.notices.length > 0 ? (
         <p className="m-0 text-[11.5px] text-muted">
           {marketing.notices.join(" ")}
         </p>

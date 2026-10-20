@@ -1,19 +1,35 @@
 /**
  * Poll Open Dental for new patients and appointment dispositions,
- * then upsert one GoHighLevel contact, new-patient tags, and one no-show tag.
+ * then resolve contact → appointment → Active Sequence (spec order).
  */
 
-import { getGhlConfig } from "@/lib/ghl/config";
+import { upsertGhlAppointment } from "@/lib/ghl/appointments";
 import {
+  assertTexomaGhlLocation,
+  getGhlConfig,
+  isGhlConfiguredFromEnv,
+} from "@/lib/ghl/config";
+import {
+  flagUnclearMatch,
+  resolveGhlContact,
+} from "@/lib/ghl/contact-resolve";
+import {
+  ACTIVE_SEQUENCE,
   addContactTags,
+  applySmsConsentDnd,
+  createGhlContact,
   replaceNoShowTag,
+  setActiveSequence,
+  setOdApptBookedTag,
   updateGhlContact,
-  upsertGhlContact,
   type GhlContactInput,
 } from "@/lib/ghl/contacts";
+import { upsertOdSyncLastSuccess } from "@/lib/ghl/custom-values";
 import { GhlApiError } from "@/lib/ghl/http";
+import { defaultGhlBaseUrl } from "@/lib/mongo/integration-settings";
 import {
   appointmentTagEffect,
+  classifyConfirmName,
   consultLineForAppointment,
   foldTagEffects,
   isSoldProcedureCode,
@@ -26,38 +42,87 @@ import {
 import {
   readOdGhlSyncState,
   writeOdGhlSyncState,
+  type OdGhlAppointmentLink,
   type OdGhlContactLink,
 } from "@/lib/ghl/od-ghl-sync-state";
-import { normalizeEmail, normalizeUsPhone, syncAlreadyApplied } from "@/lib/ghl/od-ghl-sync-plan";
+import {
+  missedSignalFromAppointment,
+  nextConsultDateYmd,
+  nextScheduledApptDateYmd,
+  normalizeEmail,
+  normalizeUsPhone,
+  resolveActiveSequence,
+  smsConsentAction,
+  toCentralYmd,
+} from "@/lib/ghl/od-ghl-sync-plan";
+import { ensureNoShowCancelledOpportunity } from "@/lib/ghl/opportunity-stage";
 import {
   listOdAppointmentProcedureCodes,
   listOdAppointmentsForGhlSync,
+  listOdFutureAppointmentsForPatients,
   listOdPatientsForGhlByIds,
   listOdPatientsForGhlSync,
   listOdSoldProceduresForGhlSync,
   odDatabaseNow,
   odStampToCursor,
+  type OdGhlAppointmentRow,
+  type OdGhlFutureAppointmentRow,
   type OdGhlPatientContactRow,
 } from "@/lib/opendental/ghl-sync-queries";
 import { OdAptStatus, OdProcStatus } from "@/lib/opendental/types";
 import type { GhlConfig } from "@/lib/ghl/types";
 
+export type OdGhlSyncOptions = {
+  /** When true, count patients only — no GHL writes and no cursor advance. */
+  dryRun?: boolean;
+};
+
 export type OdGhlSyncResult = {
   initializedCursor: boolean;
+  dryRun: boolean;
   patients: number;
+  withFutureAppt: number;
+  nurtureEligible: number;
   upserted: number;
   tagged: number;
   cleared: number;
   unchanged: number;
   skippedNoContact: number;
   failed: number;
+  appointmentsWritten: number;
+  lastSuccessfulRunAt?: string | null;
 };
 
 type TimedEffect = { at: string; effect: TagEffect };
 
+/** OD sync always uses the Texoma sub-account (env preferred over Settings). */
+async function getTexomaGhlConfigForSync(): Promise<GhlConfig> {
+  if (isGhlConfiguredFromEnv()) {
+    const locationId = process.env.GHL_LOCATION_ID!.trim();
+    const apiKey = process.env.GHL_API_KEY!.trim();
+    return assertTexomaGhlLocation({
+      apiKey,
+      locationId,
+      baseUrl: (process.env.GHL_BASE_URL?.trim() || defaultGhlBaseUrl()).replace(
+        /\/$/,
+        "",
+      ),
+      sourceCustomFieldId:
+        process.env.GHL_SOURCE_CUSTOM_FIELD_ID?.trim() || null,
+    });
+  }
+  return assertTexomaGhlLocation(await getGhlConfig());
+}
+
 function laterCursor(current: string, stamp: string | null): string {
   if (!stamp || stamp <= current) return current;
   return stamp;
+}
+
+function todayYmd(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
 export function patientContactInput(
@@ -87,11 +152,64 @@ function mergeNewPatientTags(
   return tags;
 }
 
+function pickPrimaryAppointment(
+  future: readonly OdGhlFutureAppointmentRow[],
+  changed: readonly OdGhlAppointmentRow[],
+): OdGhlAppointmentRow | OdGhlFutureAppointmentRow | null {
+  if (future.length > 0) return future[0] ?? null;
+  const scheduled = changed
+    .filter((row) => row.AptStatus === OdAptStatus.Scheduled)
+    .sort((a, b) =>
+      String(a.AptDateTime ?? "").localeCompare(String(b.AptDateTime ?? "")),
+    );
+  if (scheduled[0]) return scheduled[0];
+  const any = [...changed].sort((a, b) =>
+    String(b.DateTStamp ?? "").localeCompare(String(a.DateTStamp ?? "")),
+  );
+  return any[0] ?? null;
+}
+
+function detectMissedSignal(
+  changedAppts: readonly OdGhlAppointmentRow[],
+): ReturnType<typeof missedSignalFromAppointment> {
+  let latest: ReturnType<typeof missedSignalFromAppointment> = null;
+  let latestStamp = "";
+  for (const appt of changedAppts) {
+    const family = classifyConfirmName(appt.ConfirmedName)?.family ?? null;
+    const confirmFamily =
+      family === "no_show" ||
+      family === "team_cancel" ||
+      family === "patient_cancel" ||
+      family === "reschedule"
+        ? family
+        : null;
+    const signal = missedSignalFromAppointment({
+      aptStatus: appt.AptStatus,
+      brokenStatus: OdAptStatus.Broken,
+      confirmFamily:
+        confirmFamily === "reschedule" ? null : confirmFamily,
+      aptDateTime: appt.AptDateTime,
+    });
+    if (!signal) continue;
+    const stamp = odStampToCursor(appt.DateTStamp) ?? "";
+    if (!latest || stamp >= latestStamp) {
+      latest = signal;
+      latestStamp = stamp;
+    }
+  }
+  return latest;
+}
+
 async function applyPatient(params: {
   input: GhlContactInput | null;
+  patientRow: OdGhlPatientContactRow | null;
   effect: TagEffect;
   lines: readonly ConsultLine[];
   previous: OdGhlContactLink | null;
+  hasFutureAppt: boolean;
+  futureAppts: readonly OdGhlFutureAppointmentRow[];
+  changedAppts: readonly OdGhlAppointmentRow[];
+  codesByApt: Map<number, string[]>;
   config: GhlConfig;
 }): Promise<
   | { kind: "skipped" }
@@ -99,16 +217,55 @@ async function applyPatient(params: {
       kind: "ok";
       upserted: boolean;
       tagChange: "tagged" | "cleared" | "unchanged";
+      appointmentsWritten: number;
       link: OdGhlContactLink;
     }
 > {
   let contactId = params.previous?.ghlContactId;
   let upserted = false;
-  let firstSend = !contactId;
+  let isNewContact = !contactId;
+  const primary = pickPrimaryAppointment(
+    params.futureAppts,
+    params.changedAppts,
+  );
 
-  if (contactId && params.input) {
+  const consultDate = nextConsultDateYmd(
+    params.futureAppts.map((row) => ({
+      AptDateTime: row.AptDateTime,
+      isConsult: Boolean(
+        consultLineForAppointment({
+          appointmentTypeName: row.AppointmentTypeName,
+          procedureCodes: params.codesByApt.get(row.AptNum) ?? [],
+        }),
+      ),
+    })),
+  );
+  const missed = detectMissedSignal(params.changedAppts);
+  const nextApptAfterMiss = missed
+    ? nextScheduledApptDateYmd(params.futureAppts)
+    : null;
+
+  const baseInput: GhlContactInput | null = params.input
+    ? {
+        ...params.input,
+        aptNum: primary?.AptNum ?? null,
+        lastSyncYmd: todayYmd(),
+        consultDateYmd: consultDate,
+        clearConsultDate: !consultDate,
+        ...(missed
+          ? {
+              missedApptDateYmd: missed.missedDateYmd,
+              nextApptDateYmd: nextApptAfterMiss,
+              clearNextApptDate: !nextApptAfterMiss,
+            }
+          : {}),
+      }
+    : null;
+
+  // 1. Resolve / create / update contact (no Active Sequence yet)
+  if (contactId && baseInput) {
     try {
-      await updateGhlContact(contactId, params.input, params.config);
+      await updateGhlContact(contactId, baseInput, params.config);
     } catch (err) {
       if (err instanceof GhlApiError && err.status === 404) contactId = undefined;
       else throw err;
@@ -116,32 +273,131 @@ async function applyPatient(params: {
   }
 
   if (!contactId) {
-    if (!params.input) return { kind: "skipped" };
-    contactId = await upsertGhlContact(params.input, params.config);
-    upserted = true;
-    firstSend = true;
+    if (!baseInput) return { kind: "skipped" };
+    const resolved = await resolveGhlContact(
+      {
+        patNum: baseInput.patNum,
+        phone: baseInput.phone,
+        email: baseInput.email,
+      },
+      params.config,
+    );
+    if (resolved.kind === "unclear") {
+      await flagUnclearMatch(resolved.contactIds, params.config);
+      console.error(
+        `GoHighLevel match unclear for PatNum ${baseInput.patNum}: ${resolved.reason}`,
+      );
+      return { kind: "skipped" };
+    }
+    if (resolved.kind === "found") {
+      contactId = resolved.contactId;
+      await updateGhlContact(contactId, baseInput, params.config);
+      isNewContact = false;
+    } else {
+      contactId = await createGhlContact(baseInput, params.config);
+      upserted = true;
+      isNewContact = true;
+    }
   }
 
-  const tagsToAdd = firstSend
+  // Text OK → SMS DND every run (Yes never clears existing DND)
+  if (params.patientRow) {
+    await applySmsConsentDnd({
+      contactId,
+      action: smsConsentAction(params.patientRow.TxtMsgOk),
+      config: params.config,
+    });
+  }
+
+  const tagsToAdd = isNewContact
     ? pendingNewPatientTags(null, params.lines)
     : pendingNewPatientTags(params.previous, params.lines);
   if (tagsToAdd.length > 0) {
     await addContactTags(contactId, tagsToAdd, params.config);
   }
   const newPatientTags =
-    firstSend || params.previous?.newPatientTags
+    isNewContact || params.previous?.newPatientTags
       ? mergeNewPatientTags(params.previous?.newPatientTags, tagsToAdd)
       : undefined;
 
+  // 2. Real GHL appointments (before Active Sequence); toNotify stays false
+  const appointments: Record<string, OdGhlAppointmentLink> = {
+    ...(params.previous?.appointments ?? {}),
+  };
+  let appointmentsWritten = 0;
+  const toWrite = new Map<number, OdGhlAppointmentRow | OdGhlFutureAppointmentRow>();
+  for (const row of params.changedAppts) toWrite.set(row.AptNum, row);
+  for (const row of params.futureAppts) {
+    if (!toWrite.has(row.AptNum)) toWrite.set(row.AptNum, row);
+  }
+  for (const appt of toWrite.values()) {
+    const key = String(appt.AptNum);
+    const previousEventId = appointments[key]?.ghlEventId ?? null;
+    const eventId = await upsertGhlAppointment({
+      contactId,
+      previousEventId,
+      appointment: {
+        aptNum: appt.AptNum,
+        aptStatus: appt.AptStatus,
+        aptDateTime: appt.AptDateTime,
+        pattern: appt.Pattern,
+        title: appt.AppointmentTypeName,
+      },
+      config: params.config,
+    });
+    if (eventId) {
+      appointments[key] = { ghlEventId: eventId };
+      appointmentsWritten += 1;
+    }
+  }
+
+  // 3. Active Sequence last + od-appt-booked (New Inquiries only for new contacts)
+  const sequence = resolveActiveSequence({
+    hasFutureAppt: params.hasFutureAppt,
+    isNewContact,
+  });
+  await setOdApptBookedTag({
+    contactId,
+    booked: params.hasFutureAppt,
+    previouslyBooked: params.previous?.hasFutureAppt === true,
+    config: params.config,
+  });
+  if (sequence) {
+    await setActiveSequence(contactId, sequence, params.config);
+  }
+
+  if (missed) {
+    const name = [baseInput?.firstName, baseInput?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    await ensureNoShowCancelledOpportunity({
+      contactId,
+      contactName: name || `PatNum ${baseInput?.patNum ?? ""}`,
+      config: params.config,
+    });
+  }
+
   const previousTag = params.previous?.noShowTag ?? null;
   const linkTags = newPatientTags ? { newPatientTags } : {};
+  const linkExtra = {
+    appointments: Object.keys(appointments).length > 0 ? appointments : undefined,
+    hasFutureAppt: params.hasFutureAppt,
+    activeSequence: sequence ?? params.previous?.activeSequence ?? null,
+  };
 
   if (params.effect === "leave") {
     return {
       kind: "ok",
       upserted,
       tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
-      link: { ghlContactId: contactId, noShowTag: previousTag, ...linkTags },
+      appointmentsWritten,
+      link: {
+        ghlContactId: contactId,
+        noShowTag: previousTag,
+        ...linkTags,
+        ...linkExtra,
+      },
     };
   }
 
@@ -156,14 +412,26 @@ async function applyPatient(params: {
         kind: "ok",
         upserted,
         tagChange: "cleared",
-        link: { ghlContactId: contactId, noShowTag: null, ...linkTags },
+        appointmentsWritten,
+        link: {
+          ghlContactId: contactId,
+          noShowTag: null,
+          ...linkTags,
+          ...linkExtra,
+        },
       };
     }
     return {
       kind: "ok",
       upserted,
       tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
-      link: { ghlContactId: contactId, noShowTag: null, ...linkTags },
+      appointmentsWritten,
+      link: {
+        ghlContactId: contactId,
+        noShowTag: null,
+        ...linkTags,
+        ...linkExtra,
+      },
     };
   }
 
@@ -173,7 +441,13 @@ async function applyPatient(params: {
       kind: "ok",
       upserted,
       tagChange: tagsToAdd.length > 0 ? "tagged" : "unchanged",
-      link: { ghlContactId: contactId, noShowTag: next, ...linkTags },
+      appointmentsWritten,
+      link: {
+        ghlContactId: contactId,
+        noShowTag: next,
+        ...linkTags,
+        ...linkExtra,
+      },
     };
   }
   await replaceNoShowTag({ contactId, next, config: params.config });
@@ -181,25 +455,47 @@ async function applyPatient(params: {
     kind: "ok",
     upserted,
     tagChange: "tagged",
-    link: { ghlContactId: contactId, noShowTag: next, ...linkTags },
+    appointmentsWritten,
+    link: {
+      ghlContactId: contactId,
+      noShowTag: next,
+      ...linkTags,
+      ...linkExtra,
+    },
   };
 }
 
-export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
+export async function runOdGhlSync(
+  options: OdGhlSyncOptions = {},
+): Promise<OdGhlSyncResult> {
+  const dryRun =
+    options.dryRun === true ||
+    process.env.GHL_OD_SYNC_DRY_RUN?.trim() === "1";
+
+  const empty = (partial: Partial<OdGhlSyncResult>): OdGhlSyncResult => ({
+    initializedCursor: false,
+    dryRun,
+    patients: 0,
+    withFutureAppt: 0,
+    nurtureEligible: 0,
+    upserted: 0,
+    tagged: 0,
+    cleared: 0,
+    unchanged: 0,
+    skippedNoContact: 0,
+    failed: 0,
+    appointmentsWritten: 0,
+    ...partial,
+  });
+
   const state = await readOdGhlSyncState();
   if (!state.cursor) {
+    if (dryRun) {
+      return empty({ initializedCursor: true });
+    }
     state.cursor = await odDatabaseNow();
     await writeOdGhlSyncState(state);
-    return {
-      initializedCursor: true,
-      patients: 0,
-      upserted: 0,
-      tagged: 0,
-      cleared: 0,
-      unchanged: 0,
-      skippedNoContact: 0,
-      failed: 0,
-    };
+    return empty({ initializedCursor: true });
   }
 
   const since = state.cursor;
@@ -220,6 +516,7 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
 
   const events = new Map<number, TimedEffect[]>();
   const linesByPatient = new Map<number, ConsultLine[]>();
+  const changedApptsByPatient = new Map<number, OdGhlAppointmentRow[]>();
   const touch = (patNum: number, event: TimedEffect) => {
     const list = events.get(patNum) ?? [];
     list.push(event);
@@ -242,6 +539,9 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     const at = odStampToCursor(appt.DateTStamp);
     cursor = laterCursor(cursor, at);
     if (!at) continue;
+    const list = changedApptsByPatient.get(appt.PatNum) ?? [];
+    list.push(appt);
+    changedApptsByPatient.set(appt.PatNum, list);
     const procedureCodes = codesByApt.get(appt.AptNum) ?? [];
     noteLine(
       appt.PatNum,
@@ -276,13 +576,49 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     patientsById.set(row.PatNum, row);
   }
 
-  const config = events.size > 0 ? await getGhlConfig() : null;
+  const futureRows = await listOdFutureAppointmentsForPatients([...events.keys()]);
+  const futureByPatient = new Map<number, OdGhlFutureAppointmentRow[]>();
+  for (const row of futureRows) {
+    const list = futureByPatient.get(row.PatNum) ?? [];
+    list.push(row);
+    futureByPatient.set(row.PatNum, list);
+  }
+
+  // Procedure codes for future consult detection
+  const futureAptNums = futureRows.map((r) => r.AptNum);
+  if (futureAptNums.length > 0) {
+    const futureCodes = await listOdAppointmentProcedureCodes(futureAptNums);
+    for (const row of futureCodes) {
+      const list = codesByApt.get(row.AptNum) ?? [];
+      list.push(row.ProcCode);
+      codesByApt.set(row.AptNum, list);
+    }
+  }
+
+  let withFutureAppt = 0;
+  let nurtureEligible = 0;
+  for (const patNum of events.keys()) {
+    const hasFuture = (futureByPatient.get(patNum) ?? []).length > 0;
+    if (hasFuture) withFutureAppt += 1;
+    else nurtureEligible += 1;
+  }
+
+  if (dryRun) {
+    return empty({
+      patients: events.size,
+      withFutureAppt,
+      nurtureEligible,
+    });
+  }
+
+  const config = events.size > 0 ? await getTexomaGhlConfigForSync() : null;
   let upserted = 0;
   let tagged = 0;
   let cleared = 0;
   let unchanged = 0;
   let skippedNoContact = 0;
   let failed = 0;
+  let appointmentsWritten = 0;
 
   for (const [patNum, list] of events) {
     const effect = foldTagEffects(
@@ -291,22 +627,23 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     const key = String(patNum);
     const previous = state.contacts[key] ?? null;
     const lines = linesByPatient.get(patNum) ?? [];
-    if (
-      syncAlreadyApplied(previous, effect) &&
-      pendingNewPatientTags(previous, lines).length === 0
-    ) {
-      unchanged += 1;
-      continue;
-    }
-    const row = patientsById.get(patNum);
+    const futureAppts = futureByPatient.get(patNum) ?? [];
+    const hasFutureAppt = futureAppts.length > 0;
+    // Always process event patients so Text OK→DND and date fields refresh every run.
+    const row = patientsById.get(patNum) ?? null;
     const input = row ? patientContactInput(row) : null;
     if (!config) continue;
     try {
       const outcome = await applyPatient({
         input,
+        patientRow: row,
         effect,
         lines,
         previous,
+        hasFutureAppt,
+        futureAppts,
+        changedAppts: changedApptsByPatient.get(patNum) ?? [],
+        codesByApt,
         config,
       });
       if (outcome.kind === "skipped") {
@@ -314,6 +651,7 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
         continue;
       }
       state.contacts[key] = outcome.link;
+      appointmentsWritten += outcome.appointmentsWritten;
       if (outcome.upserted) upserted += 1;
       if (outcome.tagChange === "tagged") tagged += 1;
       else if (outcome.tagChange === "cleared") cleared += 1;
@@ -321,21 +659,53 @@ export async function runOdGhlSync(): Promise<OdGhlSyncResult> {
     } catch (err) {
       failed += 1;
       const status = err instanceof GhlApiError ? ` (${err.status})` : "";
-      console.error(`GoHighLevel sync failed for PatNum ${patNum}${status}`);
+      const message = err instanceof Error ? err.message : "unknown";
+      console.error(`GoHighLevel sync failed for PatNum ${patNum}${status}: ${message}`);
     }
   }
 
-  if (failed === 0) state.cursor = cursor;
+  let lastSuccessfulRunAt = state.lastSuccessfulRunAt ?? null;
+  if (failed === 0) {
+    state.cursor = cursor;
+    lastSuccessfulRunAt = new Date().toISOString();
+    state.lastSuccessfulRunAt = lastSuccessfulRunAt;
+    if (config) {
+      try {
+        await upsertOdSyncLastSuccess(lastSuccessfulRunAt, config);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "unknown";
+        console.error(`GoHighLevel sync heartbeat failed: ${message}`);
+      }
+    } else {
+      // No patient events — still heartbeat when GHL is configured.
+      try {
+        const hbConfig = await getTexomaGhlConfigForSync();
+        await upsertOdSyncLastSuccess(lastSuccessfulRunAt, hbConfig);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "unknown";
+        console.error(`GoHighLevel sync heartbeat failed: ${message}`);
+      }
+    }
+  }
   await writeOdGhlSyncState(state);
 
-  return {
-    initializedCursor: false,
+  return empty({
     patients: events.size,
+    withFutureAppt,
+    nurtureEligible,
     upserted,
     tagged,
     cleared,
     unchanged,
     skippedNoContact,
     failed,
-  };
+    appointmentsWritten,
+    lastSuccessfulRunAt,
+  });
 }
+
+/** Exported for tests — Active Sequence values used by the sync. */
+export const SYNC_ACTIVE_SEQUENCE = ACTIVE_SEQUENCE;
+
+// Re-export for callers that still reference Central date helper.
+export { toCentralYmd };

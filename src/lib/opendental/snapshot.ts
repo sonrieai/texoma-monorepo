@@ -85,9 +85,11 @@ import {
   listOdProcedureCodes,
   listOdProcedureLogs,
   listOdProviders,
+  listOdReferralAttaches,
   listOdTreatPlans,
   type OdDateWindow,
 } from "@/lib/opendental/queries";
+import type { ReferralAttach } from "@/lib/warehouse/marketing-sources";
 import {
   indexPatientsForPhiStrip,
   stripPhiFromPatientRecord,
@@ -132,6 +134,9 @@ export type OpenDentalSnapshot = {
     name: string;
     hidden: boolean;
   }>;
+  referrals: ReferralAttach[];
+  /** First appointment day included in this snapshot. */
+  appointmentsLoadedFromYmd: string;
 };
 
 function ymdDaysAgo(days: number): string {
@@ -196,6 +201,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     procedureCodeRows,
     procCatRows,
     paymentTypeDefs,
+    referralRows,
   ] = await Promise.all([
     listOdProviders(),
     listOdAppointmentTypes(),
@@ -214,6 +220,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     listOdProcedureCodes(),
     listOdProcCatDefinitions(),
     listOdPaymentTypeDefinitions(),
+    listOdReferralAttaches(),
   ]);
 
   const paymentTypeMaps = buildPaymentTypeDefMaps(paymentTypeDefs);
@@ -333,6 +340,15 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     insurancePaymentTypeDefNums: insurancePayTypeIds,
     paymentTypeClassification,
     procedureCategories,
+    referrals: referralRows.map((row) => ({
+      patientId: row.PatNum,
+      refDate: odDateToYmd(row.RefDate),
+      itemOrder: Number(row.ItemOrder) || 0,
+      attachId: row.RefAttachNum,
+      lastName: row.LName?.trim() ?? "",
+      firstName: row.FName?.trim() ?? "",
+    })),
+    appointmentsLoadedFromYmd: apptWindow.startYmd,
   };
 }
 

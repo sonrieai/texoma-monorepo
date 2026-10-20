@@ -13,20 +13,32 @@ import {
   type NoShowTag,
 } from "@/lib/ghl/od-disposition-tags";
 
+export type OdGhlAppointmentLink = {
+  ghlEventId: string;
+};
+
 export type OdGhlContactLink = {
   ghlContactId: string;
   noShowTag: NoShowTag | null;
   /** Present after this app has sent new-patient tags for the contact. */
   newPatientTags?: NewPatientTag[];
+  /** AptNum → GHL calendar event id. */
+  appointments?: Record<string, OdGhlAppointmentLink>;
+  /** Last known has_future_appt from middleware. */
+  hasFutureAppt?: boolean;
+  /** Last Active Sequence value written by this sync. */
+  activeSequence?: string | null;
 };
 
 export type OdGhlSyncState = {
   cursor: string | null;
   contacts: Record<string, OdGhlContactLink>;
+  /** ISO timestamp of last run with failed === 0. */
+  lastSuccessfulRunAt?: string | null;
 };
 
 function emptyState(): OdGhlSyncState {
-  return { cursor: null, contacts: {} };
+  return { cursor: null, contacts: {}, lastSuccessfulRunAt: null };
 }
 
 export function getOdGhlSyncStatePath(): string {
@@ -49,6 +61,21 @@ function isNewPatientTag(value: unknown): value is NewPatientTag {
   );
 }
 
+function normalizeAppointments(
+  raw: unknown,
+): Record<string, OdGhlAppointmentLink> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, OdGhlAppointmentLink> = {};
+  for (const [aptNum, link] of Object.entries(raw)) {
+    if (!/^\d+$/.test(aptNum)) continue;
+    if (!link || typeof link !== "object") continue;
+    const id = (link as OdGhlAppointmentLink).ghlEventId;
+    if (typeof id !== "string" || !id.trim()) continue;
+    out[aptNum] = { ghlEventId: id.trim() };
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
   const parsed =
     raw && typeof raw === "object" ? (raw as Partial<OdGhlSyncState>) : {};
@@ -65,17 +92,32 @@ export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
     const newPatientTags = Array.isArray(rawTags)
       ? rawTags.filter(isNewPatientTag)
       : undefined;
+    const appointments = normalizeAppointments(
+      (link as OdGhlContactLink).appointments,
+    );
+    const hasFutureAppt = (link as OdGhlContactLink).hasFutureAppt;
+    const activeSequence = (link as OdGhlContactLink).activeSequence;
     contacts[patNum] = {
       ghlContactId: id.trim(),
       noShowTag: isNoShowTag(tag) ? tag : null,
       ...(newPatientTags ? { newPatientTags } : {}),
+      ...(appointments ? { appointments } : {}),
+      ...(typeof hasFutureAppt === "boolean" ? { hasFutureAppt } : {}),
+      ...(typeof activeSequence === "string" || activeSequence === null
+        ? { activeSequence }
+        : {}),
     };
   }
   const cursor =
     typeof parsed.cursor === "string" && parsed.cursor.trim()
       ? parsed.cursor.trim()
       : null;
-  return { cursor, contacts };
+  const lastSuccessfulRunAt =
+    typeof parsed.lastSuccessfulRunAt === "string" &&
+    parsed.lastSuccessfulRunAt.trim()
+      ? parsed.lastSuccessfulRunAt.trim()
+      : null;
+  return { cursor, contacts, lastSuccessfulRunAt };
 }
 
 function usesMongoSyncState(): boolean {

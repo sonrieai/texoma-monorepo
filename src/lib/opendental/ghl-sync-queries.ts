@@ -9,6 +9,7 @@ import { queryOpenDental } from "@/lib/opendental/mysql";
 import { odHasColumn } from "@/lib/opendental/schema-columns";
 import {
   OD_DEF_CAT_APPT_CONFIRMED,
+  OdAptStatus,
   OdProcStatus,
 } from "@/lib/opendental/types";
 
@@ -23,6 +24,8 @@ export type OdGhlPatientContactRow = {
   HmPhone: string | null;
   WirelessPhone: string | null;
   Email: string | null;
+  /** Open Dental YN: 0 Unknown, 1 Yes, 2 No. */
+  TxtMsgOk: number | null;
   DateTStamp: Date | string | null;
 };
 
@@ -30,9 +33,21 @@ export type OdGhlAppointmentRow = {
   AptNum: number;
   PatNum: number;
   AptStatus: number;
+  AptDateTime: Date | string | null;
+  /** Open Dental Pattern chars; each character is typically 5 minutes. */
+  Pattern: string | null;
   DateTStamp: Date | string | null;
   AppointmentTypeName: string | null;
   ConfirmedName: string | null;
+};
+
+export type OdGhlFutureAppointmentRow = {
+  AptNum: number;
+  PatNum: number;
+  AptStatus: number;
+  AptDateTime: Date | string | null;
+  Pattern: string | null;
+  AppointmentTypeName: string | null;
 };
 
 export type OdGhlProcCodeRow = {
@@ -98,10 +113,15 @@ async function patientSelectList(): Promise<string> {
   if (await odHasColumn("patient", "WirelessPhone")) parts.push("WirelessPhone");
   if (await odHasColumn("patient", "HmPhone")) parts.push("HmPhone");
   if (await odHasColumn("patient", "Email")) parts.push("Email");
+  if (await odHasColumn("patient", "TxtMsgOk")) parts.push("TxtMsgOk");
   return parts.join(", ");
 }
 
 function normalizePatient(row: OdGhlPatientContactRow): OdGhlPatientContactRow {
+  const txt =
+    row.TxtMsgOk == null || row.TxtMsgOk === ("" as unknown)
+      ? null
+      : Number(row.TxtMsgOk);
   return {
     PatNum: Number(row.PatNum),
     FName: row.FName ?? null,
@@ -109,6 +129,7 @@ function normalizePatient(row: OdGhlPatientContactRow): OdGhlPatientContactRow {
     HmPhone: row.HmPhone ?? null,
     WirelessPhone: row.WirelessPhone ?? null,
     Email: row.Email ?? null,
+    TxtMsgOk: Number.isFinite(txt) ? txt : null,
     DateTStamp: row.DateTStamp ?? null,
   };
 }
@@ -147,11 +168,28 @@ export async function listOdPatientsForGhlByIds(
   return out;
 }
 
+function normalizeAppointmentRow(row: OdGhlAppointmentRow): OdGhlAppointmentRow {
+  return {
+    AptNum: Number(row.AptNum),
+    PatNum: Number(row.PatNum),
+    AptStatus: Number(row.AptStatus),
+    AptDateTime: row.AptDateTime ?? null,
+    Pattern: row.Pattern ?? null,
+    DateTStamp: row.DateTStamp ?? null,
+    AppointmentTypeName: row.AppointmentTypeName ?? null,
+    ConfirmedName: row.ConfirmedName ?? null,
+  };
+}
+
 export async function listOdAppointmentsForGhlSync(
   updatedSince: string,
 ): Promise<OdGhlAppointmentRow[]> {
+  const hasPattern = await odHasColumn("appointment", "Pattern");
+  const patternSelect = hasPattern ? "a.Pattern," : "NULL AS Pattern,";
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT a.AptNum, a.PatNum, a.AptStatus,
+            DATE_FORMAT(a.AptDateTime, '%Y-%m-%d %H:%i:%s') AS AptDateTime,
+            ${patternSelect}
             DATE_FORMAT(a.DateTStamp, '%Y-%m-%d %H:%i:%s') AS DateTStamp,
             atype.AppointmentTypeName AS AppointmentTypeName,
             def.ItemName AS ConfirmedName
@@ -164,14 +202,46 @@ export async function listOdAppointmentsForGhlSync(
      ORDER BY a.DateTStamp, a.AptNum`,
     [OD_DEF_CAT_APPT_CONFIRMED, toOdCursor(updatedSince)],
   );
-  return asRows<OdGhlAppointmentRow>(rows).map((row) => ({
-    AptNum: Number(row.AptNum),
-    PatNum: Number(row.PatNum),
-    AptStatus: Number(row.AptStatus),
-    DateTStamp: row.DateTStamp ?? null,
-    AppointmentTypeName: row.AppointmentTypeName ?? null,
-    ConfirmedName: row.ConfirmedName ?? null,
-  }));
+  return asRows<OdGhlAppointmentRow>(rows).map(normalizeAppointmentRow);
+}
+
+/** Scheduled appointments with AptDateTime in the future for the given patients. */
+export async function listOdFutureAppointmentsForPatients(
+  patNums: number[],
+): Promise<OdGhlFutureAppointmentRow[]> {
+  const ids = [...new Set(patNums.filter((id) => Number.isFinite(id) && id > 0))];
+  if (ids.length === 0) return [];
+  const hasPattern = await odHasColumn("appointment", "Pattern");
+  const patternSelect = hasPattern ? "a.Pattern," : "NULL AS Pattern,";
+  const out: OdGhlFutureAppointmentRow[] = [];
+  for (const group of chunks(ids, IN_CHUNK)) {
+    const placeholders = group.map(() => "?").join(", ");
+    const rows = await queryOpenDental<RowDataPacket>(
+      `SELECT a.AptNum, a.PatNum, a.AptStatus,
+              DATE_FORMAT(a.AptDateTime, '%Y-%m-%d %H:%i:%s') AS AptDateTime,
+              ${patternSelect}
+              atype.AppointmentTypeName AS AppointmentTypeName
+       FROM appointment a
+       LEFT JOIN appointmenttype atype
+         ON atype.AppointmentTypeNum = a.AppointmentTypeNum
+       WHERE a.PatNum IN (${placeholders})
+         AND a.AptStatus = ?
+         AND a.AptDateTime > NOW()
+       ORDER BY a.AptDateTime, a.AptNum`,
+      [...group, OdAptStatus.Scheduled],
+    );
+    for (const row of asRows<OdGhlFutureAppointmentRow>(rows)) {
+      out.push({
+        AptNum: Number(row.AptNum),
+        PatNum: Number(row.PatNum),
+        AptStatus: Number(row.AptStatus),
+        AptDateTime: row.AptDateTime ?? null,
+        Pattern: row.Pattern ?? null,
+        AppointmentTypeName: row.AppointmentTypeName ?? null,
+      });
+    }
+  }
+  return out;
 }
 
 export async function listOdAppointmentProcedureCodes(

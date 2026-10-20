@@ -38,6 +38,18 @@ export async function queryOpenDental<T extends mysql.RowDataPacket>(
   return rows;
 }
 
+/** INSERT / UPDATE / DELETE — returns affected rows + insertId. */
+export async function executeOpenDental(
+  sql: string,
+  params: unknown[] = [],
+): Promise<mysql.ResultSetHeader> {
+  const [result] = await getPool().execute<mysql.ResultSetHeader>(
+    sql,
+    params as ExecuteValues,
+  );
+  return result;
+}
+
 /** Release the pool so a one-shot script can exit. */
 export async function closeOpenDentalMysql(): Promise<void> {
   if (!pool) return;

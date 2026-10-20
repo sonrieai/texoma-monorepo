@@ -101,6 +101,8 @@ export type MarketingSummary = {
   scorecard: MarketingScoreItem[];
   opportunityCount: number;
   lookbackDays: number;
+  /** Median first-response minutes from GoHighLevel. Null when the CRM has none. */
+  responseMinutes: number | null;
 };
 
 type FunnelTier = "lead" | "booked" | "showed" | "accepted" | "surgery";
@@ -149,6 +151,7 @@ function emptySummary(notices: string[]): MarketingSummary {
     scorecard: [],
     opportunityCount: 0,
     lookbackDays: LOOKBACK_DAYS,
+    responseMinutes: null,
   };
 }
 
@@ -426,6 +429,7 @@ export async function loadMarketingSummary(
       }),
       opportunityCount,
       lookbackDays,
+      responseMinutes,
     };
   } catch (e) {
     const msg =

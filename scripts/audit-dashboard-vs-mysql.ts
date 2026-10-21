@@ -294,6 +294,29 @@ async function coordinatorPresented(from: string, to: string) {
   return { Ashlie: byCode.get("N9210") ?? 0, Brie: byCode.get("N9410") ?? 0 };
 }
 
+/** Marketing page: first-visit patients per referral source (earliest attach wins). */
+async function marketingLeads(from: string, to: string): Promise<Map<string, number>> {
+  const refYmd = "IF(ra2.RefDate IS NULL OR ra2.RefDate < '1900-01-01', '9999-99-99', DATE_FORMAT(ra2.RefDate, '%Y-%m-%d'))";
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT CASE
+         WHEN r.ReferralNum IS NULL THEN 'Unknown'
+         WHEN TRIM(COALESCE(r.FName, '')) <> '' THEN 'Patient referral'
+         WHEN TRIM(COALESCE(r.LName, '')) = '' THEN 'Unknown'
+         ELSE TRIM(r.LName) END AS source, COUNT(*) AS n
+     FROM patient p
+     LEFT JOIN refattach ra ON ra.RefAttachNum = (
+       SELECT ra2.RefAttachNum FROM refattach ra2
+       JOIN referral r2 ON r2.ReferralNum = ra2.ReferralNum
+       WHERE ra2.PatNum = p.PatNum
+       ORDER BY ${refYmd}, ra2.ItemOrder, ra2.RefAttachNum LIMIT 1)
+     LEFT JOIN referral r ON r.ReferralNum = ra.ReferralNum
+     WHERE p.DateFirstVisit BETWEEN ? AND ?
+     GROUP BY source`,
+    [from, to],
+  );
+  return new Map(rows.map((r) => [String(r.source), Number(r.n) || 0]));
+}
+
 function fmt(value: number | null, unit: Row["unit"]): string {
   if (value == null) return "—";
   if (unit === "$") return `$${(value / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -399,6 +422,29 @@ async function main() {
       mysql: tc[name] ?? null,
       unit: "n",
     };
+    console.log(
+      `${r.metric.padEnd(40)} dashboard ${fmt(r.dashboard, r.unit).padStart(14)}   mysql ${fmt(r.mysql, r.unit).padStart(14)}   ${verdict(r)}`,
+    );
+  }
+
+  const leads = await marketingLeads(ytd.from, ytd.to);
+  const dashLeads = new Map(ytdOv.marketing.channels.map((c) => [c.name, c.leads]));
+  console.log("");
+  console.log(`=== Marketing page leads by source, ${ytd.label} ===`);
+  const sources = new Set([...leads.keys(), ...dashLeads.keys()]);
+  const leadRows: Row[] = [
+    { metric: "Total leads", dashboard: ytdOv.marketing.totals.leads, mysql: [...leads.values()].reduce((a, b) => a + b, 0), unit: "n" },
+    ...[...sources]
+      .filter((name) => (leads.get(name) ?? 0) > 0 || (dashLeads.get(name) ?? 0) > 0)
+      .sort((a, b) => (leads.get(b) ?? 0) - (leads.get(a) ?? 0))
+      .map((name) => ({
+        metric: `Leads: ${name.slice(0, 32)}`,
+        dashboard: dashLeads.get(name) ?? 0,
+        mysql: leads.get(name) ?? 0,
+        unit: "n" as const,
+      })),
+  ];
+  for (const r of leadRows) {
     console.log(
       `${r.metric.padEnd(40)} dashboard ${fmt(r.dashboard, r.unit).padStart(14)}   mysql ${fmt(r.mysql, r.unit).padStart(14)}   ${verdict(r)}`,
     );

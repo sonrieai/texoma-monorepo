@@ -44,7 +44,10 @@ import {
   type PaymentClassificationOptions,
 } from "@/lib/warehouse/payment-mix";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
-import { collectPresentedPlans } from "@/lib/tc/presented-plans";
+import {
+  collectPresentedPlans,
+  type PlannedCoordinatorMarker,
+} from "@/lib/tc/presented-plans";
 import {
   coordinatorPatientIds,
   planPatientId,
@@ -278,12 +281,14 @@ export function summarizeTcMetrics(params: {
   soonercarePatientIds?: ReadonlySet<number>;
   /** Same PayType definitions as the Overview payment mix. */
   paymentClassifyOptions?: PaymentClassificationOptions;
+  plannedCoordinatorMarkers?: readonly PlannedCoordinatorMarker[];
 }): TcMetrics {
   const notices: string[] = [];
   const coordinator = params.coordinator;
   const presentedEvents = collectPresentedPlans({
     procedures: params.procedures,
     providers: params.providers,
+    plannedMarkers: params.plannedCoordinatorMarkers,
     plans: params.plans,
     fromYmd: params.fromYmd,
     toYmd: params.toYmd,

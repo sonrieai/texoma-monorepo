@@ -271,6 +271,7 @@ export function buildOverviewFromSnapshot(
     providers: snapshot.providers,
     soonercarePatientIds,
     paymentClassifyOptions,
+    plannedCoordinatorMarkers: snapshot.plannedCoordinatorMarkers,
   });
 
   const tcCoordinators = buildTcCoordinatorRows({
@@ -286,6 +287,7 @@ export function buildOverviewFromSnapshot(
     patients: snapshot.patients,
     soonercarePatientIds,
     paymentClassifyOptions,
+    plannedCoordinatorMarkers: snapshot.plannedCoordinatorMarkers,
     cdt,
   });
 

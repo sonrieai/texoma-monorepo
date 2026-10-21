@@ -311,6 +311,30 @@ export async function listOdProcedureLogs(
   return asRows<OdProcedureLogRow>(rows);
 }
 
+/** Treatment-planned N9210 / N9410 coordinator codes (ledger rows are Complete only). */
+export async function listOdPlannedCoordinatorMarkers(
+  window: OdDateWindow,
+  clinicNums?: number[],
+): Promise<Array<{ PatNum: number; ProcDate: string; ProcCode: string }>> {
+  const params: unknown[] = [window.startYmd, window.endYmd];
+  let clinicClause = "";
+  if (clinicNums && clinicNums.length > 0) {
+    clinicClause = ` AND pl.ClinicNum IN (${clinicNums.map(() => "?").join(",")})`;
+    params.push(...clinicNums);
+  }
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT pl.PatNum, DATE_FORMAT(pl.ProcDate, '%Y-%m-%d') AS ProcDate, pc.ProcCode
+     FROM procedurelog pl
+     INNER JOIN procedurecode pc ON pc.CodeNum = pl.CodeNum
+     WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
+       AND pl.ProcStatus = ${OdProcStatus.TP}
+       AND UPPER(TRIM(pc.ProcCode)) IN ('N9210', 'N9410')${clinicClause}
+     ORDER BY pl.ProcNum`,
+    params,
+  );
+  return asRows<{ PatNum: number; ProcDate: string; ProcCode: string }>(rows);
+}
+
 export async function listOdDefinitions(
   category?: number,
 ): Promise<OdDefinitionRow[]> {

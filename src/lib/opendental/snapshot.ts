@@ -85,6 +85,7 @@ import {
   listOdPatientsForDashboard,
   listOdPaySplits,
   listOdPaymentTypeDefinitions,
+  listOdPlannedCoordinatorMarkers,
   listOdPrimaryPatPlans,
   listOdProcCatDefinitions,
   listOdProcTps,
@@ -97,6 +98,7 @@ import {
   type OdDailyLedgerTotal,
 } from "@/lib/opendental/queries";
 import type { ReferralAttach } from "@/lib/warehouse/marketing-sources";
+import type { PlannedCoordinatorMarker } from "@/lib/tc/presented-plans";
 import {
   indexPatientsForPhiStrip,
   stripPhiFromPatientRecord,
@@ -142,6 +144,8 @@ export type OpenDentalSnapshot = {
     hidden: boolean;
   }>;
   referrals: ReferralAttach[];
+  /** Treatment-planned N9210 / N9410 codes; TC attribution fallback only. */
+  plannedCoordinatorMarkers: PlannedCoordinatorMarker[];
   /** First appointment day included in this snapshot. */
   appointmentsLoadedFromYmd: string;
   /**
@@ -240,6 +244,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     paymentTypeDefs,
     referralRows,
     dailyProductionByYmd,
+    plannedMarkerRows,
   ] = await Promise.all([
     listOdProviders(),
     listOdAppointmentTypes(),
@@ -260,6 +265,7 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
     listOdPaymentTypeDefinitions(),
     listOdReferralAttaches(),
     listOdDailyProcedureProductionCents(trend, clinicNums),
+    listOdPlannedCoordinatorMarkers(ledger, clinicNums),
   ]);
 
   const paymentTypeMaps = buildPaymentTypeDefMaps(paymentTypeDefs);
@@ -389,6 +395,11 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
       attachId: row.RefAttachNum,
       lastName: row.LName?.trim() ?? "",
       firstName: row.FName?.trim() ?? "",
+    })),
+    plannedCoordinatorMarkers: plannedMarkerRows.map((row) => ({
+      patientId: Number(row.PatNum),
+      ymd: row.ProcDate,
+      code: row.ProcCode,
     })),
     appointmentsLoadedFromYmd: apptWindow.startYmd,
     dailyProductionByYmd,

@@ -29,6 +29,13 @@ export const NAMED_TREATMENT_COORDINATORS = [
 export type TreatmentCoordinatorName =
   (typeof NAMED_TREATMENT_COORDINATORS)[number]["name"];
 
+/** A treatment-planned (not completed) N9210 / N9410 row. */
+export type PlannedCoordinatorMarker = {
+  patientId: number;
+  ymd: string;
+  code: string;
+};
+
 export type PresentedPlan = {
   patientId: number | null;
   ymd: string;
@@ -93,11 +100,13 @@ export function namedTreatmentCoordinators(
 /**
  * Completed D7777 rows in range.
  * Coordinator comes from a same-visit N9210 (Ashlie) / N9410 (Brie) procedure,
- * the same patient-day marker, or the D7777 provider name.
+ * the same patient-day marker, a treatment-planned marker that patient-day,
+ * or the D7777 provider name.
  */
 export function collectPresentedPlans(params: {
   procedures: ProcedureRecord[];
   providers?: ProviderRecord[];
+  plannedMarkers?: readonly PlannedCoordinatorMarker[];
   /** D7777 carries no fee; dollars come from the largest plan saved that patient-day. */
   plans?: TreatmentPlanRecord[];
   fromYmd: string;
@@ -135,6 +144,15 @@ export function collectPresentedPlans(params: {
     }
   }
 
+  const plannedByPatientDay = new Map<string, TreatmentCoordinatorName>();
+  for (const marker of params.plannedMarkers ?? []) {
+    const coordinator = coordinatorNameFromProcedureCode(marker.code);
+    const key = `${marker.patientId}:${marker.ymd}`;
+    if (coordinator && !plannedByPatientDay.has(key)) {
+      plannedByPatientDay.set(key, coordinator);
+    }
+  }
+
   const presented: PresentedPlan[] = [];
   for (const proc of params.procedures) {
     if (!isTreatmentPlanPresentedCode(proc.code) || !isProcedureComplete(proc.status)) {
@@ -150,6 +168,7 @@ export function collectPresentedPlans(params: {
     const coordinatorName =
       (appointmentId != null ? byAppointment.get(appointmentId) : undefined) ??
       (patientId != null ? byPatientDay.get(`${patientId}:${ymd}`) : undefined) ??
+      (patientId != null ? plannedByPatientDay.get(`${patientId}:${ymd}`) : undefined) ??
       coordinatorNameFromProviderName(providerName) ??
       null;
 

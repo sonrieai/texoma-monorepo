@@ -16,7 +16,10 @@ import {
 } from "@/lib/warehouse/tc-metrics";
 import { buildCoordinatorConversion } from "@/lib/tc/coordinator-conversion";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
-import { namedTreatmentCoordinators } from "@/lib/tc/presented-plans";
+import {
+  namedTreatmentCoordinators,
+  type PlannedCoordinatorMarker,
+} from "@/lib/tc/presented-plans";
 
 export type TcCoordinatorRow = {
   slug: string;
@@ -39,6 +42,7 @@ export function buildTcCoordinatorRows(params: {
   patients?: Array<{ patientId: number; dateFirstVisit: string | null }>;
   soonercarePatientIds?: ReadonlySet<number>;
   paymentClassifyOptions?: PaymentClassificationOptions;
+  plannedCoordinatorMarkers?: readonly PlannedCoordinatorMarker[];
   cdt?: CdtLookup;
   coordinators?: TcCoordinator[];
 }): TcCoordinatorRow[] {
@@ -56,6 +60,7 @@ export function buildTcCoordinatorRows(params: {
       plans: params.plans,
       payments: params.payments,
       patients: params.patients,
+      plannedCoordinatorMarkers: params.plannedCoordinatorMarkers,
       cdt: params.cdt,
     });
     const metrics = summarizeTcMetrics({
@@ -66,6 +71,7 @@ export function buildTcCoordinatorRows(params: {
       appointmentTypeDocs: params.appointmentTypeDocs,
       soonercarePatientIds: params.soonercarePatientIds,
       paymentClassifyOptions: params.paymentClassifyOptions,
+      plannedCoordinatorMarkers: params.plannedCoordinatorMarkers,
       plans: params.plans,
       procedures: params.procedures,
       payments: params.payments,

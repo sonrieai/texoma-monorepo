@@ -120,6 +120,26 @@ describe("collectPresentedPlans", () => {
     );
   });
 
+  it("falls back to a treatment-planned marker only when no completed one exists", () => {
+    const presented = collectPresentedPlans({
+      fromYmd: "2026-08-01",
+      toYmd: "2026-08-31",
+      procedures: [
+        { patient_id: 50, code: "D7777", status: "Complete", start_date: "2026-08-05", appointment_id: 900 },
+        { patient_id: 51, code: "D7777", status: "Complete", start_date: "2026-08-05", appointment_id: 901 },
+        { patient_id: 51, code: "N9410", status: "Complete", start_date: "2026-08-05", appointment_id: 901 },
+      ],
+      plannedMarkers: [
+        { patientId: 50, ymd: "2026-08-05", code: "N9210" },
+        { patientId: 51, ymd: "2026-08-05", code: "N9210" },
+      ],
+    });
+    assert.deepEqual(
+      presented.map((row) => row.coordinatorName),
+      ["Ashlie", "Brie"],
+    );
+  });
+
   it("keeps D7777 with no coordinator marker as unattributed", () => {
     const presented = collectPresentedPlans({
       fromYmd: "2026-08-01",

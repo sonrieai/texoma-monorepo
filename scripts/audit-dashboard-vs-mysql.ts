@@ -221,6 +221,79 @@ async function arMetrics() {
   return { total, patient, over90, col };
 }
 
+/** Doctor page: per-ProvNum production and attendance. */
+async function providerMetrics(from: string, to: string) {
+  const pl = clinic("pl");
+  const ap = clinic("a");
+  const gross = await queryOpenDental<RowDataPacket>(
+    `SELECT pl.ProvNum AS prov, ROUND(SUM(pl.ProcFee) * 100) AS v FROM procedurelog pl
+     WHERE pl.ProcStatus = 2 AND pl.ProcDate BETWEEN ? AND ?${pl.sql}
+     GROUP BY pl.ProvNum`,
+    [from, to, ...pl.params],
+  );
+  const nearestCode = `(
+    SELECT c.ProcCode FROM procedurelog p JOIN procedurecode c ON c.CodeNum = p.CodeNum
+    WHERE c.ProcCode IN ('D9986', 'D9987') AND p.ProcStatus = 2 AND p.PatNum = a.PatNum
+      AND p.ProcDate BETWEEN DATE(a.AptDateTime) - INTERVAL 30 DAY AND DATE(a.AptDateTime) + INTERVAL 7 DAY
+    ORDER BY ABS(DATEDIFF(DATE(a.AptDateTime), p.ProcDate)),
+      p.ProcDate > DATE(a.AptDateTime), c.ProcCode
+    LIMIT 1)`;
+  const attendance = await queryOpenDental<RowDataPacket>(
+    `SELECT a.ProvNum AS prov, a.AptStatus AS status,
+       IF(a.AptStatus IN (3, 5), ${nearestCode}, NULL) AS code, COUNT(*) AS n
+     FROM appointment a
+     WHERE a.AptStatus IN (2, 3, 5) AND a.AptDateTime >= ? AND a.AptDateTime < DATE_ADD(?, INTERVAL 1 DAY)${ap.sql}
+     GROUP BY prov, status, code`,
+    [`${from} 00:00:00`, to, ...ap.params],
+  );
+  const out = new Map<number, { gross: number; show: number; noShow: number; cancelled: number }>();
+  const get = (prov: number) => {
+    let row = out.get(prov);
+    if (!row) {
+      row = { gross: 0, show: 0, noShow: 0, cancelled: 0 };
+      out.set(prov, row);
+    }
+    return row;
+  };
+  for (const r of gross) get(Number(r.prov)).gross = Number(r.v) || 0;
+  for (const r of attendance) {
+    const row = get(Number(r.prov));
+    const n = Number(r.n) || 0;
+    if (Number(r.status) === 2) row.show += n;
+    else if (r.code === "D9987") row.cancelled += n;
+    else if (r.code === "D9986" || Number(r.status) === 5) row.noShow += n;
+  }
+  return out;
+}
+
+/**
+ * TC page: completed D7777 attributed to N9210 (Ashlie) / N9410 (Brie) —
+ * completed code on the visit, then completed code that patient-day,
+ * then treatment-planned code that patient-day.
+ */
+async function coordinatorPresented(from: string, to: string) {
+  const pl = clinic("pl");
+  const marker = (where: string, status: number) => `(
+    SELECT c2.ProcCode FROM procedurelog p2 JOIN procedurecode c2 ON c2.CodeNum = p2.CodeNum
+    WHERE ${where} AND p2.ProcStatus = ${status} AND UPPER(TRIM(c2.ProcCode)) IN ('N9210', 'N9410')
+    ORDER BY p2.ProcNum LIMIT 1)`;
+  const sameDay = "p2.PatNum = pl.PatNum AND p2.ProcDate = pl.ProcDate";
+  const rows = await queryOpenDental<RowDataPacket>(
+    `SELECT UPPER(TRIM(COALESCE(
+        IF(pl.AptNum > 0, ${marker("p2.AptNum = pl.AptNum", 2)}, NULL),
+        ${marker(sameDay, 2)},
+        ${marker(sameDay, 1)}
+      ))) AS coord, COUNT(*) AS n
+     FROM procedurelog pl JOIN procedurecode pc ON pc.CodeNum = pl.CodeNum
+     WHERE pl.ProcStatus = 2 AND UPPER(TRIM(pc.ProcCode)) = 'D7777'
+       AND pl.ProcDate BETWEEN ? AND ?${pl.sql}
+     GROUP BY coord`,
+    [from, to, ...pl.params],
+  );
+  const byCode = new Map(rows.map((r) => [String(r.coord ?? ""), Number(r.n) || 0]));
+  return { Ashlie: byCode.get("N9210") ?? 0, Brie: byCode.get("N9410") ?? 0 };
+}
+
 function fmt(value: number | null, unit: Row["unit"]): string {
   if (value == null) return "—";
   if (unit === "$") return `$${(value / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -292,6 +365,42 @@ async function main() {
     }
     console.log(
       `  (reference: AptStatus Broken ${s.apptBroken}, D9986 posted ${s.missedD9986}, D9987 posted ${s.cancelD9987})`,
+    );
+  }
+
+  const ytd = periods[1]!;
+  const ytdOv = buildOverviewFromSnapshot(snapshot, { start: ytd.from, end: ytd.to });
+  const byProv = await providerMetrics(ytd.from, ytd.to);
+  console.log("");
+  console.log(`=== Doctor pages, ${ytd.label} (provider id only) ===`);
+  for (const prov of ytdOv.providers) {
+    const s = byProv.get(prov.sourceId) ?? { gross: 0, show: 0, noShow: 0, cancelled: 0 };
+    const rows: Row[] = [
+      { metric: `Prov ${prov.sourceId} gross production`, dashboard: prov.production.grossProductionCents, mysql: s.gross, unit: "$" },
+      { metric: `Prov ${prov.sourceId} shows`, dashboard: prov.showCount, mysql: s.show, unit: "n" },
+      { metric: `Prov ${prov.sourceId} no-shows`, dashboard: prov.noShowCount, mysql: s.noShow, unit: "n" },
+      { metric: `Prov ${prov.sourceId} cancellations`, dashboard: prov.cancelledCount, mysql: s.cancelled, unit: "n" },
+    ];
+    for (const r of rows) {
+      console.log(
+        `${r.metric.padEnd(40)} dashboard ${fmt(r.dashboard, r.unit).padStart(14)}   mysql ${fmt(r.mysql, r.unit).padStart(14)}   ${verdict(r)}`,
+      );
+    }
+  }
+
+  const tc = await coordinatorPresented(ytd.from, ytd.to);
+  console.log("");
+  console.log(`=== TC pages, ${ytd.label} ===`);
+  for (const row of ytdOv.tcCoordinators) {
+    const name = row.name as keyof typeof tc;
+    const r: Row = {
+      metric: `${row.name} plans presented (D7777)`,
+      dashboard: row.metrics.tpPresentedCount,
+      mysql: tc[name] ?? null,
+      unit: "n",
+    };
+    console.log(
+      `${r.metric.padEnd(40)} dashboard ${fmt(r.dashboard, r.unit).padStart(14)}   mysql ${fmt(r.mysql, r.unit).padStart(14)}   ${verdict(r)}`,
     );
   }
 

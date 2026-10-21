@@ -244,7 +244,7 @@ Production Trend is that provider’s completed `ProcFee` by month, same three-y
 | New Patients | 2 | NP's Seen | `appointment.AptStatus` | Those visits with `AptStatus = 2`. |
 | New Patients | 3 | SC NP's | `carrier.CarrierName` | NP shows whose patient has a SoonerCare or OHCA primary carrier. When `IsNewPatient` is absent, a consult show whose type or note matches SoonerCare. |
 | New Patients | 4 | Same-Day NP Close | `paysplit.SplitAmt` | Same rate as Overview same-day starts. The TC target is ≥ 75%. |
-| Treatment | 1 | TX Plans Presented | `procedurelog` code `D7777` | Count of completed `D7777` procedures in the period, attributed or not. Coordinator is a same-visit `N9210` (Ashlie) or `N9410` (Brie), the same patient-day marker, or the `D7777` provider name; per-coordinator views count only their attributed rows. |
+| Treatment | 1 | TX Plans Presented | `procedurelog` code `D7777` | Count of completed `D7777` procedures in the period, attributed or not. Coordinator is a completed same-visit `N9210` (Ashlie) or `N9410` (Brie), then a completed same patient-day marker, then a treatment-planned same patient-day marker, then the `D7777` provider name; per-coordinator views count only their attributed rows. |
 | Treatment | 2 | TX Closed/Paid | `treatplan`, `proctp`, `procedurelog.ProcStatus` | Closed plans ÷ presented plans. Target 60–75%. A plan is closed when every planned procedure is Complete. |
 | Treatment | 3 | Conversions/Week | same closed plans | Closed plans ÷ weeks in the selected period. A week is 7 days, and the period is at least 1 week. |
 | Treatment | 4 | Implants | `treatplan` procedures | Implant plans closed in the period ÷ implant plans presented in the period. Target ≥ 60%. |

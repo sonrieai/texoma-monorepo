@@ -18,6 +18,7 @@ import {
 } from "@/lib/tc/plan-attribution";
 import {
   collectPresentedPlans,
+  type PlannedCoordinatorMarker,
   type PresentedPlan,
 } from "@/lib/tc/presented-plans";
 
@@ -56,10 +57,12 @@ export function buildCoordinatorConversion(params: {
   plans: TreatmentPlanRecord[];
   payments?: PaymentRecord[];
   patients?: Array<{ patientId: number; dateFirstVisit: string | null }>;
+  plannedCoordinatorMarkers?: readonly PlannedCoordinatorMarker[];
   cdt?: CdtLookup;
 }): ConversionSummary {
   const presented = collectPresentedPlans({
     procedures: params.procedures,
+    plannedMarkers: params.plannedCoordinatorMarkers,
     fromYmd: params.fromYmd,
     toYmd: params.toYmd,
   });

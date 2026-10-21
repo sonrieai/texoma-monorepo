@@ -179,6 +179,15 @@ leaving the server.
 
 ---
 
+## After an Open Dental upgrade (item 20)
+
+1. `npm run probe:opendental-mysql`
+2. `npm run validate:dashboard` (or `validate:opendental`)
+3. `npm run compare:production-units -- --month YYYY-MM` on a closed month if production tiles shifted
+4. Record validated OD version on the dashboard freshness notice when available
+
+---
+
 ## Security checklist
 
 - [ ] `kpi_readonly` has SELECT only

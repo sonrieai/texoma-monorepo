@@ -108,6 +108,7 @@ export type LiveOverview = {
   accountsReceivable: ArSummary;
   insurance: InsuranceMetrics;
   marketing: MarketingSummary;
+  coordinatorAttributionNotices: string[];
   lastSyncedAt: string | null;
   warehouseEmpty: boolean;
 };
@@ -134,6 +135,43 @@ export const loadLiveOverview = cache(
     if (hit) return hit.overview;
 
     const overview = buildOverviewFromSnapshot(snapshot, range);
+    try {
+      const fromYmd = range.start.slice(0, 10);
+      const toYmd = range.end.slice(0, 10);
+      const { collectPresentedPlans } = await import("@/lib/tc/presented-plans");
+      const { buildCoordinatorAttributionNotices } = await import(
+        "@/lib/tc/coordinator-attribution-flags"
+      );
+      const presented = collectPresentedPlans({
+        fromYmd,
+        toYmd,
+        procedures: snapshot.procedures,
+        plans: snapshot.plans,
+        providers: snapshot.providers,
+        plannedMarkers: snapshot.plannedCoordinatorMarkers,
+      });
+      overview.coordinatorAttributionNotices =
+        await buildCoordinatorAttributionNotices({ fromYmd, toYmd, presented });
+    } catch {
+      overview.coordinatorAttributionNotices = [];
+    }
+    try {
+      const { readOdAgingMetadata } = await import(
+        "@/lib/opendental/preferences"
+      );
+      const aging = await readOdAgingMetadata();
+      if (aging.dateLastAging) {
+        overview.notices.push(
+          `Accounts receivable aging as of ${aging.dateLastAging} (Open Dental DateLastAging).`,
+        );
+      } else {
+        overview.notices.push(
+          "Accounts receivable aging date unknown — run Open Dental aging or open Account module.",
+        );
+      }
+    } catch {
+      // SELECT-only or preference table unavailable
+    }
     if (overviewCache.size >= OVERVIEW_CACHE_LIMIT) {
       const oldest = overviewCache.keys().next().value;
       if (oldest) overviewCache.delete(oldest);

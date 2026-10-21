@@ -233,11 +233,18 @@ export function periodLabel(state: PeriodState): string {
   }
   if (state.mode === "monthly") {
     const [y, m] = state.month.split("-").map(Number);
-    return `${MONTH_ABBR[m - 1]} ${y}`;
+    const base = `${MONTH_ABBR[m - 1]} ${y}`;
+    if (m === 11 || m === 12) {
+      return `${base} · seasonally strong (holiday / benefits)`;
+    }
+    if (m === 6 || m === 7 || m === 8) {
+      return `${base} · seasonally softer (summer)`;
+    }
+    return base;
   }
   if (state.mode === "yearly") {
     const span = yearRange(state.year);
-    return formatRangeLabel(span.start, span.end);
+    return `Year to date · ${formatRangeLabel(span.start, span.end)}`;
   }
   return formatRangeLabel(state.from, state.to);
 }

@@ -40,11 +40,18 @@ function continueWithPath(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
-  if (!isAuthEnabled()) {
-    return continueWithPath(request);
-  }
-
   const pathname = request.nextUrl.pathname;
+
+  if (!isAuthEnabled()) {
+    if (isPublicPath(pathname)) return continueWithPath(request);
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "AUTH_SESSION_SECRET is not configured" },
+        { status: 503 },
+      );
+    }
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
   const token = request.cookies.get(getSessionCookieName())?.value;
   const session = await verifySessionToken(token);
 

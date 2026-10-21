@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/States";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatPct, formatUsd } from "@/lib/metrics";
 import type { AdChannel, MarketingScoreItem } from "@/lib/ghl/marketing";
+import { fetchWebsiteBookingSources } from "@/lib/integrations/website-bookings";
 import { loadLiveOverview } from "@/lib/warehouse/live";
 import { emptyMarketingSummary } from "@/lib/warehouse/marketing-sources";
 import { rangeFromSearchParams } from "@/lib/ui/period";
@@ -103,6 +104,7 @@ export default async function MarketingPage({ searchParams }: PageProps) {
   }
 
   const marketing = data.marketing ?? emptyMarketingSummary();
+  const websiteBookings = await fetchWebsiteBookingSources();
   const t = marketing.totals;
   const lookbackNote = `last ${marketing.lookbackDays}d`;
   const showRate = marketing.showRate;
@@ -367,6 +369,23 @@ export default async function MarketingPage({ searchParams }: PageProps) {
             </Card>
           </div>
         </>
+      )}
+
+      <SectionHeading title="Website bookings" />
+      {websiteBookings.ok ? (
+        <Card
+          title="smiletexoma.com"
+          subtitle={`${websiteBookings.rows.length} row(s) from configured API`}
+        >
+          <p className="m-0 text-sm text-muted">
+            Last-touch and first-touch channels are shown when the bookings API
+            is configured (`WEBSITE_BOOKINGS_URL`).
+          </p>
+        </Card>
+      ) : (
+        <p className="m-0 text-[11.5px] text-muted">
+          {websiteBookings.error ?? "Website bookings not configured."}
+        </p>
       )}
 
       {marketing.notices.length > 0 ? (

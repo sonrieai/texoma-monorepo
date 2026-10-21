@@ -90,10 +90,20 @@ flowchart TB
   OK -->|No| KEEP["Keep cursor — retry next run"]
 ```
 
+### Scope the practice should know
+
+- The sync creates **real GoHighLevel calendar appointments** on `GHL_CALENDAR_ID`
+  (`toNotify: false`; Flex owns patient reminders). One dedicated calendar with
+  its own notifications off — not staff calendars.
+- Missed **consults** move the patient's **existing** opportunity card to
+  **Leads Pipeline → No-Show/Cancellation** (`GHL_LEADS_NO_SHOW_STAGE_ID`), not
+  Consults Today (that stage is workflow-driven from `od_consult_date`).
+
 ### Timezone (America/Chicago)
 
 Open Dental appointment times are **practice wall time in `America/Chicago`**,
-not “whatever timezone the MySQL or Node host happens to use.”
+not “whatever timezone the MySQL or Node host happens to use.” This is explicit
+in code (`practice-time.ts`), not inferred from the office server's OS timezone.
 
 - `od_consult_date`, `od_missed_appt_date`, `od_next_appt_date`, and `od_last_sync`
   are **YYYY-MM-DD in America/Chicago**

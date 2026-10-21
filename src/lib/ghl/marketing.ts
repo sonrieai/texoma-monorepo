@@ -18,11 +18,10 @@ import {
   loadMedianResponseMinutes,
 } from "@/lib/ghl/response-time";
 import {
-  stageTierFromStageId,
-  TC_STAGE_TIER_BY_ID,
-  TIER_RANK,
-  type FunnelTier,
-} from "@/lib/ghl/tc-stage-tiers";
+  isExcludedFakeLeadStage,
+  stageTierFromConfiguredId,
+} from "@/lib/ghl/funnel-stage-tiers";
+import { TIER_RANK, type FunnelTier } from "@/lib/ghl/tc-stage-tiers";
 import { safeRate } from "@/lib/metrics";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
 
@@ -179,16 +178,25 @@ export function stageTierFromName(raw: string | null | undefined): FunnelTier {
   return "unmapped";
 }
 
-/** Prefer TC stage-ID map; otherwise name heuristics. */
-export function resolveOpportunityTier(params: {
-  pipelineStageId?: string | null;
-  stageName?: string | null;
-}): FunnelTier {
+/** Stage id map first; name heuristics only when id is unknown. */
+export function resolveOpportunityTier(
+  params: {
+    pipelineStageId?: string | null;
+    stageName?: string | null;
+    opportunityId?: string | null;
+  },
+  tierMap?: Readonly<Record<string, FunnelTier>>,
+): FunnelTier {
   const id = (params.pipelineStageId ?? "").trim();
-  if (id && id in TC_STAGE_TIER_BY_ID) {
-    return stageTierFromStageId(id);
+  if (isExcludedFakeLeadStage(id)) return "unmapped";
+  const fromId = stageTierFromConfiguredId(id, tierMap);
+  let tier: FunnelTier;
+  if (fromId !== "unmapped" || !id) {
+    tier = fromId;
+  } else {
+    tier = stageTierFromName(params.stageName);
   }
-  return stageTierFromName(params.stageName);
+  return tier;
 }
 
 function normalizeSourceLabel(raw: string | null | undefined): string {
@@ -314,8 +322,20 @@ export async function loadMarketingSummary(
     ]);
   }
 
+  const {
+    mergedStageTierMap,
+    readFunnelSettings,
+    persistFurthestTiers,
+    effectiveOpportunityTier,
+  } = await import("@/lib/ghl/funnel-settings-store");
+  const tierMap = await mergedStageTierMap();
+  const funnelDoc = await readFunnelSettings();
+  let furthestDirty = false;
+  let unmappedStageCount = 0;
+
   const config = await getGhlConfig();
   const notices: string[] = [];
+  notices.push("Speed-to-lead: known gap (not sourced from GoHighLevel).");
 
   try {
     const startYmd = range?.startYmd;
@@ -334,11 +354,26 @@ export async function loadMarketingSummary(
     const bySource = new Map<string, AdChannel>();
     let opportunityCount = 0;
     for (const { opp, stageName } of contexts) {
+      if (isExcludedFakeLeadStage(opp.pipelineStageId)) continue;
+      const currentTier = resolveOpportunityTier(
+        {
+          pipelineStageId: opp.pipelineStageId,
+          stageName,
+          opportunityId: opp.id,
+        },
+        tierMap,
+      );
+      if (currentTier === "unmapped") {
+        if ((opp.pipelineStageId ?? "").trim()) unmappedStageCount += 1;
+        continue;
+      }
+      const prevMax = funnelDoc.maxTierByOpportunity[opp.id];
+      const tier = effectiveOpportunityTier(funnelDoc, opp.id, currentTier);
+      if (tier !== prevMax) {
+        funnelDoc.maxTierByOpportunity[opp.id] = tier;
+        furthestDirty = true;
+      }
       opportunityCount += 1;
-      const tier = resolveOpportunityTier({
-        pipelineStageId: opp.pipelineStageId,
-        stageName,
-      });
       const source = attributionSource(opp);
       const ch = bySource.get(source) ?? emptyChannel(source);
       const dollars =
@@ -419,6 +454,13 @@ export async function loadMarketingSummary(
       newPatients: c.showed > 0 ? c.showed : c.leads,
       production: c.production,
     }));
+
+    if (unmappedStageCount > 0) {
+      notices.push(
+        `${unmappedStageCount} opportunity card(s) use unmapped GoHighLevel stage ids — map them under Settings → GoHighLevel funnel.`,
+      );
+    }
+    await persistFurthestTiers(funnelDoc, furthestDirty);
 
     return {
       available: opportunityCount > 0 || channels.length > 0,

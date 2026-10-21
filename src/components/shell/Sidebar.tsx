@@ -54,6 +54,7 @@ function navItemsFor(profile: NavProfile): NavItem[] {
 
 const SETTINGS_LINKS = [
   { href: "/settings/ghl", label: "GoHighLevel" },
+  { href: "/settings/funnel", label: "GHL funnel" },
   { href: "/settings/procedure-codes", label: "Procedure codes" },
 ] as const;
 

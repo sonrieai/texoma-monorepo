@@ -1,34 +1,36 @@
 /**
- * Thin TC pipeline helpers: find opportunity by contact, move stage.
- * WF-11/12/13 fire when a card enters No-Show / Cancelled — not from GHL appointments.
+ * Move the patient's existing opportunity to Leads → No-Show/Cancellation.
+ * Never create a second card; never move to Consults Today (workflow owns that).
  */
 
 import { ghlFetch, GhlApiError } from "@/lib/ghl/http";
+import {
+  resolveLeadsNoShowStageId,
+  resolveLeadsPipelineId,
+} from "@/lib/ghl/funnel-stage-tiers";
 import type { GhlConfig } from "@/lib/ghl/types";
-
-/** Consults Today stage (field-driven workflow fills from od_consult_date). */
-export const TC_STAGE_CONSULTS_TODAY =
-  process.env.GHL_TC_CONSULTS_TODAY_STAGE_ID?.trim() ||
-  "72627739-9c69-4c05-b823-2cf61aafa34f";
-
-/** No-Show / Cancelled — triggers miss follow-up workflows. */
-export const TC_STAGE_NO_SHOW_CANCELLED =
-  process.env.GHL_TC_NO_SHOW_CANCELLED_STAGE_ID?.trim() ||
-  "b09a8f58-4eb9-4159-a1c3-2869cc408dc0";
 
 type OppHit = { id?: string; pipelineId?: string; pipelineStageId?: string };
 
-export async function findOpportunityForContact(params: {
-  contactId: string;
+export function requireLeadsNoShowStageConfig(): {
   pipelineId: string;
+  stageId: string;
+} {
+  return {
+    pipelineId: resolveLeadsPipelineId(),
+    stageId: resolveLeadsNoShowStageId(),
+  };
+}
+
+async function searchOpportunitiesForContact(params: {
+  contactId: string;
   config: GhlConfig;
-}): Promise<OppHit | null> {
+}): Promise<OppHit[]> {
   const q = new URLSearchParams({
     location_id: params.config.locationId,
-    pipeline_id: params.pipelineId,
     contact_id: params.contactId,
     status: "all",
-    limit: "5",
+    limit: "20",
   });
   try {
     const data = await ghlFetch<{ opportunities?: OppHit[] }>(
@@ -36,29 +38,26 @@ export async function findOpportunityForContact(params: {
       {},
       params.config,
     );
-    const hit = data.opportunities?.[0];
-    if (hit?.id) return hit;
+    return data.opportunities ?? [];
   } catch {
-    // Fall through to POST body search.
-  }
-  try {
-    const data = await ghlFetch<{ opportunities?: OppHit[] }>(
-      "/opportunities/search",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          locationId: params.config.locationId,
-          pipelineId: params.pipelineId,
-          contactId: params.contactId,
-          status: "all",
-          limit: 5,
-        }),
-      },
-      params.config,
-    );
-    return data.opportunities?.[0] ?? null;
-  } catch {
-    return null;
+    try {
+      const data = await ghlFetch<{ opportunities?: OppHit[] }>(
+        "/opportunities/search",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            locationId: params.config.locationId,
+            contactId: params.contactId,
+            status: "all",
+            limit: 20,
+          }),
+        },
+        params.config,
+      );
+      return data.opportunities ?? [];
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -81,70 +80,38 @@ export async function moveOpportunityStage(params: {
   );
 }
 
-export async function createOpportunityAtStage(params: {
-  contactId: string;
-  pipelineId: string;
-  pipelineStageId: string;
-  name: string;
-  config: GhlConfig;
-}): Promise<string | null> {
-  const data = await ghlFetch<{ opportunity?: { id?: string }; id?: string }>(
-    "/opportunities/",
-    {
-      method: "POST",
-      body: JSON.stringify({
-        locationId: params.config.locationId,
-        contactId: params.contactId,
-        pipelineId: params.pipelineId,
-        pipelineStageId: params.pipelineStageId,
-        name: params.name,
-        status: "open",
-      }),
-    },
-    params.config,
-  );
-  return data.opportunity?.id ?? data.id ?? null;
-}
-
-/** Move existing TC opportunity to No-Show/Cancelled, or create one there. */
+/** Move existing card to Leads No-Show/Cancellation; do not create opportunities. */
 export async function ensureNoShowCancelledOpportunity(params: {
   contactId: string;
-  contactName: string;
   config: GhlConfig;
 }): Promise<void> {
-  const pipelineId = process.env.GHL_TC_PIPELINE_ID?.trim();
-  if (!pipelineId) return;
-
-  const existing = await findOpportunityForContact({
+  const { pipelineId, stageId } = requireLeadsNoShowStageConfig();
+  const hits = await searchOpportunitiesForContact({
     contactId: params.contactId,
-    pipelineId,
     config: params.config,
   });
-  if (existing?.id) {
-    if (existing.pipelineStageId === TC_STAGE_NO_SHOW_CANCELLED) return;
+  const existing = hits.find((h) => h.id);
+  if (!existing?.id) return;
+
+  if (
+    existing.pipelineId === pipelineId &&
+    existing.pipelineStageId === stageId
+  ) {
+    return;
+  }
+
+  try {
     await moveOpportunityStage({
       opportunityId: existing.id,
       pipelineId,
-      pipelineStageId: TC_STAGE_NO_SHOW_CANCELLED,
-      config: params.config,
-    });
-    return;
-  }
-  try {
-    await createOpportunityAtStage({
-      contactId: params.contactId,
-      pipelineId,
-      pipelineStageId: TC_STAGE_NO_SHOW_CANCELLED,
-      name: params.contactName || "OD patient",
+      pipelineStageId: stageId,
       config: params.config,
     });
   } catch (err) {
-    // GHL allows one open opportunity per contact/pipeline — already there is fine.
-    if (
-      err instanceof GhlApiError &&
-      err.status === 400 &&
-      /duplicate opportunity/i.test(err.message)
-    ) {
+    if (err instanceof GhlApiError && err.status === 400) {
+      console.error(
+        `GoHighLevel no-show stage move failed for contact ${params.contactId}: ${err.message}`,
+      );
       return;
     }
     throw err;

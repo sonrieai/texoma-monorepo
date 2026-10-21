@@ -3,8 +3,14 @@ import "server-only";
 export const SESSION_COOKIE = "texoma_session";
 export const SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60;
 
-/** Canonical production dashboard URL (Vercel alias). */
-export const PRODUCTION_APP_URL = "https://texoma.vercel.app";
+/** Password-reset links when PASSWORD_RESET_WEB_BASE_URL is unset. */
+export function productionAppUrl(): string {
+  return (
+    process.env.PASSWORD_RESET_WEB_BASE_URL?.trim().replace(/\/$/, "") ||
+    process.env.PRODUCTION_APP_URL?.trim().replace(/\/$/, "") ||
+    "http://localhost:5001"
+  );
+}
 
 export const PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL = 15;
 export const PASSWORD_RESET_RATE_WINDOW_MS = 60 * 60 * 1000;

@@ -36,7 +36,11 @@ async function main() {
       `futureAppt ${result.withFutureAppt}`,
       `nurture ${result.nurtureEligible}`,
       ...(dryRun
-        ? []
+        ? [
+            `wouldCreate ${result.wouldCreateContacts ?? 0}`,
+            `wouldMatch ${result.wouldMatchExisting ?? 0}`,
+            `unclear ${result.wouldSkipUnclear ?? 0}`,
+          ]
         : [
             `upserted ${result.upserted}`,
             `appts ${result.appointmentsWritten}`,

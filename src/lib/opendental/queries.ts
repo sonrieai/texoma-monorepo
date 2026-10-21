@@ -5,6 +5,7 @@
 
 import type { RowDataPacket } from "mysql2";
 import { queryOpenDental } from "@/lib/opendental/mysql";
+import { odProductionFeeSql } from "@/lib/opendental/production-fee";
 import { odHasColumn, odPickColumn } from "@/lib/opendental/schema-columns";
 import {
   OD_DEF_CAT_ADJ_TYPES,
@@ -146,11 +147,11 @@ export async function listOdProductionCentsByPatient(
     params.push(...clinicNums);
   }
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT pl.PatNum, SUM(ROUND(pl.ProcFee * 100, 0)) AS Cents
+    `SELECT pl.PatNum, SUM(ROUND((${odProductionFeeSql("pl")}) * 100, 0)) AS Cents
      FROM procedurelog pl
      WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
        AND pl.ProcStatus = ${OdProcStatus.Complete}
-       AND pl.ProcFee > 0${clinicClause}
+       AND (${odProductionFeeSql("pl")}) > 0${clinicClause}
      GROUP BY pl.PatNum`,
     params,
   );
@@ -239,7 +240,7 @@ export async function listOdDailyProcedureProductionCents(
   }
   const rows = await queryOpenDental<RowDataPacket>(
     `SELECT DATE_FORMAT(pl.ProcDate, '%Y-%m-%d') AS ymd,
-            ROUND(SUM(pl.ProcFee) * 100) AS cents
+            ROUND(SUM(${odProductionFeeSql("pl")}) * 100) AS cents
      FROM procedurelog pl
      WHERE pl.ProcDate >= ? AND pl.ProcDate <= ?
        AND pl.ProcStatus = ${OdProcStatus.Complete}${clinicClause}
@@ -531,7 +532,7 @@ export async function listOdClaimProcs(
      FROM claimproc cp
      LEFT JOIN insplan ip ON ip.PlanNum = cp.PlanNum
      LEFT JOIN carrier c ON c.CarrierNum = ip.CarrierNum
-     WHERE cp.Status IN (1, 4)
+     WHERE cp.Status IN (1, 4) /* capitation 5,7: run report if Medicaid managed-care */
        AND cp.DateCP >= ? AND cp.DateCP <= ?${clinicClause.replaceAll("ClinicNum", "cp.ClinicNum")}`,
     params,
   );
@@ -564,8 +565,11 @@ export async function listOdPrimaryPatPlans(): Promise<OdPatPlanJoinRow[]> {
 export async function listOdGuarantorBalances(): Promise<OdGuarantorBalanceRow[]> {
   const totalBalCol =
     (await odPickColumn("patient", "TotBal", "BalTotal")) ?? "EstBalance";
+  const insEstSelect = (await odHasColumn("patient", "InsEst"))
+    ? "InsEst"
+    : "0 AS InsEst";
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT PatNum, Bal_0_30, Bal_31_60, Bal_61_90, BalOver90, InsEst,
+    `SELECT PatNum, Bal_0_30, Bal_31_60, Bal_61_90, BalOver90, ${insEstSelect},
             ${totalBalCol} AS TotBal, EstBalance
      FROM patient
      WHERE PatNum = Guarantor`,

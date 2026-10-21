@@ -14,7 +14,7 @@ import { Topbar } from "./Topbar";
 
 type Props = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   badge?: ReactNode;
   navProfile: NavProfile;
   children: React.ReactNode;

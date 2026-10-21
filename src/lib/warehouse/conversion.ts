@@ -273,6 +273,7 @@ export function summarizeConversion(params: {
   let npConsultShow = 0;
   let npConsultNoShow = 0;
   let npConsultCancelled = 0;
+  const noShowPatientIds = new Set<number>();
 
   const consultShowDays = new Set<string>();
 
@@ -302,6 +303,9 @@ export function summarizeConversion(params: {
         }
       } else if (status === "no_show") {
         npConsultNoShow += 1;
+        if (typeof appt.patient_id === "number") {
+          noShowPatientIds.add(appt.patient_id);
+        }
       }
     }
 
@@ -323,7 +327,29 @@ export function summarizeConversion(params: {
     }
   }
 
-  const showDenom = npConsultShow + npConsultNoShow;
+  const noShowFeeOnlyMaxCents = 10_000;
+  let excludedNoShowFeeOnly = 0;
+  for (const patientId of noShowPatientIds) {
+    let totalCents = 0;
+    let hasNonConsultComplete = false;
+    for (const proc of procedures) {
+      if (procedurePatientId(proc) !== patientId) continue;
+      if (!isProcedureComplete(proc.status)) continue;
+      const cents = moneyToCents(proc.fee);
+      totalCents += cents;
+      if (!cdt.isConsultCode(proc.code) && cents > 0) hasNonConsultComplete = true;
+    }
+    if (!hasNonConsultComplete && totalCents > 0 && totalCents <= noShowFeeOnlyMaxCents) {
+      excludedNoShowFeeOnly += 1;
+    }
+  }
+  if (excludedNoShowFeeOnly > 0) {
+    notices.push(
+      `${excludedNoShowFeeOnly} no-show(s) excluded from show-rate denominator (only no-show fee ≤ $100 production).`,
+    );
+  }
+  const showDenom =
+    npConsultShow + npConsultNoShow - excludedNoShowFeeOnly;
   if (npConsultBooked > 0 && showDenom === 0) {
     notices.push(
       `${npConsultBooked} NP consult(s) booked but attendance is unknown — confirm show / no-show mapping.`,

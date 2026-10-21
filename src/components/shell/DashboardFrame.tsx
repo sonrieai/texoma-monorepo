@@ -6,6 +6,7 @@ import {
   enforceCurrentPage,
   loadNavProfile,
 } from "@/lib/auth/require-dashboard-session";
+import { DataFreshnessBadge } from "@/components/shell/DataFreshnessBadge";
 
 /** Shown while a route loads. The finished page replaces this with the real role. */
 const LOADING_NAV: NavProfile = {
@@ -17,7 +18,7 @@ const LOADING_NAV: NavProfile = {
 
 type Props = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   badge?: ReactNode;
   children: React.ReactNode;
 };
@@ -26,7 +27,18 @@ type Props = {
 export async function DashboardFrame(props: Props) {
   await enforceCurrentPage();
   const navProfile = await loadNavProfile();
-  return <AppShell {...props} navProfile={navProfile} />;
+  const subtitle = props.subtitle ? (
+    <span className="inline">
+      {props.subtitle}
+      <span className="hidden sm:inline">
+        {" · "}
+        <DataFreshnessBadge />
+      </span>
+    </span>
+  ) : (
+    <DataFreshnessBadge />
+  );
+  return <AppShell {...props} subtitle={subtitle} navProfile={navProfile} />;
 }
 
 export async function DashboardLoading(props: {

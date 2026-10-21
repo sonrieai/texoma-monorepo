@@ -308,6 +308,11 @@ export function buildOverviewFromSnapshot(
   });
 
   notices.push(...production.notices);
+  if (production.unmappedCodes.length > 0) {
+    notices.push(
+      `${production.unmappedCodes.length} procedure code(s) lack chart category mapping — see Settings → Procedure codes.`,
+    );
+  }
   notices.push(...conversion.notices);
   notices.push(...tcMetrics.notices);
   notices.push(...accountsReceivable.notices);
@@ -518,5 +523,6 @@ export function buildOverviewFromSnapshot(
     accountsReceivable,
     insurance,
     marketing,
+    coordinatorAttributionNotices: [],
   };
 }

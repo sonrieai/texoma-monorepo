@@ -485,3 +485,15 @@ async function loadOpenDentalSnapshotCached(): Promise<OpenDentalSnapshot> {
 
 /** One snapshot per server request; also TTL-cached across requests. */
 export const loadOpenDentalSnapshot = cache(loadOpenDentalSnapshotCached);
+
+export async function loadOpenDentalSnapshotMeta(): Promise<{
+  loadedAt: string;
+  cacheAgeMs: number | null;
+}> {
+  const snapshot = await loadOpenDentalSnapshot();
+  const cached = snapshotCacheBox.entry;
+  return {
+    loadedAt: snapshot.loadedAt,
+    cacheAgeMs: cached ? Date.now() - cached.loadedAtMs : null,
+  };
+}

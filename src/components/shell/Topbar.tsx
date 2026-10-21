@@ -9,7 +9,7 @@ import {
 
 type TopbarProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
   badge?: ReactNode;
   onMenuClick?: () => void;
 };

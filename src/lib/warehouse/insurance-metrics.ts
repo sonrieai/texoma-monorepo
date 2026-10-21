@@ -483,6 +483,10 @@ export function summarizeInsuranceMetrics(input: {
     notices.push(
       "Insurance AR aging uses guarantor estimates until insurance balances sync.",
     );
+  } else if (insuranceArCents > 0) {
+    notices.push(
+      "Insurance AR on this page is a proxy from guarantor InsEst split across aging buckets — not a carrier subledger.",
+    );
   }
 
   if (input.claimProcs && input.claimProcs.length > 0) {

@@ -1,3 +1,4 @@
+import { NoticeList } from "@/components/ui/Cards";
 import {
   TcCockpitMetrics,
   TcConversionFunnelSection,
@@ -73,8 +74,14 @@ export async function TcPageContent({
   );
   const declineTotal = declineReasonTotal(declineReasons);
 
+  const notices = [
+    ...data.coordinatorAttributionNotices,
+    ...marketing.notices.filter((n) => /unmapped|Speed-to-lead/i.test(n)),
+  ];
+
   return (
     <>
+      {notices.length > 0 ? <NoticeList notices={notices.slice(0, 4)} /> : null}
       <TcCockpitMetrics
         conv={conv}
         tc={tc}

@@ -1,4 +1,5 @@
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
+import { coordinatorGhlUserId } from "@/lib/tc/coordinator-ghl-ids";
 
 type GhlAssigneeOpp = {
   assignedTo?: string | null;
@@ -47,15 +48,13 @@ export function opportunityBelongsToCoordinator(
   opp: GhlAssigneeOpp,
   coordinator: TcCoordinator,
 ): boolean {
+  const wantId = coordinatorGhlUserId(coordinator.slug || coordinator.name);
+  const assigneeId = extractOpportunityAssigneeId(opp);
+  if (wantId && assigneeId) return assigneeId === wantId;
+
   const assigneeName = extractOpportunityAssigneeName(opp);
   if (!assigneeName) return false;
-
   const lower = assigneeName.toLowerCase();
   const coordLower = coordinator.name.toLowerCase();
-  if (lower === coordLower || lower.includes(coordLower) || coordLower.includes(lower)) {
-    return true;
-  }
-
-  const first = coordLower.split(/\s+/)[0];
-  return first.length > 2 && lower.includes(first);
+  return lower === coordLower;
 }

@@ -12,16 +12,9 @@ export type DashboardSession = {
   email: string;
 };
 
-const DEV_ACCESS: DashboardAccess = {
-  email: "dev@local",
-  role: "owner",
-  providerId: null,
-  homePath: "/overview",
-};
-
-/** Logged-in user. Auth-off local dev is treated as Owner. */
+/** Logged-in user. Requires AUTH_SESSION_SECRET and a valid session. */
 export async function getDashboardAccess(): Promise<DashboardAccess | null> {
-  if (!isAuthEnabled()) return DEV_ACCESS;
+  if (!isAuthEnabled()) return null;
 
   const cookieStore = await cookies();
   const token = cookieStore.get(getSessionCookieName())?.value;
@@ -49,7 +42,9 @@ export async function requireStaffSession(): Promise<DashboardSession | null> {
 export async function apiAccessError(
   pathname: string,
 ): Promise<{ status: 401 | 403; error: string } | null> {
-  if (!isAuthEnabled()) return null;
+  if (!isAuthEnabled()) {
+    return { status: 401, error: "Unauthorized" };
+  }
   const access = await getDashboardAccess();
   if (!access) return { status: 401, error: "Unauthorized" };
   const allowed = access.role

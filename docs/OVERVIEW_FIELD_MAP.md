@@ -8,7 +8,9 @@ Same order as the Overview page (`src/app/overview/page.tsx`).
 
 Tiles and charts read Open Dental on page load. Dollars on screen are cents divided by 100. A rate tile shows **—** when its denominator is 0.
 
-Completed production is a completed procedure. Open Dental has no separate charge table. `procedurelog.ProcStatus = 2` and `procedurelog.ProcFee` become the charge. The date is `ProcDate`, then `DateComplete`.
+Completed production is a completed procedure. Open Dental has no separate charge table. `procedurelog.ProcStatus = 2` and `procedurelog.ProcFee` become the charge. The date is `ProcDate`, then `DateComplete`. When `OD_PRODUCTION_USE_UNITS=1` (after closed-month verification), fee uses `ProcFee × (UnitQty + BaseUnits)`.
+
+**Patient status (item 26):** Active patients use `PatStatus = 0`. Geo and guarantor lists exclude inactive/archived statuses unless a metric explicitly includes them. Inactive flag on warehouse patients mirrors `PatStatus !== 0`.
 
 ## Production by Category
 

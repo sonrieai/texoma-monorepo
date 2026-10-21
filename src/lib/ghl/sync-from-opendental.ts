@@ -58,7 +58,10 @@ import {
   todayCentralYmd,
   toCentralYmd,
 } from "@/lib/ghl/od-ghl-sync-plan";
-import { ensureNoShowCancelledOpportunity } from "@/lib/ghl/opportunity-stage";
+import {
+  ensureNoShowCancelledOpportunity,
+  requireLeadsNoShowStageConfig,
+} from "@/lib/ghl/opportunity-stage";
 import {
   listOdAppointmentProcedureCodes,
   listOdAppointmentsForGhlSync,
@@ -93,6 +96,10 @@ export type OdGhlSyncResult = {
   skippedNoContact: number;
   failed: number;
   appointmentsWritten: number;
+  /** Dry-run only: contacts that would be created (no patnum/phone/email match). */
+  wouldCreateContacts?: number;
+  wouldMatchExisting?: number;
+  wouldSkipUnclear?: number;
   lastSuccessfulRunAt?: string | null;
 };
 
@@ -172,10 +179,19 @@ function pickPrimaryAppointment(
 
 function detectMissedSignal(
   changedAppts: readonly OdGhlAppointmentRow[],
+  codesByApt: Map<number, string[]>,
 ): ReturnType<typeof missedSignalFromAppointment> {
   let latest: ReturnType<typeof missedSignalFromAppointment> = null;
   let latestStamp = "";
   for (const appt of changedAppts) {
+    if (
+      !isConsultAppointment({
+        appointmentTypeName: appt.AppointmentTypeName,
+        procedureCodes: codesByApt.get(appt.AptNum) ?? [],
+      })
+    ) {
+      continue;
+    }
     const family = classifyConfirmName(appt.ConfirmedName)?.family ?? null;
     const confirmFamily =
       family === "no_show" ||
@@ -241,7 +257,7 @@ async function applyPatient(params: {
       }),
     })),
   );
-  const missed = detectMissedSignal(params.changedAppts);
+  const missed = detectMissedSignal(params.changedAppts, params.codesByApt);
   const nextApptAfterMiss = missed
     ? nextScheduledApptDateYmd(params.futureAppts)
     : null;
@@ -372,13 +388,8 @@ async function applyPatient(params: {
   }
 
   if (missed) {
-    const name = [baseInput?.firstName, baseInput?.lastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
     await ensureNoShowCancelledOpportunity({
       contactId,
-      contactName: name || `PatNum ${baseInput?.patNum ?? ""}`,
       config: params.config,
     });
   }
@@ -612,12 +623,39 @@ export async function runOdGhlSync(
   }
 
   if (dryRun) {
+    let wouldCreateContacts = 0;
+    let wouldMatchExisting = 0;
+    let wouldSkipUnclear = 0;
+    if (events.size > 0) {
+      const config = await getTexomaGhlConfigForSync();
+      for (const patNum of events.keys()) {
+        const row = patientsById.get(patNum) ?? null;
+        const input = row ? patientContactInput(row) : null;
+        if (!input) continue;
+        const resolved = await resolveGhlContact(
+          {
+            patNum: input.patNum,
+            phone: input.phone,
+            email: input.email,
+          },
+          config,
+        );
+        if (resolved.kind === "found") wouldMatchExisting += 1;
+        else if (resolved.kind === "unclear") wouldSkipUnclear += 1;
+        else wouldCreateContacts += 1;
+      }
+    }
     return empty({
       patients: events.size,
       withFutureAppt,
       nurtureEligible,
+      wouldCreateContacts,
+      wouldMatchExisting,
+      wouldSkipUnclear,
     });
   }
+
+  requireLeadsNoShowStageConfig();
 
   const config = events.size > 0 ? await getTexomaGhlConfigForSync() : null;
   let upserted = 0;

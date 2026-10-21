@@ -7,8 +7,8 @@ import {
 } from "@/lib/ghl/tc-stage-tiers";
 
 describe("TC stage ID → tier", () => {
-  it("maps all 12 Texoma TC stages", () => {
-    assert.equal(Object.keys(TC_STAGE_TIER_BY_ID).length, 12);
+  it("maps Texoma TC + Leads stage ids", () => {
+    assert.ok(Object.keys(TC_STAGE_TIER_BY_ID).length >= 12);
   });
 
   it("maps Consults Today to booked, not lead", () => {
@@ -29,10 +29,10 @@ describe("TC stage ID → tier", () => {
     );
   });
 
-  it("maps Sold - Scheduled to surgery", () => {
+  it("maps Sold - Scheduled to accepted", () => {
     assert.equal(
       stageTierFromStageId("e2b50906-c25c-46a1-b080-776410c9d075"),
-      "surgery",
+      "accepted",
     );
   });
 

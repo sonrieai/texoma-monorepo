@@ -14,8 +14,8 @@ export default function GhlSettingsPage() {
       <NoticeList
         notices={[
           "Marketing and TC journey pages fetch GHL opportunities live at page load — they are not copied into the JSON settings file.",
-          "Use a Private Integration token with Opportunities read + Ad Publishing read (adPublishing.readonly) for spend/ROI.",
-          "Connect Facebook and/or Google ads in GHL so Marketing can fill Total ad spend, ROI, and Cost/arch.",
+          "Use a Private Integration token with Opportunities read. Ad spend is not run through GoHighLevel — Total ad spend, ROI, and Cost/arch stay unavailable from GHL.",
+          "Marketing funnel uses pipeline and stage ids configured for Leads and Treatment Coordinator (not pipeline names).",
         ]}
       />
       <GhlSettingsPanel />

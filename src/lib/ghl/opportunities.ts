@@ -8,6 +8,10 @@ import { getGhlConfig, isGhlConfigured } from "@/lib/ghl/config";
 import { ghlFetch } from "@/lib/ghl/http";
 import type { GhlConfig } from "@/lib/ghl/types";
 import type { MarketingRange } from "@/lib/ghl/marketing";
+import {
+  resolveLeadsPipelineId,
+  TEXOMA_CALL_CENTER_PIPELINE_ID,
+} from "@/lib/ghl/funnel-stage-tiers";
 import { resolveTcPipelineId } from "@/lib/ghl/tc-stage-tiers";
 import { opportunityBelongsToCoordinator } from "@/lib/tc/ghl-attribution";
 import type { TcCoordinator } from "@/lib/tc/discover-coordinators";
@@ -34,6 +38,7 @@ type GhlPipeline = {
 
 export type GhlOpportunity = {
   id: string;
+  contactId?: string | null;
   monetaryValue?: number | null;
   pipelineId?: string;
   pipelineStageId?: string;
@@ -98,30 +103,14 @@ function oppInRange(
   return created >= startYmd && created <= endYmd;
 }
 
-function preferMarketingPipelines(pipelines: GhlPipeline[]): GhlPipeline[] {
-  const scored = pipelines.map((p) => {
-    const name = (p.name ?? "").toLowerCase();
-    let score = 0;
-    if (/call center|appointment system|marketing/.test(name)) score += 10;
-    if (/nurtur|long term/.test(name)) score += 2;
-    if ((p.stages?.length ?? 0) > 5) score += 1;
-    return { p, score };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  const picked = scored.filter((s) => s.score >= 10).map((s) => s.p);
-  return picked.length > 0 ? picked : pipelines.slice(0, 2);
-}
-
-/** Marketing pipelines by name, plus Treatment Coordinator by env/id. */
+/** Leads + Treatment Coordinator pipelines only (by id, never by name). */
 function selectPipelinesForFunnel(pipelines: GhlPipeline[]): GhlPipeline[] {
-  const byId = new Map<string, GhlPipeline>();
-  for (const p of preferMarketingPipelines(pipelines)) {
-    byId.set(p.id, p);
-  }
+  const leadsId = resolveLeadsPipelineId();
   const tcId = resolveTcPipelineId();
-  const tc = pipelines.find((p) => p.id === tcId);
-  if (tc) byId.set(tc.id, tc);
-  return [...byId.values()];
+  const wanted = new Set([leadsId, tcId]);
+  return pipelines.filter(
+    (p) => wanted.has(p.id) && p.id !== TEXOMA_CALL_CENTER_PIPELINE_ID,
+  );
 }
 
 async function listPipelines(config: GhlConfig): Promise<GhlPipeline[]> {
@@ -133,8 +122,14 @@ async function listPipelines(config: GhlConfig): Promise<GhlPipeline[]> {
   return data.pipelines ?? [];
 }
 
-function slimGhlOpportunity(raw: GhlOpportunity): GhlOpportunity {
-  const rest = { ...raw };
+function slimGhlOpportunity(
+  raw: GhlOpportunity & { contact?: { id?: string | null } },
+): GhlOpportunity {
+  const contactId =
+    (typeof raw.contactId === "string" && raw.contactId.trim()) ||
+    raw.contact?.id?.trim() ||
+    null;
+  const rest = { ...raw, contactId };
   delete (rest as { contact?: unknown }).contact;
   delete (rest as { name?: unknown }).name;
   return rest;
@@ -246,4 +241,4 @@ export async function listGhlOpportunitiesInRange(
   );
 }
 
-export { preferMarketingPipelines, listPipelines };
+export { listPipelines };

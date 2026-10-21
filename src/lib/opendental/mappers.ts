@@ -125,9 +125,15 @@ function aptStatusLabel(status: number): string {
   }
 }
 
+function noShowConfirmDefNum(): number {
+  const fromEnv = Number(process.env.OD_APT_CONFIRM_NO_SHOW_DEFNUM?.trim());
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 69;
+}
+
 export function mapOdAppointment(row: OdAppointmentRow): AppointmentRecord {
   const aptStatus = aptStatusLabel(row.AptStatus);
   const confirmed = Number(row.Confirmed) || 0;
+  const noShowConfirm = noShowConfirmDefNum();
   const start = odDateToIso(row.AptDateTime);
   const arrived = odDateToIso(row.DateTimeArrived);
   const dismissed = odDateToIso(row.DateTimeDismissed);
@@ -146,7 +152,7 @@ export function mapOdAppointment(row: OdAppointmentRow): AppointmentRecord {
     patient_confirmed: confirmed > 0,
     patient_missed:
       row.AptStatus === OdAptStatus.Broken ||
-      (row.AptStatus !== OdAptStatus.Complete && confirmed === 69),
+      (row.AptStatus !== OdAptStatus.Complete && confirmed === noShowConfirm),
     is_new_patient: Number(row.IsNewPatient) === 1,
     checked_out: Boolean(dismissed),
     checkin_at: arrived,

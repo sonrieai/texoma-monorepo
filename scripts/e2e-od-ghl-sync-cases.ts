@@ -29,15 +29,35 @@ import type { RowDataPacket } from "mysql2";
 
 loadEnvLocal();
 
-/** Point OD writes at a restore DB when OD_GHL_E2E_MYSQL_* is set. */
-function applyE2eMysqlOverride(): void {
+function assertE2eAllowed(): void {
   const host = process.env.OD_GHL_E2E_MYSQL_HOST?.trim();
   if (!host) {
-    console.warn(
-      "OD_GHL_E2E_MYSQL_HOST unset — e2e writes to OD_MYSQL_* (use a restore copy once SELECT-only is live).",
+    console.error(
+      "Refusing to run: set OD_GHL_E2E_MYSQL_HOST to a restored Open Dental copy (never live OD).",
     );
-    return;
+    process.exit(1);
   }
+  const liveHost = process.env.OD_MYSQL_HOST?.trim();
+  const liveDb = process.env.OD_MYSQL_DB?.trim();
+  const e2eDb = process.env.OD_GHL_E2E_MYSQL_DB?.trim() || liveDb;
+  if (host === liveHost && e2eDb === liveDb) {
+    console.error(
+      "Refusing to run: OD_GHL_E2E_MYSQL_* must not point at the same database as OD_MYSQL_*.",
+    );
+    process.exit(1);
+  }
+  if (process.env.GHL_E2E_ALLOW?.trim() !== "1") {
+    console.error(
+      "Refusing to run: set GHL_E2E_ALLOW=1 to acknowledge writes to the e2e OD copy and GHL sync-test rules.",
+    );
+    process.exit(1);
+  }
+}
+
+/** Point OD writes at a restore DB when OD_GHL_E2E_MYSQL_* is set. */
+function applyE2eMysqlOverride(): void {
+  assertE2eAllowed();
+  const host = process.env.OD_GHL_E2E_MYSQL_HOST!.trim();
   process.env.OD_MYSQL_HOST = host;
   if (process.env.OD_GHL_E2E_MYSQL_PORT?.trim()) {
     process.env.OD_MYSQL_PORT = process.env.OD_GHL_E2E_MYSQL_PORT.trim();

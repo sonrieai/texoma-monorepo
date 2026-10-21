@@ -20,6 +20,20 @@ describe("contactCustomFields clears", () => {
     assert.equal(byKey.get("od_next_appt_date"), null);
   });
 
+  it("always includes od_patnum on create payloads", () => {
+    const fields = contactCustomFields({
+      patNum: 4242,
+      firstName: "Test",
+      lastName: "Patient",
+      phone: null,
+      email: null,
+    });
+    assert.equal(
+      fields.find((f) => f.key === "od_patnum")?.field_value,
+      "4242",
+    );
+  });
+
   it("writes the date when one is set", () => {
     const fields = contactCustomFields({
       patNum: 1,

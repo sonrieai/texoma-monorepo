@@ -2,7 +2,7 @@ import "server-only";
 
 import { networkInterfaces } from "node:os";
 import nodemailer from "nodemailer";
-import { PRODUCTION_APP_URL } from "@/lib/auth/config";
+import { productionAppUrl } from "@/lib/auth/config";
 
 export function getSmtpConfig(): {
   host: string;
@@ -76,7 +76,7 @@ export function getPasswordResetWebBaseUrl(requestOrigin?: string): string {
   }
 
   if (process.env.VERCEL_ENV === "production") {
-    return PRODUCTION_APP_URL;
+    return productionAppUrl();
   }
 
   if (requestOrigin) {

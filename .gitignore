@@ -49,6 +49,8 @@ next-env.d.ts
 # local JSON store (login users + encrypted GHL settings)
 /data/store.json
 /data/od-ghl-sync.json
+/data/od-dashboard-snapshot.json
+/data/od-snapshot-refresh.log
 /data/*.tmp
 
 # local exports & scratch artifacts

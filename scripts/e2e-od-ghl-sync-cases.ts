@@ -444,7 +444,7 @@ async function ensureConfirmDef(itemName: string): Promise<number> {
 }
 
 async function syncNow(): Promise<void> {
-  const result = await runOdGhlSync();
+  const result = await runOdGhlSync({ mode: "all" });
   assert(
     result.failed === 0,
     `sync failed count=${result.failed} (patients=${result.patients} upserted=${result.upserted} appts=${result.appointmentsWritten})`,

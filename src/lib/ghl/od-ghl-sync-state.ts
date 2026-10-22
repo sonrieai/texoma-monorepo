@@ -30,17 +30,78 @@ export type OdGhlContactLink = {
   activeSequence?: string | null;
 };
 
+export const OD_GHL_SYNC_MODES = [
+  "consults",
+  "patients",
+  "appointments",
+  "sold",
+] as const;
+
+export type OdGhlSyncMode = (typeof OD_GHL_SYNC_MODES)[number];
+export type OdGhlSyncRunMode = OdGhlSyncMode | "all";
+
+export type OdGhlSyncCursors = {
+  consults: string | null;
+  patients: string | null;
+  appointments: string | null;
+  sold: string | null;
+};
+
 export type OdGhlSyncState = {
+  /** Legacy single cursor — kept as an alias of `cursors.consults`. */
   cursor: string | null;
+  /** Independent watermarks so the 5-minute consult job cannot skip nightly work. */
+  cursors: OdGhlSyncCursors;
   contacts: Record<string, OdGhlContactLink>;
   /** ISO timestamp of last run with failed === 0. */
   lastSuccessfulRunAt?: string | null;
 };
 
+function emptyCursors(): OdGhlSyncCursors {
+  return {
+    consults: null,
+    patients: null,
+    appointments: null,
+    sold: null,
+  };
+}
+
+export function hydrateModeCursors(
+  raw: Partial<OdGhlSyncCursors> | null | undefined,
+  legacyCursor: string | null,
+): OdGhlSyncCursors {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const pick = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() ? value.trim() : null;
+  return {
+    consults: pick(source.consults) ?? legacyCursor,
+    patients: pick(source.patients) ?? legacyCursor,
+    appointments: pick(source.appointments) ?? legacyCursor,
+    sold: pick(source.sold) ?? legacyCursor,
+  };
+}
+
+export function parseOdGhlSyncMode(
+  raw: string | null | undefined,
+): OdGhlSyncMode | "all" | null {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (!value) return null;
+  if (value === "all") return "all";
+  if ((OD_GHL_SYNC_MODES as readonly string[]).includes(value)) {
+    return value as OdGhlSyncMode;
+  }
+  return null;
+}
+
 type SyncStateDoc = OdGhlSyncState & { _id: "state" };
 
 function emptyState(): OdGhlSyncState {
-  return { cursor: null, contacts: {}, lastSuccessfulRunAt: null };
+  return {
+    cursor: null,
+    cursors: emptyCursors(),
+    contacts: {},
+    lastSuccessfulRunAt: null,
+  };
 }
 
 export function getOdGhlSyncStatePath(): string {
@@ -110,16 +171,22 @@ export function normalizeOdGhlSyncState(raw: unknown): OdGhlSyncState {
         : {}),
     };
   }
-  const cursor =
+  const legacyCursor =
     typeof parsed.cursor === "string" && parsed.cursor.trim()
       ? parsed.cursor.trim()
       : null;
+  const cursors = hydrateModeCursors(parsed.cursors, legacyCursor);
   const lastSuccessfulRunAt =
     typeof parsed.lastSuccessfulRunAt === "string" &&
     parsed.lastSuccessfulRunAt.trim()
       ? parsed.lastSuccessfulRunAt.trim()
       : null;
-  return { cursor, contacts, lastSuccessfulRunAt };
+  return {
+    cursor: cursors.consults,
+    cursors,
+    contacts,
+    lastSuccessfulRunAt,
+  };
 }
 
 function usesMongoSyncState(): boolean {

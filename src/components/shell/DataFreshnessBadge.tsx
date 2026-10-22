@@ -27,7 +27,10 @@ export async function DataFreshnessBadge() {
   if (parts.length === 0) return null;
 
   return (
-    <span className="text-xs text-muted font-normal" title="Data freshness">
+    <span
+      className="text-xs text-muted font-normal"
+      title="Dashboard KPIs are the morning Open Dental snapshot. GHL consults sync every 5 minutes."
+    >
       {parts.join(" · ")}
     </span>
   );

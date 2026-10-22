@@ -41,10 +41,13 @@ import {
   type TagEffect,
 } from "@/lib/ghl/od-disposition-tags";
 import {
+  OD_GHL_SYNC_MODES,
   readOdGhlSyncState,
   writeOdGhlSyncState,
   type OdGhlAppointmentLink,
   type OdGhlContactLink,
+  type OdGhlSyncMode,
+  type OdGhlSyncRunMode,
 } from "@/lib/ghl/od-ghl-sync-state";
 import {
   missedSignalFromAppointment,
@@ -64,8 +67,9 @@ import {
 } from "@/lib/ghl/opportunity-stage";
 import {
   listOdAppointmentProcedureCodes,
-  listOdAppointmentsForGhlSync,
+  listOdConsultAppointmentsForGhlSync,
   listOdFutureAppointmentsForPatients,
+  listOdNonConsultAppointmentsForGhlSync,
   listOdPatientsForGhlByIds,
   listOdPatientsForGhlSync,
   listOdSoldProceduresForGhlSync,
@@ -81,11 +85,17 @@ import type { GhlConfig } from "@/lib/ghl/types";
 export type OdGhlSyncOptions = {
   /** When true, count patients only — no GHL writes and no cursor advance. */
   dryRun?: boolean;
+  /**
+   * `consults` = 5-minute job. Overnight: `patients` / `appointments` / `sold`.
+   * `all` is for e2e / one-shot tests only.
+   */
+  mode?: OdGhlSyncRunMode;
 };
 
 export type OdGhlSyncResult = {
   initializedCursor: boolean;
   dryRun: boolean;
+  mode: OdGhlSyncRunMode;
   patients: number;
   withFutureAppt: number;
   nurtureEligible: number;
@@ -481,16 +491,22 @@ async function applyPatient(params: {
   };
 }
 
+function modesForRun(mode: OdGhlSyncRunMode): OdGhlSyncMode[] {
+  return mode === "all" ? [...OD_GHL_SYNC_MODES] : [mode];
+}
+
 export async function runOdGhlSync(
   options: OdGhlSyncOptions = {},
 ): Promise<OdGhlSyncResult> {
   const dryRun =
     options.dryRun === true ||
     process.env.GHL_OD_SYNC_DRY_RUN?.trim() === "1";
+  const mode: OdGhlSyncRunMode = options.mode ?? "consults";
 
   const empty = (partial: Partial<OdGhlSyncResult>): OdGhlSyncResult => ({
     initializedCursor: false,
     dryRun,
+    mode,
     patients: 0,
     withFutureAppt: 0,
     nurtureEligible: 0,
@@ -505,21 +521,40 @@ export async function runOdGhlSync(
   });
 
   const state = await readOdGhlSyncState();
-  if (!state.cursor) {
+  const runModes = modesForRun(mode);
+  const missing = runModes.filter((key) => !state.cursors[key]);
+  if (missing.length > 0) {
     if (dryRun) {
       return empty({ initializedCursor: true });
     }
-    state.cursor = await odDatabaseNow();
+    const now = await odDatabaseNow();
+    for (const key of missing) state.cursors[key] = now;
+    state.cursor = state.cursors.consults;
     await writeOdGhlSyncState(state);
     return empty({ initializedCursor: true });
   }
 
-  const since = state.cursor;
-  const [changedPatients, appointments, sold] = await Promise.all([
-    listOdPatientsForGhlSync(since),
-    listOdAppointmentsForGhlSync(since),
-    listOdSoldProceduresForGhlSync(since),
-  ]);
+  const wantPatients = mode === "patients" || mode === "all";
+  const wantConsults = mode === "consults" || mode === "all";
+  const wantOtherAppts = mode === "appointments" || mode === "all";
+  const wantSold = mode === "sold" || mode === "all";
+
+  const [changedPatients, consultAppointments, otherAppointments, sold] =
+    await Promise.all([
+      wantPatients
+        ? listOdPatientsForGhlSync(state.cursors.patients!)
+        : Promise.resolve([]),
+      wantConsults
+        ? listOdConsultAppointmentsForGhlSync(state.cursors.consults!)
+        : Promise.resolve([]),
+      wantOtherAppts
+        ? listOdNonConsultAppointmentsForGhlSync(state.cursors.appointments!)
+        : Promise.resolve([]),
+      wantSold
+        ? listOdSoldProceduresForGhlSync(state.cursors.sold!)
+        : Promise.resolve([]),
+    ]);
+  const appointments = [...consultAppointments, ...otherAppointments];
   const procedureCodes = await listOdAppointmentProcedureCodes(
     appointments.map((row) => row.AptNum),
   );
@@ -545,16 +580,22 @@ export async function runOdGhlSync(
     linesByPatient.set(patNum, list);
   };
 
-  let cursor = since;
+  let nextPatients = state.cursors.patients!;
+  let nextConsults = state.cursors.consults!;
+  let nextAppointments = state.cursors.appointments!;
+  let nextSold = state.cursors.sold!;
+
   for (const patient of changedPatients) {
     const at = odStampToCursor(patient.DateTStamp) ?? "";
-    cursor = laterCursor(cursor, at || null);
+    nextPatients = laterCursor(nextPatients, at || null);
     touch(patient.PatNum, { at, effect: "leave" });
   }
-  for (const appt of appointments) {
+
+  const ingestAppointment = (appt: OdGhlAppointmentRow, advance: "consults" | "appointments") => {
     const at = odStampToCursor(appt.DateTStamp);
-    cursor = laterCursor(cursor, at);
-    if (!at) continue;
+    if (advance === "consults") nextConsults = laterCursor(nextConsults, at);
+    else nextAppointments = laterCursor(nextAppointments, at);
+    if (!at) return;
     const list = changedApptsByPatient.get(appt.PatNum) ?? [];
     list.push(appt);
     changedApptsByPatient.set(appt.PatNum, list);
@@ -575,10 +616,13 @@ export async function runOdGhlSync(
         procedureCodes,
       }),
     });
-  }
+  };
+  for (const appt of consultAppointments) ingestAppointment(appt, "consults");
+  for (const appt of otherAppointments) ingestAppointment(appt, "appointments");
+
   for (const proc of sold) {
     const at = odStampToCursor(proc.DateTStamp);
-    cursor = laterCursor(cursor, at);
+    nextSold = laterCursor(nextSold, at);
     if (!at || proc.ProcStatus !== OdProcStatus.Complete) continue;
     if (!isSoldProcedureCode(proc.ProcCode)) continue;
     touch(proc.PatNum, { at, effect: "clear" });
@@ -718,7 +762,11 @@ export async function runOdGhlSync(
 
   let lastSuccessfulRunAt = state.lastSuccessfulRunAt ?? null;
   if (failed === 0) {
-    state.cursor = cursor;
+    if (wantPatients) state.cursors.patients = nextPatients;
+    if (wantConsults) state.cursors.consults = nextConsults;
+    if (wantOtherAppts) state.cursors.appointments = nextAppointments;
+    if (wantSold) state.cursors.sold = nextSold;
+    state.cursor = state.cursors.consults;
     lastSuccessfulRunAt = new Date().toISOString();
     state.lastSuccessfulRunAt = lastSuccessfulRunAt;
     if (config) {

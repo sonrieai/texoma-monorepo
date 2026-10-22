@@ -4,6 +4,8 @@
  */
 
 import "server-only";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { cache } from "react";
 import type { CdtCodeRow } from "@/lib/cdt/categories";
 import {
@@ -406,9 +408,15 @@ async function fetchOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
   };
 }
 
-/** Longer TTL: expensive OD reads should not re-hit MariaDB every navigation. */
-export const SNAPSHOT_FRESH_MS = 10 * 60 * 1000;
-export const SNAPSHOT_STALE_MS = 30 * 60 * 1000;
+/** Dashboard KPIs are refreshed once a day (morning job), not on a 10-minute TTL. */
+export const SNAPSHOT_FRESH_MS = 24 * 60 * 60 * 1000;
+export const SNAPSHOT_STALE_MS = SNAPSHOT_FRESH_MS;
+
+export function getOpenDentalSnapshotPath(): string {
+  const override = process.env.OD_DASHBOARD_SNAPSHOT_PATH?.trim();
+  if (override) return override;
+  return path.join(process.cwd(), "data", "od-dashboard-snapshot.json");
+}
 
 export function snapshotCacheAction(
   ageMs: number | null,
@@ -422,7 +430,11 @@ export function snapshotCacheAction(
 }
 
 type SnapshotCacheBox = {
-  entry: { snapshot: OpenDentalSnapshot; loadedAtMs: number } | null;
+  entry: {
+    snapshot: OpenDentalSnapshot;
+    loadedAtMs: number;
+    fileMtimeMs: number | null;
+  } | null;
   generation: number;
   inflight: Promise<OpenDentalSnapshot> | null;
 };
@@ -435,13 +447,49 @@ const snapshotCacheBox: SnapshotCacheBox = ((
   inflight: null,
 });
 
-/** Cached snapshot when one is still fresh or stale. Does not start a database read. */
+async function snapshotFileMtimeMs(): Promise<number | null> {
+  try {
+    const info = await stat(getOpenDentalSnapshotPath());
+    return info.mtimeMs;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+async function readSnapshotFile(): Promise<OpenDentalSnapshot | null> {
+  try {
+    const raw = await readFile(getOpenDentalSnapshotPath(), "utf8");
+    const parsed = JSON.parse(raw) as OpenDentalSnapshot;
+    if (!parsed || typeof parsed.loadedAt !== "string") return null;
+    return parsed;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
+async function writeSnapshotFile(snapshot: OpenDentalSnapshot): Promise<void> {
+  const filePath = getOpenDentalSnapshotPath();
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, `${JSON.stringify(snapshot)}\n`, "utf8");
+}
+
+function rememberSnapshot(
+  snapshot: OpenDentalSnapshot,
+  fileMtimeMs: number | null,
+): OpenDentalSnapshot {
+  snapshotCacheBox.entry = {
+    snapshot,
+    loadedAtMs: Date.now(),
+    fileMtimeMs,
+  };
+  return snapshot;
+}
+
+/** Cached snapshot already in memory. Does not start a database read. */
 export function readCachedOpenDentalSnapshot(): OpenDentalSnapshot | null {
-  const cached = snapshotCacheBox.entry;
-  if (!cached) return null;
-  const action = snapshotCacheAction(Date.now() - cached.loadedAtMs);
-  if (action === "miss") return null;
-  return cached.snapshot;
+  return snapshotCacheBox.entry?.snapshot ?? null;
 }
 
 export function invalidateOpenDentalSnapshotCache(): void {
@@ -450,40 +498,38 @@ export function invalidateOpenDentalSnapshotCache(): void {
   snapshotCacheBox.inflight = null;
 }
 
-function refreshOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
-  if (snapshotCacheBox.inflight) return snapshotCacheBox.inflight;
-  const generation = snapshotCacheBox.generation;
-  snapshotCacheBox.inflight = fetchOpenDentalSnapshot()
-    .then((snapshot) => {
-      if (generation === snapshotCacheBox.generation) {
-        snapshotCacheBox.entry = { snapshot, loadedAtMs: Date.now() };
-      }
-      return snapshot;
-    })
-    .finally(() => {
-      if (generation === snapshotCacheBox.generation) snapshotCacheBox.inflight = null;
-    });
-  return snapshotCacheBox.inflight;
+async function fetchAndPersistSnapshot(): Promise<OpenDentalSnapshot> {
+  const snapshot = await fetchOpenDentalSnapshot();
+  await writeSnapshotFile(snapshot);
+  const mtimeMs = await snapshotFileMtimeMs();
+  return rememberSnapshot(snapshot, mtimeMs);
+}
+
+/** Morning Task Scheduler job: re-read Open Dental and replace the daily file. */
+export async function persistOpenDentalSnapshot(): Promise<OpenDentalSnapshot> {
+  invalidateOpenDentalSnapshotCache();
+  return fetchAndPersistSnapshot();
 }
 
 async function loadOpenDentalSnapshotCached(): Promise<OpenDentalSnapshot> {
+  const fileMtimeMs = await snapshotFileMtimeMs();
   const cached = snapshotCacheBox.entry;
-  const ageMs = cached ? Date.now() - cached.loadedAtMs : null;
-  const action = snapshotCacheAction(ageMs);
-  if (cached && action === "fresh") return cached.snapshot;
-  if (cached && action === "stale") {
-    void refreshOpenDentalSnapshot().catch((error: unknown) => {
-      console.error(
-        "Open Dental snapshot refresh failed",
-        error instanceof Error ? error.message : error,
-      );
-    });
+  if (cached && fileMtimeMs != null && cached.fileMtimeMs === fileMtimeMs) {
     return cached.snapshot;
   }
-  return refreshOpenDentalSnapshot();
+  if (fileMtimeMs != null) {
+    const fromDisk = await readSnapshotFile();
+    if (fromDisk) return rememberSnapshot(fromDisk, fileMtimeMs);
+  }
+  if (snapshotCacheBox.inflight) return snapshotCacheBox.inflight;
+  const generation = snapshotCacheBox.generation;
+  snapshotCacheBox.inflight = fetchAndPersistSnapshot().finally(() => {
+    if (generation === snapshotCacheBox.generation) snapshotCacheBox.inflight = null;
+  });
+  return snapshotCacheBox.inflight;
 }
 
-/** One snapshot per server request; also TTL-cached across requests. */
+/** One snapshot per server request; served from the daily file after first load. */
 export const loadOpenDentalSnapshot = cache(loadOpenDentalSnapshotCached);
 
 export async function loadOpenDentalSnapshotMeta(): Promise<{

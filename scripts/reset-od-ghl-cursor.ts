@@ -14,14 +14,21 @@ loadEnvLocal();
 
 async function main() {
   const state = await readOdGhlSyncState();
-  const previous = state.cursor;
-  state.cursor = await odDatabaseNow();
+  const previous = { cursor: state.cursor, cursors: { ...state.cursors } };
+  const now = await odDatabaseNow();
+  state.cursors = {
+    consults: now,
+    patients: now,
+    appointments: now,
+    sold: now,
+  };
+  state.cursor = now;
   await writeOdGhlSyncState(state);
   console.log(
     JSON.stringify(
       {
-        previousCursor: previous,
-        newCursor: state.cursor,
+        previousCursors: previous,
+        newCursors: state.cursors,
         linkedContacts: Object.keys(state.contacts).length,
       },
       null,

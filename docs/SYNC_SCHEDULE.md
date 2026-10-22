@@ -1,7 +1,8 @@
 # Open Dental connectivity
 
-The dashboard queries Open Dental MySQL on each page load. There is no
-warehouse sync job.
+Dashboard KPIs are a **once-daily morning snapshot** (`npm run snapshot:refresh`
+at 06:00 America/Chicago). Page loads read `data/od-dashboard-snapshot.json`
+and do not re-query MariaDB. GoHighLevel sync is a separate schedule (below).
 
 The Next.js process must reach the practice database (local MySQL, office LAN,
 or VPN). Vercel/Netlify hosts cannot reach an office-only MySQL server unless
@@ -50,8 +51,8 @@ See [DATA_ACCESS.md](./DATA_ACCESS.md).
 (Texoma Dentures & Implants). Set `GHL_LOCATION_ID` to that value. Any other
 location id is rejected.
 
-`npm run sync:od-ghl` polls MySQL every run and, per changed patient, writes in
-this order:
+`npm run sync:od-ghl -- --mode=…` polls MySQL for **that mode only** and, per
+changed patient, writes in this order:
 
 1. **Contact** — resolve `od_patnum` → phone → email (create only if none); write
    Source `Open Dental`, `od_patnum`, `od_aptnum`, `od_last_sync`, consult/missed/next dates;
@@ -76,19 +77,31 @@ or `D0150.2`. The exam codes do not add `NEW PATIENT <line>` or no-show line tag
 
 ```mermaid
 flowchart TB
-  SCH["Windows task every 5 min"] --> CMD["run-od-ghl-sync.cmd"]
-  CMD --> RUN["runOdGhlSync"]
-  RUN --> CUR{"Cursor set?"}
-  CUR -->|No| INIT["Set cursor to OD NOW — no GHL writes"]
-  CUR -->|Yes| POLL["Poll OD DateTStamp greater than cursor"]
-  POLL --> LOOP["For each changed PatNum"]
+  Fast["Every 5 min consults"] --> CMD["run-od-ghl-sync.cmd consults"]
+  N3["03:00 patients"] --> P["run-od-ghl-sync.cmd patients"]
+  N4["04:00 other_appts"] --> A["run-od-ghl-sync.cmd appointments"]
+  N5["05:00 sold"] --> S["run-od-ghl-sync.cmd sold"]
+  Dash["06:00 snapshot"] --> SNAP["snapshot:refresh"]
+  CMD --> RUN["runOdGhlSync mode cursor"]
+  P --> RUN
+  A --> RUN
+  S --> RUN
+  RUN --> CUR{"Mode cursor set?"}
+  CUR -->|No| INIT["Set that cursor to OD NOW — no GHL writes"]
+  CUR -->|Yes| POLL["Poll DateTStamp greater than that cursor"]
+  POLL --> LOOP["For each changed PatNum in this mode"]
   LOOP --> C1["1 Contact upsert"]
   C1 --> C2["2 Appointment upsert toNotify false"]
   C2 --> C3["3 Active Sequence last"]
   C3 --> OK{"failed equals 0?"}
-  OK -->|Yes| ADV["Advance cursor and heartbeat od_sync_last_success"]
-  OK -->|No| KEEP["Keep cursor — retry next run"]
+  OK -->|Yes| ADV["Advance that mode cursor and heartbeat"]
+  OK -->|No| KEEP["Keep that cursor — retry next run"]
+  SNAP --> FILE["data/od-dashboard-snapshot.json"]
 ```
+
+Each GHL mode has its **own** cursor in `data/od-ghl-sync.json` (`cursors.consults`,
+`cursors.patients`, `cursors.appointments`, `cursors.sold`). The 5-minute consult
+job cannot skip overnight work.
 
 ### Scope the practice should know
 
@@ -113,14 +126,14 @@ in code (`practice-time.ts`), not inferred from the office server's OS timezone.
 
 ### Go-live filter (Arthur)
 
-Cutover watermark on Open Dental `DateTStamp` (cursor in
+Cutover watermark on Open Dental `DateTStamp` (per-mode cursors in
 `data/od-ghl-sync.json`). Polls use `DateTStamp > cursor` so the last-synced
-row is not re-processed every run. The first live run only sets the cursor —
-**no historical backfill**. Confirm the cutover time with Arthur, then dry-run
+row is not re-processed every run. The first live run of a mode only sets that
+cursor — **no historical backfill**. Confirm the cutover time with Arthur, then dry-run
 before production writes.
 
 ```bash
-npm run sync:od-ghl -- --dry-run
+npm run sync:od-ghl -- --mode=consults --dry-run
 # prints: patients / futureAppt / nurture — no GHL writes, cursor unchanged
 ```
 
@@ -173,28 +186,39 @@ Create or repair OD custom fields / the heartbeat value id with
 `GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` in `.env.local`. If duplicates already exist
 in GHL, delete extras manually — sync will not create new custom values.
 
-### Schedule (every 5 minutes)
+### Schedule (America/Chicago)
 
-Enable only after this checklist passes (daytime, someone watching SMS workflows):
+| Clock | Mode | What it polls |
+|------|------|----------------|
+| Every 5 min | `consults` | New/changed consult appointments (`N9310*`, `D0150` / `D0120` / `D0150.2`, consult types) |
+| 03:00 | `patients` | Patient `DateTStamp` (contact fields, Text OK → DND) |
+| 04:00 | `appointments` | Non-consult appointment changes (calendar, tags) |
+| 05:00 | `sold` | Sold procedures / no-show clear / stage catch-up |
+| 06:00 | dashboard | `npm run snapshot:refresh` — not GHL |
+
+Enable GHL tasks only after this checklist passes (daytime, someone watching SMS workflows):
 
 1. `GHL_OD_SYNC_LAST_SUCCESS_VALUE_ID` is set (heartbeat must not create values)
-2. `npm run sync:od-ghl -- --dry-run` looks sane (`patients` not stuck looping)
-3. One live `npm run sync:od-ghl` shows `failed 0` and updates `od_sync_last_success`
+2. `npm run sync:od-ghl -- --mode=consults --dry-run` looks sane
+3. One live `npm run sync:od-ghl -- --mode=consults` shows `failed 0` and updates `od_sync_last_success`
 4. Confirm no duplicate `od_sync_last_success` custom values in Texoma GHL
 
 ```bat
-schtasks /Create /SC MINUTE /MO 5 /TN "Texoma OD to GHL" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd" /F
-schtasks /Change /TN "Texoma OD to GHL" /ENABLE
+schtasks /Create /SC MINUTE /MO 5 /TN "Texoma OD to GHL consults" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd consults" /F
+schtasks /Create /SC DAILY /ST 03:00 /TN "Texoma OD to GHL patients" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd patients" /F
+schtasks /Create /SC DAILY /ST 04:00 /TN "Texoma OD to GHL appointments" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd appointments" /F
+schtasks /Create /SC DAILY /ST 05:00 /TN "Texoma OD to GHL sold" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-ghl-sync.cmd sold" /F
+schtasks /Create /SC DAILY /ST 06:00 /TN "Texoma OD dashboard snapshot" /TR "D:\texoma-monorepo-main\texoma-monorepo-main\scripts\run-od-snapshot-refresh.cmd" /F
 ```
 
-Disable / query:
+Disable the old combined 5-minute task if it still exists:
 
 ```bat
 schtasks /Change /TN "Texoma OD to GHL" /DISABLE
-schtasks /Query /TN "Texoma OD to GHL"
 ```
 
 `scripts/run-od-ghl-sync.cmd` cds into the app and appends to `data/od-ghl-sync.log`.
+Dashboard snapshot log: `data/od-snapshot-refresh.log`. KPI tiles are as-of the 06:00 file.
 
 ### End-to-end cases (OD mutate → sync → assert GHL)
 

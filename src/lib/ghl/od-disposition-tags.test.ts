@@ -43,6 +43,16 @@ describe("consult appointments for od_consult_date", () => {
     }
   });
 
+  it("counts any N9310* procedure as a consult", () => {
+    assert.equal(
+      isConsultAppointment({
+        appointmentTypeName: null,
+        procedureCodes: ["N9310"],
+      }),
+      true,
+    );
+  });
+
   it("still counts N9310 consult lines", () => {
     assert.equal(
       isConsultAppointment({

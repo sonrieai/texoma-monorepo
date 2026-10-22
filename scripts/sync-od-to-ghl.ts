@@ -3,14 +3,22 @@
  * (contact → appointment → Active Sequence).
  *
  * Usage:
- *   npm run sync:od-ghl
- *   npm run sync:od-ghl -- --dry-run
+ *   npm run sync:od-ghl -- --mode=consults
+ *   npm run sync:od-ghl -- --mode=patients --dry-run
+ *
+ * Modes:
+ *   consults      every 5 minutes (consult appointments only)
+ *   patients      03:00 America/Chicago
+ *   appointments  04:00 America/Chicago (non-consult)
+ *   sold          05:00 America/Chicago
+ *   all           e2e / one-shot only
  *
  * Locked to GHL_LOCATION_ID=m7Fk4S7LR8eTebuM3QPh (Texoma).
- * The first run only stores a cursor and does not backfill old patients.
+ * The first run of a mode only stores that cursor and does not backfill.
  */
 import { loadEnvLocal } from "../src/lib/env/load-env-local";
 import { runOdGhlSync } from "../src/lib/ghl/sync-from-opendental";
+import { parseOdGhlSyncMode } from "../src/lib/ghl/od-ghl-sync-state";
 import { closeOpenDentalMysql } from "../src/lib/opendental/mysql";
 
 loadEnvLocal();
@@ -19,19 +27,41 @@ const dryRun =
   process.argv.includes("--dry-run") ||
   process.env.GHL_OD_SYNC_DRY_RUN?.trim() === "1";
 
+function argValue(flag: string): string | null {
+  const prefix = `${flag}=`;
+  const eq = process.argv.find((arg) => arg.startsWith(prefix));
+  if (eq) return eq.slice(prefix.length);
+  const index = process.argv.indexOf(flag);
+  if (index >= 0) {
+    const next = process.argv[index + 1];
+    if (next && !next.startsWith("-")) return next;
+  }
+  return null;
+}
+
+const parsedMode = parseOdGhlSyncMode(argValue("--mode") ?? "consults");
+if (!parsedMode) {
+  console.error(
+    "Unknown --mode. Use consults, patients, appointments, sold, or all.",
+  );
+  process.exit(1);
+}
+
 async function main() {
-  const result = await runOdGhlSync({ dryRun });
+  const result = await runOdGhlSync({ dryRun, mode: parsedMode });
   if (result.initializedCursor) {
     console.log(
       dryRun
-        ? "Open Dental → GoHighLevel (dry-run): no cursor yet; a live run would set it without backfill."
-        : "Open Dental → GoHighLevel cursor set. The next run syncs changes after this time.",
+        ? `Open Dental → GoHighLevel (dry-run, ${result.mode}): no cursor yet; a live run would set it without backfill.`
+        : `Open Dental → GoHighLevel ${result.mode} cursor set. The next run syncs changes after this time.`,
     );
     return;
   }
   console.log(
     [
-      dryRun ? "Open Dental → GoHighLevel DRY-RUN" : "Open Dental → GoHighLevel",
+      dryRun
+        ? `Open Dental → GoHighLevel DRY-RUN ${result.mode}`
+        : `Open Dental → GoHighLevel ${result.mode}`,
       `patients ${result.patients}`,
       `futureAppt ${result.withFutureAppt}`,
       `nurture ${result.nurtureEligible}`,

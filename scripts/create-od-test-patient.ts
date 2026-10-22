@@ -101,7 +101,7 @@ async function main() {
   );
 
   if (runSync) {
-    const result = await runOdGhlSync();
+    const result = await runOdGhlSync({ mode: "all" });
     console.log(
       [
         "sync",

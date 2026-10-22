@@ -1,7 +1,7 @@
 # Data access matrix (Texoma / Open Dental + GHL)
 
 For Beshoy field-mapping discovery. EHR reads use a SELECT-only Open Dental
-MySQL connection on dashboard page load.
+MySQL connection via a once-daily morning snapshot (page loads read the file).
 
 **Connection overview:** [LOCAL_OPENDENTAL.md](./LOCAL_OPENDENTAL.md).
 
@@ -11,7 +11,7 @@ MySQL connection on dashboard page load.
 
 ```text
 Open Dental MySQL (backup or office LAN/VPN)
-        │  SELECT-only on page load
+        │  SELECT-only 06:00 snapshot
         ▼
 src/lib/opendental → aggregators
         │
@@ -181,5 +181,5 @@ KPI formula blockers are listed under **Questions for Dr** above. Remaining engi
 ## Integration stance
 
 - **Write (EHR):** still via Open Dental when needed (booking, attribution).
-- **Read (dashboard):** live Open Dental MySQL on page load.
+- **Read (dashboard):** daily `data/od-dashboard-snapshot.json` from `npm run snapshot:refresh`.
 - **UI:** empty connection shows a configuration error — set `OD_MYSQL_*`.

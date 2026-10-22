@@ -4,7 +4,10 @@
  */
 
 import type { RowDataPacket } from "mysql2";
-import { SOLD_PROCEDURES } from "@/lib/ghl/od-disposition-tags";
+import {
+  CONSULT_EXAM_PROCEDURE_CODES,
+  SOLD_PROCEDURES,
+} from "@/lib/ghl/od-disposition-tags";
 import { queryOpenDental } from "@/lib/opendental/mysql";
 import { odHasColumn } from "@/lib/opendental/schema-columns";
 import {
@@ -174,6 +177,50 @@ export async function listOdPatientsForGhlByIds(
   return out;
 }
 
+/**
+ * SQL predicate for consult appointments (N9310* / D0150 / D0120 / D0150.2
+ * or a consult appointment-type name). `alias` is the appointment table alias.
+ */
+export function odConsultAppointmentSqlPredicate(alias = "a"): string {
+  const examList = CONSULT_EXAM_PROCEDURE_CODES.map(
+    (code) => `'${code}'`,
+  ).join(", ");
+  return `(
+      UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%N9310%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%ALL ON X%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%SNAP IN DENTURE%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%OVER 10K%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%UNDER 10K%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%DENTURES CONSULT%'
+      OR UPPER(IFNULL(${alias}_type.AppointmentTypeName, '')) LIKE '%DENT CONSULT%'
+      OR EXISTS (
+        SELECT 1
+        FROM procedurelog ${alias}_pl
+        INNER JOIN procedurecode ${alias}_pc ON ${alias}_pc.CodeNum = ${alias}_pl.CodeNum
+        WHERE ${alias}_pl.AptNum = ${alias}.AptNum
+          AND ${alias}_pl.ProcStatus <> ${OdProcStatus.Deleted}
+          AND (
+            UPPER(TRIM(${alias}_pc.ProcCode)) LIKE 'N9310%'
+            OR UPPER(TRIM(${alias}_pc.ProcCode)) IN (${examList})
+          )
+      )
+    )`;
+}
+
+function appointmentSelectSql(patternSelect: string): string {
+  return `SELECT a.AptNum, a.PatNum, a.AptStatus,
+            DATE_FORMAT(a.AptDateTime, '%Y-%m-%d %H:%i:%s') AS AptDateTime,
+            ${patternSelect}
+            DATE_FORMAT(a.DateTStamp, '%Y-%m-%d %H:%i:%s') AS DateTStamp,
+            a_type.AppointmentTypeName AS AppointmentTypeName,
+            def.ItemName AS ConfirmedName
+     FROM appointment a
+     LEFT JOIN appointmenttype a_type
+       ON a_type.AppointmentTypeNum = a.AppointmentTypeNum
+     LEFT JOIN definition def
+       ON def.DefNum = a.Confirmed AND def.Category = ?`;
+}
+
 function normalizeAppointmentRow(row: OdGhlAppointmentRow): OdGhlAppointmentRow {
   return {
     AptNum: Number(row.AptNum),
@@ -190,21 +237,37 @@ function normalizeAppointmentRow(row: OdGhlAppointmentRow): OdGhlAppointmentRow 
 export async function listOdAppointmentsForGhlSync(
   updatedSince: string,
 ): Promise<OdGhlAppointmentRow[]> {
+  return listOdAppointmentsForGhlSyncFiltered(updatedSince, "all");
+}
+
+export async function listOdConsultAppointmentsForGhlSync(
+  updatedSince: string,
+): Promise<OdGhlAppointmentRow[]> {
+  return listOdAppointmentsForGhlSyncFiltered(updatedSince, "consults");
+}
+
+export async function listOdNonConsultAppointmentsForGhlSync(
+  updatedSince: string,
+): Promise<OdGhlAppointmentRow[]> {
+  return listOdAppointmentsForGhlSyncFiltered(updatedSince, "non-consults");
+}
+
+async function listOdAppointmentsForGhlSyncFiltered(
+  updatedSince: string,
+  kind: "all" | "consults" | "non-consults",
+): Promise<OdGhlAppointmentRow[]> {
   const hasPattern = await odHasColumn("appointment", "Pattern");
   const patternSelect = hasPattern ? "a.Pattern," : "NULL AS Pattern,";
+  const consultPred = odConsultAppointmentSqlPredicate("a");
+  const extra =
+    kind === "consults"
+      ? ` AND ${consultPred}`
+      : kind === "non-consults"
+        ? ` AND NOT ${consultPred}`
+        : "";
   const rows = await queryOpenDental<RowDataPacket>(
-    `SELECT a.AptNum, a.PatNum, a.AptStatus,
-            DATE_FORMAT(a.AptDateTime, '%Y-%m-%d %H:%i:%s') AS AptDateTime,
-            ${patternSelect}
-            DATE_FORMAT(a.DateTStamp, '%Y-%m-%d %H:%i:%s') AS DateTStamp,
-            atype.AppointmentTypeName AS AppointmentTypeName,
-            def.ItemName AS ConfirmedName
-     FROM appointment a
-     LEFT JOIN appointmenttype atype
-       ON atype.AppointmentTypeNum = a.AppointmentTypeNum
-     LEFT JOIN definition def
-       ON def.DefNum = a.Confirmed AND def.Category = ?
-     WHERE a.DateTStamp > ?
+    `${appointmentSelectSql(patternSelect)}
+     WHERE a.DateTStamp > ?${extra}
      ORDER BY a.DateTStamp, a.AptNum`,
     [OD_DEF_CAT_APPT_CONFIRMED, toOdCursor(updatedSince)],
   );

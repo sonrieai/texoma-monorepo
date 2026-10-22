@@ -210,15 +210,21 @@ export function consultLineForAppointment(input: {
   );
 }
 
+/** N9310* consult lines or the three exam codes that count as a consult. */
+export function isConsultProcedureCode(code: string | null | undefined): boolean {
+  const c = (code ?? "").trim().toUpperCase();
+  if (!c) return false;
+  if (CONSULT_EXAM_CODE_SET.has(c)) return true;
+  return c.startsWith("N9310");
+}
+
 /** Consult for `od_consult_date`: an N9310 consult line or a consult exam code. */
 export function isConsultAppointment(input: {
   appointmentTypeName: string | null;
   procedureCodes: readonly string[];
 }): boolean {
-  if (consultLineForAppointment(input)) return true;
-  return input.procedureCodes.some((code) =>
-    CONSULT_EXAM_CODE_SET.has(code.trim().toUpperCase()),
-  );
+  if (consultLineFromText(input.appointmentTypeName)) return true;
+  return input.procedureCodes.some((code) => isConsultProcedureCode(code));
 }
 
 /** Tags for the first send: the base tag, plus one tag per consult line. */
